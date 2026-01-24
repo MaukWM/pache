@@ -1,16 +1,16 @@
 # 🔥 CODE REVIEW FINDINGS - Story 5.2: View Items Due for Review
 
-**Story:** `5-2-view-items-due-for-review.md`  
-**Focus:** Reviews Service (`src/reviews/service.py`)  
-**Review Date:** 2026-01-24  
+**Story:** `5-2-view-items-due-for-review.md`
+**Focus:** Reviews Service (`src/reviews/service.py`)
+**Review Date:** 2026-01-24
 **Reviewer:** Adversarial Senior Developer
 
 ---
 
 ## Executive Summary
 
-**Issues Found:** 8 High, 3 Medium, 2 Low  
-**Critical Problems:** Production database optimization sacrificed for test database compatibility  
+**Issues Found:** 8 High, 3 Medium, 2 Low
+**Critical Problems:** Production database optimization sacrificed for test database compatibility
 **Status:** ⚠️ **REQUIRES IMMEDIATE ATTENTION**
 
 ---
@@ -19,8 +19,8 @@
 
 ### [CRITICAL] Issue 1: Backwards Optimization - Optimizing for Test DB Instead of Production
 
-**Location:** `src/reviews/service.py:51-80`  
-**Severity:** CRITICAL  
+**Location:** `src/reviews/service.py:51-80`
+**Severity:** CRITICAL
 **Impact:** Performance degradation in production, unnecessary memory usage
 
 **Problem:**
@@ -73,8 +73,8 @@ query = (
 
 ### [CRITICAL] Issue 2: No Pagination - Memory Bomb Waiting to Happen
 
-**Location:** `src/reviews/service.py:26-173`  
-**Severity:** CRITICAL  
+**Location:** `src/reviews/service.py:26-173`
+**Severity:** CRITICAL
 **Impact:** Service will crash or timeout with large datasets
 
 **Problem:**
@@ -104,7 +104,7 @@ vocab_query = select(Vocab).where(Vocab.id.in_(vocab_ids))   # Could be 10,000 I
 Add pagination parameters:
 ```python
 async def get_due_reviews(
-    self, 
+    self,
     user_id: int,
     limit: int = 100,
     offset: int = 0
@@ -124,8 +124,8 @@ Or return a cursor-based pagination token for better performance.
 
 ### [CRITICAL] Issue 3: Redundant Null Check After Database Filter
 
-**Location:** `src/reviews/service.py:71-73`  
-**Severity:** CRITICAL  
+**Location:** `src/reviews/service.py:71-73`
+**Severity:** CRITICAL
 **Impact:** Unnecessary code execution, code smell
 
 **Problem:**
@@ -151,8 +151,8 @@ Remove the redundant check on line 72-73.
 
 ### [CRITICAL] Issue 4: Inefficient List Comprehension Pattern
 
-**Location:** `src/reviews/service.py:86-87`  
-**Severity:** CRITICAL  
+**Location:** `src/reviews/service.py:86-87`
+**Severity:** CRITICAL
 **Impact:** Multiple iterations over same data
 
 **Problem:**
@@ -184,8 +184,8 @@ for p in due_items:
 
 ### [CRITICAL] Issue 5: Missing Input Validation
 
-**Location:** `src/reviews/service.py:26`  
-**Severity:** CRITICAL  
+**Location:** `src/reviews/service.py:26`
+**Severity:** CRITICAL
 **Impact:** Potential security/integrity issues
 
 **Problem:**
@@ -219,8 +219,8 @@ if user_id <= 0:
 
 ### [CRITICAL] Issue 6: Race Condition - Items Deleted Between Query and Bulk Load
 
-**Location:** `src/reviews/service.py:64-109`  
-**Severity:** CRITICAL  
+**Location:** `src/reviews/service.py:64-109`
+**Severity:** CRITICAL
 **Impact:** Missing items or orphaned progress entries
 
 **Problem:**
@@ -247,8 +247,8 @@ This is actually handled correctly (lines 126-135 skip orphaned entries), but th
 
 ### [CRITICAL] Issue 7: Timezone Handling Comment is Misleading
 
-**Location:** `src/reviews/service.py:69, 75-77`  
-**Severity:** CRITICAL  
+**Location:** `src/reviews/service.py:69, 75-77`
+**Severity:** CRITICAL
 **Impact:** Confusion, potential bugs
 
 **Problem:**
@@ -285,8 +285,8 @@ Update comment to clarify this is for test compatibility only:
 
 ### [CRITICAL] Issue 8: Missing Database Connection Error Handling
 
-**Location:** `src/reviews/service.py:64, 93, 108`  
-**Severity:** CRITICAL  
+**Location:** `src/reviews/service.py:64, 93, 108`
+**Severity:** CRITICAL
 **Impact:** Unclear error messages, potential data inconsistency
 
 **Problem:**
@@ -303,7 +303,7 @@ result = await self.db.execute(query)
 # Line 93: Could fail independently
 kanji_result = await self.db.execute(kanji_query)
 
-# Line 108: Could fail independently  
+# Line 108: Could fail independently
 vocab_result = await self.db.execute(vocab_query)
 ```
 
@@ -329,8 +329,8 @@ except SQLAlchemyError as e:
 
 ### [MEDIUM] Issue 9: Code Duplication - Orphaned Entry Logging
 
-**Location:** `src/reviews/service.py:126-135, 144-153`  
-**Severity:** MEDIUM  
+**Location:** `src/reviews/service.py:126-135, 144-153`
+**Severity:** MEDIUM
 **Impact:** Maintenance burden, inconsistency risk
 
 **Problem:**
@@ -351,8 +351,8 @@ if not vocab:
 Extract to helper method:
 ```python
 def _handle_orphaned_entry(
-    self, 
-    user_id: int, 
+    self,
+    user_id: int,
     progress: UserItemProgress
 ) -> None:
     """Log orphaned progress entry and skip."""
@@ -368,8 +368,8 @@ def _handle_orphaned_entry(
 
 ### [MEDIUM] Issue 10: Missing Test for Edge Case - Exactly at Hour Boundary
 
-**Location:** `tests/reviews/test_service.py`  
-**Severity:** MEDIUM  
+**Location:** `tests/reviews/test_service.py`
+**Severity:** MEDIUM
 **Impact:** Unverified behavior at boundary conditions
 
 **Problem:**
@@ -397,8 +397,8 @@ async def test_get_due_reviews_exactly_at_hour_boundary(db_session: AsyncSession
 
 ### [MEDIUM] Issue 11: Inefficient Dictionary Lookup Pattern
 
-**Location:** `src/reviews/service.py:125, 143`  
-**Severity:** MEDIUM  
+**Location:** `src/reviews/service.py:125, 143`
+**Severity:** MEDIUM
 **Impact:** Minor performance issue
 
 **Problem:**
@@ -429,8 +429,8 @@ kanji = kanji_map[progress.item_id]
 
 ### [LOW] Issue 12: Magic Number - Hardcoded SRS Stage 9
 
-**Location:** `src/reviews/service.py:57`  
-**Severity:** LOW  
+**Location:** `src/reviews/service.py:57`
+**Severity:** LOW
 **Impact:** Code maintainability
 
 **Problem:**
@@ -452,8 +452,8 @@ UserItemProgress.srs_stage < BURNED_SRS_STAGE,
 
 ### [LOW] Issue 13: Type Hint Could Be More Specific
 
-**Location:** `src/reviews/service.py:122`  
-**Severity:** LOW  
+**Location:** `src/reviews/service.py:122`
+**Severity:** LOW
 **Impact:** Type safety
 
 **Problem:**

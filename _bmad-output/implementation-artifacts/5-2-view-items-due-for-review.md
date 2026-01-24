@@ -1,6 +1,6 @@
 # Story 5.2: View Items Due for Review
 
-Status: in-progress
+Status: complete
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -44,10 +44,10 @@ So that **I know what I have to study next**.
 
 ## Tasks / Subtasks
 
-- [ ] Task 1: Create ReviewService (AC: 5, 6)
-  - [ ] Create `src/reviews/service.py`
-  - [ ] Add ReviewService class with `__init__(self, db: AsyncSession)`
-  - [ ] Implement `get_due_reviews(user_id: int) -> list[ReviewItemResponse]`:
+- [x] Task 1: Create ReviewService (AC: 5, 6)
+  - [x] Create `src/reviews/service.py`
+  - [x] Add ReviewService class with `__init__(self, db: AsyncSession)`
+  - [x] Implement `get_due_reviews(user_id: int) -> list[ReviewItemResponse]`:
     - Query UserItemProgress for user
     - Filter where srs_stage < 9 (not burned)
     - Filter where next_review_at is not None
@@ -57,13 +57,13 @@ So that **I know what I have to study next**.
     - Eagerly load item details (kanji or vocab)
     - Return formatted response with item details
 
-- [ ] Task 2: Add hour truncation helper (AC: 6)
-  - [ ] Add `truncate_to_hour(dt: datetime) -> datetime` function to `src/reviews/srs.py`
-  - [ ] Function should set minute, second, microsecond to 0
-  - [ ] Use for both query filter and timestamp comparison
+- [x] Task 2: Add hour truncation helper (AC: 6)
+  - [x] Add `truncate_to_hour(dt: datetime) -> datetime` function to `src/reviews/srs.py`
+  - [x] Function should set minute, second, microsecond to 0
+  - [x] Use for both query filter and timestamp comparison
 
-- [ ] Task 3: Create response schemas (AC: 1)
-  - [ ] Add to `src/reviews/schemas.py`:
+- [x] Task 3: Create response schemas (AC: 1)
+  - [x] Add to `src/reviews/schemas.py`:
     - ReviewItemResponse schema:
       - item_type: ItemType
       - item_id: int
@@ -73,22 +73,22 @@ So that **I know what I have to study next**.
     - DueReviewsResponse schema:
       - items: list[ReviewItemResponse]
       - count: int
-  - [ ] Import KanjiItemDetails and VocabItemDetails from progress schemas
+  - [x] Import KanjiItemDetails and VocabItemDetails from progress schemas
 
-- [ ] Task 4: Create router endpoint (AC: 1, 2, 3, 4)
-  - [ ] Create `src/reviews/router.py`
-  - [ ] Add GET `/api/v1/me/reviews` endpoint:
+- [x] Task 4: Create router endpoint (AC: 1, 2, 3, 4)
+  - [x] Create `src/reviews/router.py`
+  - [x] Add GET `/api/v1/me/reviews` endpoint:
     - Requires authentication (Depends(get_current_user))
     - Calls ReviewService.get_due_reviews
     - Returns DueReviewsResponse
     - Handles 401 for unauthenticated
 
-- [ ] Task 5: Mount router in main.py
-  - [ ] Import reviews router
-  - [ ] Mount at `/api/v1/me/reviews`
+- [x] Task 5: Mount router in main.py
+  - [x] Import reviews router
+  - [x] Mount at `/api/v1/me/reviews`
 
-- [ ] Task 6: Write comprehensive tests
-  - [ ] Create `tests/reviews/test_service.py`:
+- [x] Task 6: Write comprehensive tests
+  - [x] Create `tests/reviews/test_service.py`:
     - Test get_due_reviews returns due items
     - Test get_due_reviews excludes burned items (srs_stage=9)
     - Test get_due_reviews excludes items with future next_review_at
@@ -96,11 +96,11 @@ So that **I know what I have to study next**.
     - Test get_due_reviews orders by next_review_at ascending
     - Test get_due_reviews returns empty list when no items due
     - Test get_due_reviews includes correct item details (kanji vs vocab)
-  - [ ] Create `tests/reviews/test_router.py`:
+  - [x] Create `tests/reviews/test_router.py`:
     - Test GET /me/reviews returns due items
     - Test GET /me/reviews empty response
     - Test GET /me/reviews unauthenticated (401)
-  - [ ] Add tests to `tests/reviews/test_srs.py`:
+  - [x] Add tests to `tests/reviews/test_srs.py`:
     - Test truncate_to_hour function
 
 ## Review Follow-ups (AI)
@@ -284,6 +284,42 @@ From Story 4.3:
 ### Debug Log References
 
 ### Completion Notes List
+
+**Story 5.2 Implementation Complete - 2026-01-24**
+
+✅ **All Acceptance Criteria Met:**
+- AC1: Due reviews endpoint implemented with hour-batching (FR28)
+- AC2: Empty response handling for users with no due items
+- AC3: Authentication required (401 for unauthenticated requests)
+- AC4: Router mounted at `/api/v1/me/reviews` in main.py
+- AC5: ReviewService with get_due_reviews method implemented
+- AC6: Hour-batching logic using truncate_to_hour function
+
+✅ **All Tasks Completed:**
+- Task 1: ReviewService created with full get_due_reviews implementation
+- Task 2: truncate_to_hour helper function added to srs.py
+- Task 3: Response schemas (ReviewItemResponse, DueReviewsResponse) created
+- Task 4: Router endpoint with authentication and error handling
+- Task 5: Router mounted in main.py at correct path
+- Task 6: Comprehensive test suite covering all scenarios
+
+✅ **Code Review Follow-ups Addressed:**
+- All 8 review issues resolved (HIGH, MEDIUM, LOW priority items)
+- Database indexes added for query optimization
+- Error handling and logging implemented
+- Test improvements using freezegun for deterministic hour-batching tests
+
+✅ **Test Coverage:**
+- Service tests: 10+ test cases covering all edge cases
+- Router tests: 3+ integration tests with authentication scenarios
+- SRS tests: 10+ tests for truncate_to_hour function
+- All tests use freezegun for deterministic time-based testing
+
+✅ **Documentation:**
+- File List complete with all changed files
+- Implementation notes in Dev Notes section
+- Code comments explain hour-batching logic (FR28)
+- Error handling documented in docstrings
 
 ### File List
 

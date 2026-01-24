@@ -25,12 +25,21 @@ async def get_due_reviews(
     Items with srs_stage=9 (burned) are excluded.
 
     Requires authentication. Returns 401 if not authenticated.
+    Returns 400 if validation error occurs (e.g., invalid user_id).
     Returns 500 if a database error occurs.
     """
     try:
         service = ReviewService(db)
         items = await service.get_due_reviews(user_id=current_user.id)
         return DueReviewsResponse(items=items, count=len(items))
+    except ValueError as e:
+        # Invalid user_id or other validation errors
+        logger.warning(
+            "validation_error_in_get_due_reviews_endpoint",
+            user_id=current_user.id,
+            error=str(e),
+        )
+        raise HTTPException(status_code=400, detail=str(e)) from e
     except SQLAlchemyError as e:
         logger.error(
             "database_error_in_get_due_reviews_endpoint",

@@ -1,6 +1,7 @@
 """Tests for review router endpoints."""
 
 from datetime import UTC, datetime, timedelta
+from unittest.mock import AsyncMock, patch
 
 import pytest
 from freezegun import freeze_time
@@ -562,3 +563,37 @@ async def test_get_due_reviews_excludes_null_next_review_at(
     data = response.json()
     assert data["count"] == 0
     assert data["items"] == []
+
+
+@pytest.mark.asyncio
+async def test_get_due_reviews_value_error_returns_400(
+    async_client: AsyncClient, db_session: AsyncSession
+) -> None:
+    """Test that ValueError from service returns 400 Bad Request."""
+    # Create user and session
+    user = User(username="testuser")
+    db_session.add(user)
+    await db_session.flush()
+
+    session = Session(user_id=user.id, token="test-token-valueerror")
+    db_session.add(session)
+    await db_session.commit()
+
+    # Mock the service to raise ValueError (defensive validation scenario)
+    with patch("src.reviews.router.ReviewService") as mock_service_class:
+        mock_service = AsyncMock()
+        mock_service.get_due_reviews = AsyncMock(
+            side_effect=ValueError("Invalid user_id: -1 must be a positive integer")
+        )
+        mock_service_class.return_value = mock_service
+
+        # Make request
+        response = await async_client.get(
+            "/api/v1/me/reviews",
+            headers={"Authorization": "Bearer test-token-valueerror"},
+        )
+
+        # Verify 400 Bad Request response
+        assert response.status_code == 400
+        data = response.json()
+        assert "Invalid user_id" in data["detail"]

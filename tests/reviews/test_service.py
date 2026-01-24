@@ -1,6 +1,7 @@
 """Tests for review service."""
 
 from datetime import UTC, datetime, timedelta
+from typing import cast
 
 import pytest
 from freezegun import freeze_time
@@ -10,6 +11,7 @@ from src.auth.models import User
 from src.core.constants import ItemType
 from src.kanji.models import Kanji
 from src.progress.models import UserItemProgress
+from src.progress.schemas import KanjiItemDetails, VocabItemDetails
 from src.reviews.service import ReviewService
 from src.vocab.models import Vocab
 
@@ -54,7 +56,9 @@ async def test_get_due_reviews_returns_due_items(db_session: AsyncSession) -> No
     assert reviews[0].item_type == ItemType.KANJI
     assert reviews[0].item_id == kanji.id
     assert reviews[0].srs_stage == 3
-    assert reviews[0].item_details["character"] == "日"
+    # Type narrowing for kanji details
+    kanji_details = cast(KanjiItemDetails, reviews[0].item_details)
+    assert kanji_details["character"] == "日"
 
 
 @pytest.mark.asyncio
@@ -367,7 +371,9 @@ async def test_get_due_reviews_includes_correct_kanji_details(db_session: AsyncS
 
     # Verify kanji details
     assert len(reviews) == 1
-    details = reviews[0].item_details
+    assert reviews[0].item_type == ItemType.KANJI
+    # Type narrowing for kanji details
+    details = cast(KanjiItemDetails, reviews[0].item_details)
     assert details["character"] == "日"
     assert details["meanings"] == ["day", "sun"]
     assert details["readings_on"] == ["ニチ", "ジツ"]
@@ -411,7 +417,8 @@ async def test_get_due_reviews_includes_correct_vocab_details(db_session: AsyncS
     # Verify vocab details
     assert len(reviews) == 1
     assert reviews[0].item_type == ItemType.VOCAB
-    details = reviews[0].item_details
+    # Type narrowing for vocab details
+    details = cast(VocabItemDetails, reviews[0].item_details)
     assert details["word"] == "日本語"
     assert details["readings"] == ["にほんご"]
     assert details["meanings"] == ["Japanese language"]
