@@ -9,6 +9,7 @@ from src.database import async_session_maker
 from src.kanji.models import Kanji
 from src.kanji.router import router as kanji_router
 from src.logging import logger
+from src.progress.router import router as progress_router
 from src.settings import settings
 from src.vocab.router import router as vocab_router
 
@@ -46,6 +47,7 @@ logger.info("app_started", version=settings.api_version)
 # Mount routers
 app.include_router(kanji_router, prefix=settings.api_prefix)
 app.include_router(vocab_router, prefix=settings.api_prefix)
+app.include_router(progress_router, prefix=settings.api_prefix)
 
 
 @app.get("/")

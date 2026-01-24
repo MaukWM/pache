@@ -9,6 +9,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from src.database import Base
 
 if TYPE_CHECKING:
+    from src.progress.models import LessonQueue
     from src.vocab.models import Vocab
 
 
@@ -31,6 +32,9 @@ class User(Base):
         "Session", back_populates="user", cascade="all, delete-orphan"
     )
     vocab_items: Mapped[list["Vocab"]] = relationship("Vocab", back_populates="creator")
+    lesson_queue_items: Mapped[list["LessonQueue"]] = relationship(
+        "LessonQueue", back_populates="user", cascade="all, delete-orphan"
+    )
 
 
 class Session(Base):
