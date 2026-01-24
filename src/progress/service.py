@@ -30,7 +30,7 @@ class ProgressService:
         item_id: int,
     ) -> QueueItemResponse:
         """Add an item to the user's lesson queue.
-        
+
         Example:
             response = await service.add_to_queue(
                 user_id=1,
@@ -50,6 +50,8 @@ class ProgressService:
             item_details = {
                 "character": item.character,
                 "meanings": item.meanings,
+                "readings_on": item.readings_on,
+                "readings_kun": item.readings_kun,
             }
         elif item_type == ItemType.VOCAB:
             item = await self.db.get(Vocab, item_id)
@@ -111,16 +113,14 @@ class ProgressService:
 
     async def get_queue(self, user_id: int) -> list[QueueItemResponse]:
         """Get all items in the user's lesson queue.
-        
+
         Example:
             responses = await service.get_queue(user_id=1)
             for item in responses:
                 print(f"{item.item_type}: {item.item_details}")
         """
         query = (
-            select(LessonQueue)
-            .where(LessonQueue.user_id == user_id)
-            .order_by(LessonQueue.added_at)
+            select(LessonQueue).where(LessonQueue.user_id == user_id).order_by(LessonQueue.added_at)
         )
         result = await self.db.execute(query)
         queue_items = list(result.scalars().all())
@@ -129,12 +129,8 @@ class ProgressService:
             return []
 
         # Separate kanji and vocab IDs for bulk loading
-        kanji_ids = [
-            q.item_id for q in queue_items if q.item_type == ItemType.KANJI
-        ]
-        vocab_ids = [
-            q.item_id for q in queue_items if q.item_type == ItemType.VOCAB
-        ]
+        kanji_ids = [q.item_id for q in queue_items if q.item_type == ItemType.KANJI]
+        vocab_ids = [q.item_id for q in queue_items if q.item_type == ItemType.VOCAB]
 
         # Bulk load kanji items
         kanji_map: dict[int, Kanji] = {}
@@ -162,6 +158,8 @@ class ProgressService:
                     item_details = {
                         "character": kanji.character,
                         "meanings": kanji.meanings,
+                        "readings_on": kanji.readings_on,
+                        "readings_kun": kanji.readings_kun,
                     }
                 else:
                     # Item was deleted, mark for cleanup
@@ -207,7 +205,7 @@ class ProgressService:
         item_id: int,
     ) -> None:
         """Remove an item from the user's lesson queue.
-        
+
         Example:
             await service.remove_from_queue(
                 user_id=1,

@@ -160,9 +160,9 @@ A self-hosted kanji learning platform continuing where WaniKani ends. Built for 
 - FR18: User can see who created each vocabulary item
 
 ### Lesson System
-- FR19: User can add items to personal lesson queue
+- FR19: User can add items to personal lesson queue (optional "want to learn" wishlist)
 - FR20: User can remove items from lesson queue
-- FR21: User can batch-complete lessons in two modes: random batch of 5 OR self-selected items
+- FR21: User can complete lessons for any learnable item (single or batch) - queue membership not required
 - FR22: System enforces kanji prerequisite before vocab lessons
 
 ### Review System (SRS)

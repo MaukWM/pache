@@ -46,7 +46,7 @@ async def test_add_to_queue_kanji_success(db_session: AsyncSession) -> None:
     assert response.item_id == kanji.id
     assert response.added_at is not None
     assert "character" in response.item_details
-    assert response.item_details["character"] == "漢"
+    assert response.item_details["character"] == "漢"  # type: ignore[typeddict-item]
     assert "meanings" in response.item_details
 
     # Verify database record
@@ -86,7 +86,7 @@ async def test_add_to_queue_vocab_success(db_session: AsyncSession) -> None:
     assert response.item_type == ItemType.VOCAB
     assert response.item_id == vocab.id
     assert "word" in response.item_details
-    assert response.item_details["word"] == "日本語"
+    assert response.item_details["word"] == "日本語"  # type: ignore[typeddict-item]
     assert "readings" in response.item_details
     assert "meanings" in response.item_details
 
@@ -278,12 +278,12 @@ async def test_get_queue_includes_item_details(db_session: AsyncSession) -> None
     # Verify item details
     assert len(items) == 2
     kanji_item = next(item for item in items if item.item_type == ItemType.KANJI)
-    assert kanji_item.item_details["character"] == "漢"
+    assert kanji_item.item_details["character"] == "漢"  # type: ignore[typeddict-item]
     assert "meanings" in kanji_item.item_details
 
     vocab_item = next(item for item in items if item.item_type == ItemType.VOCAB)
-    assert vocab_item.item_details["word"] == "日本語"
-    assert vocab_item.item_details["readings"] == ["にほんご"]
+    assert vocab_item.item_details["word"] == "日本語"  # type: ignore[typeddict-item]
+    assert vocab_item.item_details["readings"] == ["にほんご"]  # type: ignore[typeddict-item]
     assert vocab_item.item_details["meanings"] == ["Japanese language"]
 
 
@@ -355,9 +355,7 @@ async def test_get_queue_cleans_up_orphaned_entries(db_session: AsyncSession) ->
     assert len(items) == 0
 
     # Verify queue entries were deleted from database
-    remaining = await db_session.execute(
-        select(LessonQueue).where(LessonQueue.user_id == user.id)
-    )
+    remaining = await db_session.execute(select(LessonQueue).where(LessonQueue.user_id == user.id))
     assert len(list(remaining.scalars().all())) == 0
 
 

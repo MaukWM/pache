@@ -7,9 +7,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from src.auth.models import User
-from src.core.constants import ItemType
+from src.core.constants import ItemType, ProgressSource
 from src.kanji.models import Kanji
-from src.progress.models import LessonQueue
+from src.progress.models import LessonQueue, UserItemProgress
 from src.vocab.models import Vocab
 
 
@@ -206,3 +206,303 @@ async def test_lesson_queue_vocab_item_type(db_session: AsyncSession) -> None:
     assert queue_item.id is not None
     assert queue_item.item_type == ItemType.VOCAB
     assert queue_item.item_id == vocab.id
+
+
+@pytest.mark.asyncio
+async def test_user_item_progress_model_creation(db_session: AsyncSession) -> None:
+    """Test creating a UserItemProgress model with all required fields."""
+    # Create a user first
+    user = User(username="testuser")
+    db_session.add(user)
+    await db_session.flush()
+
+    # Create a kanji item
+    kanji = Kanji(
+        character="漢",
+        meanings=["Chinese"],
+        readings_on=["kan"],
+        readings_kun=[],
+        stroke_count=13,
+    )
+    db_session.add(kanji)
+    await db_session.flush()
+
+    # Create user item progress
+    progress = UserItemProgress(
+        user_id=user.id,
+        item_type=ItemType.KANJI,
+        item_id=kanji.id,
+        srs_stage=0,
+        source=ProgressSource.MANUAL,
+    )
+    db_session.add(progress)
+    await db_session.flush()
+
+    # Verify
+    assert progress.id is not None
+    assert progress.user_id == user.id
+    assert progress.item_type == ItemType.KANJI
+    assert progress.item_id == kanji.id
+    assert progress.srs_stage == 0
+    assert progress.unlocked_at is not None
+    assert progress.next_review_at is None
+    assert progress.burned_at is None
+    assert progress.meaning_note is None
+    assert progress.reading_mnemonic is None
+    assert progress.source == ProgressSource.MANUAL
+
+
+@pytest.mark.asyncio
+async def test_user_item_progress_composite_unique_constraint(
+    db_session: AsyncSession,
+) -> None:
+    """Test that composite unique constraint prevents duplicate progress records."""
+    # Create a user
+    user = User(username="testuser")
+    db_session.add(user)
+    await db_session.flush()
+
+    # Create a kanji item
+    kanji = Kanji(
+        character="漢",
+        meanings=["Chinese"],
+        readings_on=["kan"],
+        readings_kun=[],
+        stroke_count=13,
+    )
+    db_session.add(kanji)
+    await db_session.flush()
+
+    # Create first progress record
+    progress1 = UserItemProgress(
+        user_id=user.id,
+        item_type=ItemType.KANJI,
+        item_id=kanji.id,
+        srs_stage=0,
+    )
+    db_session.add(progress1)
+    await db_session.flush()
+
+    # Try to create duplicate (same user, item_type, item_id)
+    progress2 = UserItemProgress(
+        user_id=user.id,
+        item_type=ItemType.KANJI,
+        item_id=kanji.id,
+        srs_stage=1,
+    )
+    db_session.add(progress2)
+
+    # Should raise IntegrityError
+    with pytest.raises(IntegrityError):
+        await db_session.flush()
+
+
+@pytest.mark.asyncio
+async def test_user_item_progress_different_users_can_have_same_item(
+    db_session: AsyncSession,
+) -> None:
+    """Test that different users can have progress on the same item."""
+    # Create two users
+    user1 = User(username="user1")
+    user2 = User(username="user2")
+    db_session.add(user1)
+    db_session.add(user2)
+    await db_session.flush()
+
+    # Create a kanji item
+    kanji = Kanji(
+        character="漢",
+        meanings=["Chinese"],
+        readings_on=["kan"],
+        readings_kun=[],
+        stroke_count=13,
+    )
+    db_session.add(kanji)
+    await db_session.flush()
+
+    # Create progress records for both users
+    progress1 = UserItemProgress(
+        user_id=user1.id,
+        item_type=ItemType.KANJI,
+        item_id=kanji.id,
+        srs_stage=0,
+    )
+    progress2 = UserItemProgress(
+        user_id=user2.id,
+        item_type=ItemType.KANJI,
+        item_id=kanji.id,
+        srs_stage=1,
+    )
+    db_session.add(progress1)
+    db_session.add(progress2)
+    await db_session.flush()
+
+    # Both should be created successfully
+    assert progress1.id is not None
+    assert progress2.id is not None
+    assert progress1.id != progress2.id
+
+
+@pytest.mark.asyncio
+async def test_user_item_progress_user_relationship(db_session: AsyncSession) -> None:
+    """Test that UserItemProgress has proper relationship to User."""
+    # Create a user
+    user = User(username="testuser")
+    db_session.add(user)
+    await db_session.flush()
+
+    # Create a kanji item
+    kanji = Kanji(
+        character="漢",
+        meanings=["Chinese"],
+        readings_on=["kan"],
+        readings_kun=[],
+        stroke_count=13,
+    )
+    db_session.add(kanji)
+    await db_session.flush()
+
+    # Create progress record
+    progress = UserItemProgress(
+        user_id=user.id,
+        item_type=ItemType.KANJI,
+        item_id=kanji.id,
+        srs_stage=0,
+    )
+    db_session.add(progress)
+    await db_session.flush()
+
+    # Verify relationship
+    assert progress.user.id == user.id
+    assert progress.user.username == user.username
+
+    # Verify reverse relationship
+    result = await db_session.execute(
+        select(User).where(User.id == user.id).options(selectinload(User.item_progress))
+    )
+    loaded_user = result.scalar_one()
+    assert len(loaded_user.item_progress) == 1
+    assert loaded_user.item_progress[0].id == progress.id
+
+
+@pytest.mark.asyncio
+async def test_user_item_progress_vocab_item_type(db_session: AsyncSession) -> None:
+    """Test that UserItemProgress can track vocab items."""
+    # Create a user
+    user = User(username="testuser")
+    db_session.add(user)
+    await db_session.flush()
+
+    # Create a vocab item
+    vocab = Vocab(
+        word="日本語",
+        readings=["にほんご"],
+        meanings=["Japanese language"],
+        creator_id=user.id,
+    )
+    db_session.add(vocab)
+    await db_session.flush()
+
+    # Create progress record for vocab
+    progress = UserItemProgress(
+        user_id=user.id,
+        item_type=ItemType.VOCAB,
+        item_id=vocab.id,
+        srs_stage=0,
+    )
+    db_session.add(progress)
+    await db_session.flush()
+
+    # Verify
+    assert progress.id is not None
+    assert progress.item_type == ItemType.VOCAB
+    assert progress.item_id == vocab.id
+
+
+@pytest.mark.asyncio
+async def test_user_item_progress_srs_stages(db_session: AsyncSession) -> None:
+    """Test that UserItemProgress can track different SRS stages."""
+    # Create a user
+    user = User(username="testuser")
+    db_session.add(user)
+    await db_session.flush()
+
+    # Create kanji items
+    kanji1 = Kanji(
+        character="漢",
+        meanings=["Chinese"],
+        readings_on=["kan"],
+        readings_kun=[],
+        stroke_count=13,
+    )
+    kanji2 = Kanji(
+        character="字",
+        meanings=["character"],
+        readings_on=["ji"],
+        readings_kun=[],
+        stroke_count=6,
+    )
+    db_session.add_all([kanji1, kanji2])
+    await db_session.flush()
+
+    # Create progress records with different stages
+    progress1 = UserItemProgress(
+        user_id=user.id,
+        item_type=ItemType.KANJI,
+        item_id=kanji1.id,
+        srs_stage=0,  # Lesson
+    )
+    progress2 = UserItemProgress(
+        user_id=user.id,
+        item_type=ItemType.KANJI,
+        item_id=kanji2.id,
+        srs_stage=5,  # Guru
+    )
+    db_session.add_all([progress1, progress2])
+    await db_session.flush()
+
+    # Verify
+    assert progress1.srs_stage == 0
+    assert progress2.srs_stage == 5
+
+
+@pytest.mark.asyncio
+async def test_user_item_progress_optional_fields(db_session: AsyncSession) -> None:
+    """Test that UserItemProgress optional fields work correctly."""
+    # Create a user
+    user = User(username="testuser")
+    db_session.add(user)
+    await db_session.flush()
+
+    # Create a kanji item
+    kanji = Kanji(
+        character="漢",
+        meanings=["Chinese"],
+        readings_on=["kan"],
+        readings_kun=[],
+        stroke_count=13,
+    )
+    db_session.add(kanji)
+    await db_session.flush()
+
+    # Create progress with optional fields
+    from datetime import UTC, datetime
+
+    progress = UserItemProgress(
+        user_id=user.id,
+        item_type=ItemType.KANJI,
+        item_id=kanji.id,
+        srs_stage=1,
+        next_review_at=datetime.now(UTC),
+        meaning_note="My custom meaning note",
+        reading_mnemonic="My reading mnemonic",
+        source=ProgressSource.WANIKANI,
+    )
+    db_session.add(progress)
+    await db_session.flush()
+
+    # Verify optional fields
+    assert progress.next_review_at is not None
+    assert progress.meaning_note == "My custom meaning note"
+    assert progress.reading_mnemonic == "My reading mnemonic"
+    assert progress.source == ProgressSource.WANIKANI

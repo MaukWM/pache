@@ -8,3 +8,10 @@ class ItemType(str, Enum):
 
     KANJI = "kanji"
     VOCAB = "vocab"
+
+
+class ProgressSource(str, Enum):
+    """Source enumeration for progress items."""
+
+    MANUAL = "manual"
+    WANIKANI = "wanikani"

@@ -344,7 +344,9 @@ async def test_remove_from_queue_invalid_item_type(async_client: AsyncClient, db
 
 
 @pytest.mark.asyncio
-async def test_remove_from_queue_invalid_item_id_returns_422(async_client: AsyncClient, db_session) -> None:
+async def test_remove_from_queue_invalid_item_id_returns_422(
+    async_client: AsyncClient, db_session
+) -> None:
     """Test removing with invalid item_id (negative or zero) returns 422."""
     # Create user and session
     user = User(username="testuser")

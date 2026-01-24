@@ -5,6 +5,43 @@ inputDocuments: ['prd.md', 'architecture.md']
 
 # Kanji SRS Platform - Epic Breakdown
 
+## Change Log
+
+### 2026-01-24: Simplified Lesson Flow
+
+**Summary:** Decoupled lesson completion from queue membership. Users can now complete lessons for any item directly from the pool - queue is an optional "want to learn" wishlist, not a required gateway.
+
+**Rationale:** Original design required: Pool → Add to Queue → Complete Lesson (2 clicks minimum). New design allows: Pool → Complete Lesson (1 click). Reduces friction for users who see an interesting item and want to learn it immediately.
+
+**Key Changes:**
+
+1. **FR21 updated:** "batch-complete lessons in two modes" → "complete lessons for any learnable item"
+
+2. **Queue is now optional:** The lesson queue (`/api/v1/me/queue`) remains as a "want to learn later" wishlist/bookmark feature, but items do NOT need to be in queue to complete a lesson.
+
+3. **Simplified lesson endpoint:** `POST /api/v1/me/lessons` accepts items directly:
+   - Single: `{"item_type": "vocab", "item_id": 123}`
+   - Batch: `{"items": [{"item_type": "kanji", "item_id": 42}, ...]}`
+
+4. **No "mode" parameter:** Removed `mode: "random"` and `mode: "selected"`. Frontend handles any randomization from queue if desired.
+
+5. **Auto-cleanup:** If a lessoned item happens to be in the user's queue, it is automatically removed.
+
+6. **SRS stages start at 1:** Items enter SRS at stage 1 (Apprentice 1), not stage 0. No "lesson stage" - completing a lesson immediately sets `srs_stage=1` and `next_review_at` to 4 hours from now.
+
+**Impact on implementation:**
+- `LessonService.complete_lessons()` no longer checks queue membership
+- Remove mode/count parameters from `LessonCompleteRequest` schema
+- Queue removal is a side effect, not a requirement
+- Prerequisite checking (kanji before vocab) still enforced
+
+**Tests to update:**
+- `tests/lessons/test_service.py::test_complete_lessons_items_not_in_queue` - REMOVE or INVERT (items not in queue should now succeed)
+- `tests/lessons/test_router.py::test_complete_lessons_items_not_in_queue` - REMOVE or INVERT
+- Add new test: verify items in queue are auto-removed after lesson completion
+
+---
+
 ## Overview
 
 This document provides the complete epic and story breakdown for Kanji SRS Platform, decomposing the requirements from the PRD and Architecture into implementable stories.
@@ -118,9 +155,9 @@ FR15: Epic 3 - Filter vocabulary by tag
 FR16: Epic 3 - Filter vocabulary by creator
 FR17: Epic 3 - Filter vocabulary by "not in my queue"
 FR18: Epic 3 - See who created each vocabulary item
-FR19: Epic 4 - Add items to personal lesson queue
+FR19: Epic 4 - Add items to personal lesson queue (optional wishlist)
 FR20: Epic 4 - Remove items from lesson queue
-FR21: Epic 4 - Batch-complete lessons (random 5 or self-selected)
+FR21: Epic 4 - Complete lessons for any learnable item (queue not required)
 FR22: Epic 4 - Enforce kanji prerequisite before vocab lessons
 FR23: Epic 5 - Calculate next review time using WaniKani intervals
 FR24: Epic 5 - See items due for review
@@ -152,7 +189,7 @@ Users can create vocabulary terms they encounter in the wild, browse friends' co
 **FRs covered:** FR9, FR10, FR11, FR12, FR13, FR14, FR15, FR16, FR17, FR18
 
 ### Epic 4: Lesson System
-Users can add items to their personal queue and batch-complete lessons to begin SRS rotation. Enforces kanji prerequisites, supports two lesson modes.
+Users can track items they want to learn (optional queue) and complete lessons to begin SRS rotation. Lessons can be completed for any item directly - queue membership is not required. Enforces kanji prerequisites.
 **FRs covered:** FR19, FR20, FR21, FR22
 
 ### Epic 5: SRS Review System
@@ -496,13 +533,13 @@ So that **I can discover interesting terms added by friends**.
 
 ## Epic 4: Lesson System
 
-Users can add items to their personal queue and batch-complete lessons to begin SRS rotation. Enforces kanji prerequisites, supports two lesson modes.
+Users can track items they want to learn (optional queue) and complete lessons to begin SRS rotation. Lessons can be completed for any item directly - queue membership is not required. Enforces kanji prerequisites.
 
 ### Story 4.1: Lesson Queue Model & Add Items to Queue
 
 As a **user**,
 I want **to add vocabulary and kanji items to my personal lesson queue**,
-So that **I can prepare them for batch lesson completion**.
+So that **I can track items I want to learn later (optional wishlist)**.
 
 **Acceptance Criteria:**
 
@@ -586,11 +623,11 @@ So that **I can manage which items I want to learn**.
 
 ---
 
-### Story 4.3: Batch Complete Lessons with Prerequisite Enforcement
+### Story 4.3: Complete Lessons with Prerequisite Enforcement
 
 As a **user**,
-I want **to batch-complete lessons from my queue in two modes: random batch of 5 OR self-selected items**,
-So that **I can efficiently move items into SRS rotation while respecting kanji prerequisites**.
+I want **to complete lessons for any learnable item (single or batch)**,
+So that **I can move items into SRS rotation with one action, without requiring queue membership**.
 
 **Acceptance Criteria:**
 
@@ -603,7 +640,7 @@ So that **I can efficiently move items into SRS rotation while respecting kanji 
 - `user_id` (FK to users, indexed)
 - `item_type` (enum: kanji | vocab, discriminator)
 - `item_id` (FK to kanji or vocab)
-- `srs_stage` (integer, 0-9: 0=lesson, 1-4=apprentice, 5-6=guru, 7=master, 8=enlightened, 9=burned)
+- `srs_stage` (integer, 1-9: 1-4=apprentice, 5-6=guru, 7=master, 8=enlightened, 9=burned)
 - `next_review_at` (nullable datetime, set when item enters SRS)
 - `unlocked_at` (datetime, when lesson was completed)
 - `burned_at` (nullable datetime)
@@ -615,77 +652,64 @@ So that **I can efficiently move items into SRS rotation while respecting kanji 
 **And** Alembic migration creates `user_item_progress` table
 **And** `src/progress/schemas.py` defines `LessonCompleteRequest`, `LessonCompleteResponse`
 
-**Given** an authenticated user with items in their lesson queue
-**When** POST `/api/v1/me/lessons` is called with:
+**Given** an authenticated user
+**When** POST `/api/v1/me/lessons` is called with a single item:
 ```json
 {
-  "mode": "random",
-  "count": 5
+  "item_type": "vocab",
+  "item_id": 123
 }
 ```
 **Then** response status is 200
-**And** up to 5 random items are selected from the user's queue
-**And** for each selected item:
-  - A UserItemProgress record is created with `srs_stage=0` (lesson stage)
-  - `unlocked_at` is set to current timestamp
-  - `next_review_at` is calculated using WaniKani intervals (will be implemented in Epic 5)
-  - The item is removed from LessonQueue
-**And** response includes list of completed lesson items
+**And** a UserItemProgress record is created with `srs_stage=1` (Apprentice 1)
+**And** `unlocked_at` is set to current timestamp
+**And** `next_review_at` is calculated using WaniKani intervals (4 hours from now)
+**And** if item was in user's LessonQueue, it is removed from queue
+**And** response includes the completed lesson item details
 
-**Given** an authenticated user with items in their lesson queue
-**When** POST `/api/v1/me/lessons` is called with:
+**Given** an authenticated user
+**When** POST `/api/v1/me/lessons` is called with multiple items:
 ```json
 {
-  "mode": "selected",
-  "item_ids": [
+  "items": [
     {"item_type": "kanji", "item_id": 42},
     {"item_type": "vocab", "item_id": 123}
   ]
 }
 ```
 **Then** response status is 200
-**And** UserItemProgress records are created for each specified item
-**And** specified items are removed from LessonQueue
+**And** UserItemProgress records are created for each item at `srs_stage=1`
+**And** items are removed from LessonQueue if present
 **And** response includes list of completed lesson items
 
 **Given** an authenticated user attempting to lesson a vocab item
 **When** the vocab item has constituent kanji that are NOT in the user's UserItemProgress (not learned)
 **Then** response status is 400 Bad Request
 **And** error message indicates which kanji prerequisites are missing (FR22 - prerequisite enforcement)
-**And** the vocab item remains in the lesson queue
 
 **Given** an authenticated user attempting to lesson a vocab item
 **When** all constituent kanji are in the user's UserItemProgress with `srs_stage >= 1` (learned)
 **Then** the vocab lesson completes successfully
 **And** UserItemProgress record is created for the vocab item
 
-**Given** an authenticated user with fewer than 5 items in queue
-**When** POST `/api/v1/me/lessons` is called with `mode: "random", count: 5`
-**Then** response status is 200
-**And** all available items are processed (less than 5)
-**And** response indicates actual count processed
-
-**Given** an authenticated user
-**When** POST `/api/v1/me/lessons` is called with invalid mode (not "random" or "selected")
-**Then** response status is 400 Bad Request with error message
-
-**Given** an authenticated user
-**When** POST `/api/v1/me/lessons` is called with `mode: "selected"` and item_ids containing items not in their queue
-**Then** response status is 400 Bad Request
-**And** error message indicates which items are not in queue
-
 **Given** an authenticated user attempting to lesson an item already in UserItemProgress
 **When** POST `/api/v1/me/lessons` is called with that item
 **Then** response status is 400 Bad Request
 **And** error message indicates item already learned
+
+**Given** an authenticated user attempting to lesson a non-existent item
+**When** POST `/api/v1/me/lessons` is called with invalid item_type or item_id
+**Then** response status is 400 Bad Request
+**And** error message indicates item not found
 
 **Given** an unauthenticated request
 **When** POST `/api/v1/me/lessons` is called
 **Then** response status is 401 Unauthorized
 
 **And** `src/lessons/router.py` mounts at `/api/v1/me/lessons`
-**And** `src/lessons/service.py` contains `LessonService` with batch completion and prerequisite checking logic
+**And** `src/lessons/service.py` contains `LessonService` with lesson completion and prerequisite checking logic
 **And** prerequisite checking queries UserItemProgress to verify all constituent kanji are learned before allowing vocab lessons
+**And** endpoint accepts either single item format or batch format (with `items` array)
 
 ---
 
@@ -704,15 +728,17 @@ So that **review submissions can calculate next review times and track review hi
 **Given** the database from Epic 4
 **When** the SRS core logic is created
 **Then** `src/core/constants.py` defines:
-- `SRS_INTERVALS` dictionary mapping stage transitions to timedelta intervals:
-  - Stage 1→2: 4 hours
-  - Stage 2→3: 8 hours
-  - Stage 3→4: 1 day
-  - Stage 4→5: 2 days
-  - Stage 5→6: 1 week
-  - Stage 6→7: 2 weeks
-  - Stage 7→8: 30 days
-  - Stage 8→9: 120 days
+- `SRS_STAGES`: 1-9 (1-4=Apprentice, 5-6=Guru, 7=Master, 8=Enlightened, 9=Burned)
+- `SRS_INTERVALS` dictionary mapping stage to interval until next review:
+  - Stage 1: 4 hours (Apprentice 1 → review after 4h)
+  - Stage 2: 8 hours
+  - Stage 3: 1 day
+  - Stage 4: 2 days
+  - Stage 5: 1 week
+  - Stage 6: 2 weeks
+  - Stage 7: 30 days
+  - Stage 8: 120 days
+  - Stage 9: burned (no more reviews)
 
 **And** `src/reviews/srs.py` provides:
 - `calculate_next_review(current_stage: int, correct: bool) -> tuple[int, datetime]` function
@@ -755,7 +781,7 @@ So that **I know what to study next**.
 **Then** response status is 200
 **And** response returns a list of items where `next_review_at <= current_time` (batched by hour - FR28)
 **And** query truncates `next_review_at` to hour precision for comparison (not exact timestamp)
-**And** only items with `srs_stage >= 1` are returned (excludes lesson stage 0)
+**And** only items with `srs_stage < 9` are returned (excludes burned items)
 **And** each item includes:
   - `item_type`, `item_id`
   - `srs_stage`

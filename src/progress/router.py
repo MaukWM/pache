@@ -47,7 +47,7 @@ async def remove_from_queue(
     db: AsyncSession = Depends(get_db),
 ) -> None:
     """Remove an item from the user's lesson queue.
-    
+
     Args:
         item_type: Type of item to remove (kanji or vocab)
         item_id: Positive ID of the item to remove from queue
