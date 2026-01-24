@@ -491,3 +491,609 @@ So that **I can discover interesting terms added by friends**.
 
 **And** browse endpoint does NOT require authentication (pool is shared/public)
 **And** FR17 (not_in_queue filter) will be added in Epic 4 when LessonQueue exists
+
+---
+
+## Epic 4: Lesson System
+
+Users can add items to their personal queue and batch-complete lessons to begin SRS rotation. Enforces kanji prerequisites, supports two lesson modes.
+
+### Story 4.1: Lesson Queue Model & Add Items to Queue
+
+As a **user**,
+I want **to add vocabulary and kanji items to my personal lesson queue**,
+So that **I can prepare them for batch lesson completion**.
+
+**Acceptance Criteria:**
+
+**Given** the database from Epic 3
+**When** the Lesson Queue models are created
+**Then** `src/progress/models.py` defines:
+
+**LessonQueue model:**
+- `id` (primary key)
+- `user_id` (FK to users, indexed)
+- `item_type` (enum: kanji | vocab)
+- `item_id` (FK to kanji or vocab, depending on item_type)
+- `added_at` (timestamp)
+- Composite unique constraint on `(user_id, item_type, item_id)` to prevent duplicates
+
+**And** Alembic migration creates `lesson_queue` table
+**And** `src/progress/schemas.py` defines `QueueItemRequest`, `QueueItemResponse`, `QueueListResponse`
+
+**Given** an authenticated user
+**When** POST `/api/v1/me/queue` is called with:
+```json
+{
+  "item_type": "vocab",
+  "item_id": 123
+}
+```
+**Then** response status is 201
+**And** a new LessonQueue record is created for the current user
+**And** response includes the queued item details
+
+**Given** an authenticated user with vocab id=123 already in their queue
+**When** POST `/api/v1/me/queue` is called with the same item
+**Then** response status is 409 Conflict with error message indicating item already in queue
+
+**Given** an authenticated user
+**When** POST `/api/v1/me/queue` is called with invalid item_id (e.g., vocab id=99999 doesn't exist)
+**Then** response status is 400 with error message indicating item not found
+
+**Given** an authenticated user
+**When** GET `/api/v1/me/queue` is called
+**Then** response status is 200
+**And** response returns a list of all items in the user's lesson queue
+**And** each item includes item_type, item_id, and item details (kanji character or vocab word)
+
+**Given** an unauthenticated request
+**When** POST `/api/v1/me/queue` or GET `/api/v1/me/queue` is called
+**Then** response status is 401 Unauthorized
+
+**And** `src/progress/router.py` mounts queue endpoints at `/api/v1/me/queue`
+**And** `src/progress/service.py` contains `ProgressService` with queue management logic
+
+---
+
+### Story 4.2: Remove Items from Lesson Queue
+
+As a **user**,
+I want **to remove items from my lesson queue**,
+So that **I can manage which items I want to learn**.
+
+**Acceptance Criteria:**
+
+**Given** an authenticated user with items in their lesson queue
+**When** DELETE `/api/v1/me/queue/{item_type}/{item_id}` is called (e.g., `/api/v1/me/queue/vocab/123`)
+**Then** response status is 204 No Content
+**And** the LessonQueue record is removed from the database
+
+**Given** an authenticated user
+**When** DELETE `/api/v1/me/queue/vocab/999` is called for an item not in their queue
+**Then** response status is 404 Not Found
+
+**Given** an authenticated user
+**When** DELETE `/api/v1/me/queue/invalid_type/123` is called with invalid item_type
+**Then** response status is 400 Bad Request with error message
+
+**Given** an unauthenticated request
+**When** DELETE `/api/v1/me/queue/{item_type}/{item_id}` is called
+**Then** response status is 401 Unauthorized
+
+**And** delete endpoint requires authentication
+**And** users can only delete items from their own queue
+
+---
+
+### Story 4.3: Batch Complete Lessons with Prerequisite Enforcement
+
+As a **user**,
+I want **to batch-complete lessons from my queue in two modes: random batch of 5 OR self-selected items**,
+So that **I can efficiently move items into SRS rotation while respecting kanji prerequisites**.
+
+**Acceptance Criteria:**
+
+**Given** the database from Story 4.1
+**When** the UserItemProgress model is created
+**Then** `src/progress/models.py` defines:
+
+**UserItemProgress model:**
+- `id` (primary key)
+- `user_id` (FK to users, indexed)
+- `item_type` (enum: kanji | vocab, discriminator)
+- `item_id` (FK to kanji or vocab)
+- `srs_stage` (integer, 0-9: 0=lesson, 1-4=apprentice, 5-6=guru, 7=master, 8=enlightened, 9=burned)
+- `next_review_at` (nullable datetime, set when item enters SRS)
+- `unlocked_at` (datetime, when lesson was completed)
+- `burned_at` (nullable datetime)
+- `meaning_note` (nullable text, user's custom explanation)
+- `reading_mnemonic` (nullable text, user's custom mnemonic)
+- `source` (enum: manual | wanikani, default: manual)
+- Composite unique constraint on `(user_id, item_type, item_id)`
+
+**And** Alembic migration creates `user_item_progress` table
+**And** `src/progress/schemas.py` defines `LessonCompleteRequest`, `LessonCompleteResponse`
+
+**Given** an authenticated user with items in their lesson queue
+**When** POST `/api/v1/me/lessons` is called with:
+```json
+{
+  "mode": "random",
+  "count": 5
+}
+```
+**Then** response status is 200
+**And** up to 5 random items are selected from the user's queue
+**And** for each selected item:
+  - A UserItemProgress record is created with `srs_stage=0` (lesson stage)
+  - `unlocked_at` is set to current timestamp
+  - `next_review_at` is calculated using WaniKani intervals (will be implemented in Epic 5)
+  - The item is removed from LessonQueue
+**And** response includes list of completed lesson items
+
+**Given** an authenticated user with items in their lesson queue
+**When** POST `/api/v1/me/lessons` is called with:
+```json
+{
+  "mode": "selected",
+  "item_ids": [
+    {"item_type": "kanji", "item_id": 42},
+    {"item_type": "vocab", "item_id": 123}
+  ]
+}
+```
+**Then** response status is 200
+**And** UserItemProgress records are created for each specified item
+**And** specified items are removed from LessonQueue
+**And** response includes list of completed lesson items
+
+**Given** an authenticated user attempting to lesson a vocab item
+**When** the vocab item has constituent kanji that are NOT in the user's UserItemProgress (not learned)
+**Then** response status is 400 Bad Request
+**And** error message indicates which kanji prerequisites are missing (FR22 - prerequisite enforcement)
+**And** the vocab item remains in the lesson queue
+
+**Given** an authenticated user attempting to lesson a vocab item
+**When** all constituent kanji are in the user's UserItemProgress with `srs_stage >= 1` (learned)
+**Then** the vocab lesson completes successfully
+**And** UserItemProgress record is created for the vocab item
+
+**Given** an authenticated user with fewer than 5 items in queue
+**When** POST `/api/v1/me/lessons` is called with `mode: "random", count: 5`
+**Then** response status is 200
+**And** all available items are processed (less than 5)
+**And** response indicates actual count processed
+
+**Given** an authenticated user
+**When** POST `/api/v1/me/lessons` is called with invalid mode (not "random" or "selected")
+**Then** response status is 400 Bad Request with error message
+
+**Given** an authenticated user
+**When** POST `/api/v1/me/lessons` is called with `mode: "selected"` and item_ids containing items not in their queue
+**Then** response status is 400 Bad Request
+**And** error message indicates which items are not in queue
+
+**Given** an authenticated user attempting to lesson an item already in UserItemProgress
+**When** POST `/api/v1/me/lessons` is called with that item
+**Then** response status is 400 Bad Request
+**And** error message indicates item already learned
+
+**Given** an unauthenticated request
+**When** POST `/api/v1/me/lessons` is called
+**Then** response status is 401 Unauthorized
+
+**And** `src/lessons/router.py` mounts at `/api/v1/me/lessons`
+**And** `src/lessons/service.py` contains `LessonService` with batch completion and prerequisite checking logic
+**And** prerequisite checking queries UserItemProgress to verify all constituent kanji are learned before allowing vocab lessons
+
+---
+
+## Epic 5: SRS Review System
+
+Users can complete reviews with WaniKani-style intervals, progressing items toward burn. Core SRS algorithm with hour-batched reviews and resurrection capability.
+
+### Story 5.1: SRS Core Logic & Review Log Model
+
+As a **developer**,
+I want **the SRS interval calculation logic and ReviewLog model**,
+So that **review submissions can calculate next review times and track review history**.
+
+**Acceptance Criteria:**
+
+**Given** the database from Epic 4
+**When** the SRS core logic is created
+**Then** `src/core/constants.py` defines:
+- `SRS_INTERVALS` dictionary mapping stage transitions to timedelta intervals:
+  - Stage 1→2: 4 hours
+  - Stage 2→3: 8 hours
+  - Stage 3→4: 1 day
+  - Stage 4→5: 2 days
+  - Stage 5→6: 1 week
+  - Stage 6→7: 2 weeks
+  - Stage 7→8: 30 days
+  - Stage 8→9: 120 days
+
+**And** `src/reviews/srs.py` provides:
+- `calculate_next_review(current_stage: int, correct: bool) -> tuple[int, datetime]` function
+- When `correct=True`: advances to next stage, calculates `next_review_at` using SRS_INTERVALS
+- When `correct=False`: drops ~2 stages (minimum stage 1), recalculates `next_review_at`
+- Handles stage 9 (burned) - cannot advance further
+- Returns (new_stage, next_review_at) tuple
+
+**When** the ReviewLog model is created
+**Then** `src/reviews/models.py` defines:
+
+**ReviewLog model:**
+- `id` (primary key)
+- `user_id` (FK to users, indexed)
+- `item_type` (enum: kanji | vocab)
+- `item_id` (FK to kanji or vocab)
+- `review_type` (enum: reading | meaning)
+- `correct` (boolean)
+- `srs_stage_before` (integer, stage before review)
+- `srs_stage_after` (integer, stage after review)
+- `reviewed_at` (datetime, indexed for querying)
+
+**And** Alembic migration creates `review_log` table
+**And** `src/reviews/schemas.py` defines `ReviewCreateRequest`, `ReviewResponse`, `ReviewLogResponse`
+
+**And** `src/core/constants.py` defines `ItemType` enum (kanji, vocab) and `ReviewType` enum (reading, meaning)
+
+---
+
+### Story 5.2: View Items Due for Review
+
+As a **user**,
+I want **to see items that are due for review**,
+So that **I know what to study next**.
+
+**Acceptance Criteria:**
+
+**Given** an authenticated user with items in UserItemProgress
+**When** GET `/api/v1/me/reviews` is called
+**Then** response status is 200
+**And** response returns a list of items where `next_review_at <= current_time` (batched by hour - FR28)
+**And** query truncates `next_review_at` to hour precision for comparison (not exact timestamp)
+**And** only items with `srs_stage >= 1` are returned (excludes lesson stage 0)
+**And** each item includes:
+  - `item_type`, `item_id`
+  - `srs_stage`
+  - `next_review_at`
+  - Item details (kanji character or vocab word/reading/meanings)
+
+**Given** an authenticated user with no items due
+**When** GET `/api/v1/me/reviews` is called
+**Then** response status is 200
+**And** response returns empty list `[]`
+
+**Given** an authenticated user
+**When** GET `/api/v1/me/reviews?limit=10` is called with optional limit parameter
+**Then** response returns at most 10 items
+
+**Given** an unauthenticated request
+**When** GET `/api/v1/me/reviews` is called
+**Then** response status is 401 Unauthorized
+
+**And** `src/reviews/router.py` mounts at `/api/v1/me/reviews`
+**And** `src/reviews/service.py` contains `ReviewService` with `get_due_reviews` method
+**And** hour-batching logic truncates timestamps to hour precision before comparison
+
+---
+
+### Story 5.3: Submit Review with Stage Progression
+
+As a **user**,
+I want **to submit review results for an item**,
+So that **items progress through SRS stages based on my performance**.
+
+**Acceptance Criteria:**
+
+**Given** an authenticated user with an item in UserItemProgress at stage 3
+**When** POST `/api/v1/me/reviews` is called with:
+```json
+{
+  "item_type": "vocab",
+  "item_id": 123,
+  "review_type": "reading",
+  "correct": true
+}
+```
+**Then** response status is 200
+**And** a ReviewLog record is created with review details
+**And** UserItemProgress is NOT updated yet (waiting for both reading and meaning - FR26)
+
+**Given** the same user submits the meaning review for the same item
+**When** POST `/api/v1/me/reviews` is called with:
+```json
+{
+  "item_type": "vocab",
+  "item_id": 123,
+  "review_type": "meaning",
+  "correct": true
+}
+```
+**Then** response status is 200
+**And** a ReviewLog record is created for the meaning review
+**And** UserItemProgress is updated:
+  - `srs_stage` advances from 3 to 4 (both reading and meaning passed - FR26)
+  - `next_review_at` is calculated using SRS_INTERVALS[3] = 1 day from now (FR23)
+  - Both reading and meaning ReviewLog records exist for this review cycle
+
+**Given** an authenticated user submits a review with `correct: false`
+**When** POST `/api/v1/me/reviews` is called
+**Then** response status is 200
+**And** ReviewLog record is created
+**And** if both reading and meaning have been submitted (regardless of correctness):
+  - UserItemProgress `srs_stage` drops ~2 stages (minimum stage 1) (FR27)
+  - `next_review_at` is recalculated based on new stage
+  - If only one review type submitted, stage doesn't change yet
+
+**Given** an authenticated user submits reading review with `correct: false`
+**When** meaning review is then submitted with `correct: true`
+**Then** UserItemProgress stage still drops (because reading failed - FR26: both must pass)
+
+**Given** an authenticated user submits review for item not in their UserItemProgress
+**When** POST `/api/v1/me/reviews` is called
+**Then** response status is 400 Bad Request with error message
+
+**Given** an authenticated user submits review for item at stage 9 (burned)
+**When** POST `/api/v1/me/reviews` is called
+**Then** response status is 400 Bad Request with error indicating item is burned
+
+**Given** an authenticated user submits review with invalid `review_type` (not "reading" or "meaning")
+**When** POST `/api/v1/me/reviews` is called
+**Then** response status is 400 Bad Request with validation error
+
+**Given** an unauthenticated request
+**When** POST `/api/v1/me/reviews` is called
+**Then** response status is 401 Unauthorized
+
+**And** `src/reviews/service.py` contains `submit_review` method with:
+  - ReviewLog creation logic
+  - Stage progression logic (only when both reading and meaning submitted)
+  - SRS interval calculation using `src/reviews/srs.py`
+  - Transaction handling to ensure data consistency
+
+**And** response time for review submission is under 500ms under normal conditions (NFR1)
+
+---
+
+### Story 5.4: Resurrect Burned Items
+
+As a **user**,
+I want **to resurrect burned items**,
+So that **I can review items I've forgotten**.
+
+**Acceptance Criteria:**
+
+**Given** an authenticated user with an item at stage 9 (burned) in UserItemProgress
+**When** POST `/api/v1/me/progress/{item_type}/{item_id}/resurrect` is called
+**Then** response status is 200
+**And** UserItemProgress is updated:
+  - `srs_stage` is reset to 1 (Apprentice 1)
+  - `burned_at` is set to NULL
+  - `next_review_at` is recalculated based on stage 1 (4 hours from now)
+  - `unlocked_at` remains unchanged
+
+**Given** an authenticated user with an item not at stage 9
+**When** POST `/api/v1/me/progress/{item_type}/{item_id}/resurrect` is called
+**Then** response status is 400 Bad Request with error indicating item is not burned
+
+**Given** an authenticated user attempting to resurrect an item not in their UserItemProgress
+**When** POST `/api/v1/me/progress/{item_type}/{item_id}/resurrect` is called
+**Then** response status is 404 Not Found
+
+**Given** an unauthenticated request
+**When** POST `/api/v1/me/progress/{item_type}/{item_id}/resurrect` is called
+**Then** response status is 401 Unauthorized
+
+**And** resurrection endpoint is added to `src/progress/router.py`
+**And** `src/progress/service.py` contains `resurrect_item` method
+**And** resurrection creates a ReviewLog entry indicating the resurrection action
+
+---
+
+## Epic 6: Progress Tracking & Personalization
+
+Users can view their SRS progress across all items and add personal meaning notes and reading mnemonics. Filter by SRS stage supported.
+
+### Story 6.1: View SRS Progress with Filtering
+
+As a **user**,
+I want **to view my SRS progress across all items with filtering**,
+So that **I can track my learning journey and see items at different stages**.
+
+**Acceptance Criteria:**
+
+**Given** an authenticated user with items in UserItemProgress
+**When** GET `/api/v1/me/progress` is called
+**Then** response status is 200
+**And** response returns a list of all UserItemProgress records for the current user
+**And** each item includes:
+  - `item_type`, `item_id`
+  - `srs_stage`
+  - `next_review_at`
+  - `unlocked_at`
+  - `burned_at` (if burned)
+  - `meaning_note`, `reading_mnemonic` (if set)
+  - `source` (manual | wanikani)
+  - Item details (kanji character or vocab word/reading/meanings)
+
+**Given** an authenticated user
+**When** GET `/api/v1/me/progress?srs_stage=5` is called with srs_stage filter
+**Then** response returns only items at stage 5 (Guru 1) (FR31)
+
+**Given** an authenticated user
+**When** GET `/api/v1/me/progress?srs_stage=9` is called
+**Then** response returns only burned items
+
+**Given** an authenticated user
+**When** GET `/api/v1/me/progress?item_type=kanji` is called with item_type filter
+**Then** response returns only kanji items
+
+**Given** an authenticated user
+**When** GET `/api/v1/me/progress?srs_stage=5&item_type=vocab` is called with multiple filters
+**Then** response returns items matching ALL filters (AND logic)
+
+**Given** an authenticated user with no progress items
+**When** GET `/api/v1/me/progress` is called
+**Then** response status is 200
+**And** response returns empty list `[]`
+
+**Given** an unauthenticated request
+**When** GET `/api/v1/me/progress` is called
+**Then** response status is 401 Unauthorized
+
+**And** `src/progress/router.py` mounts progress endpoints at `/api/v1/me/progress`
+**And** `src/progress/service.py` contains `get_user_progress` method with filtering logic
+**And** `src/progress/schemas.py` defines `ProgressResponse`, `ProgressListResponse` with filtering query params
+
+---
+
+### Story 6.2: Add Personal Notes and Mnemonics
+
+As a **user**,
+I want **to add personal meaning notes and reading mnemonics to items**,
+So that **I can personalize my learning experience**.
+
+**Acceptance Criteria:**
+
+**Given** an authenticated user with an item in UserItemProgress
+**When** PATCH `/api/v1/me/progress/{item_type}/{item_id}` is called with:
+```json
+{
+  "meaning_note": "My custom explanation for this item"
+}
+```
+**Then** response status is 200
+**And** UserItemProgress `meaning_note` field is updated (FR32)
+**And** response includes updated progress item
+
+**Given** an authenticated user with an item in UserItemProgress
+**When** PATCH `/api/v1/me/progress/{item_type}/{item_id}` is called with:
+```json
+{
+  "reading_mnemonic": "My custom mnemonic for remembering the reading"
+}
+```
+**Then** response status is 200
+**And** UserItemProgress `reading_mnemonic` field is updated (FR33)
+**And** response includes updated progress item
+
+**Given** an authenticated user
+**When** PATCH `/api/v1/me/progress/{item_type}/{item_id}` is called with both fields:
+```json
+{
+  "meaning_note": "Custom note",
+  "reading_mnemonic": "Custom mnemonic"
+}
+```
+**Then** response status is 200
+**And** both fields are updated
+
+**Given** an authenticated user
+**When** PATCH `/api/v1/me/progress/{item_type}/{item_id}` is called with empty string:
+```json
+{
+  "meaning_note": ""
+}
+```
+**Then** response status is 200
+**And** `meaning_note` is set to NULL (clearing the note)
+
+**Given** an authenticated user attempting to update an item not in their UserItemProgress
+**When** PATCH `/api/v1/me/progress/{item_type}/{item_id}` is called
+**Then** response status is 404 Not Found
+
+**Given** an authenticated user
+**When** PATCH `/api/v1/me/progress/{item_type}/{item_id}` is called with invalid fields (not meaning_note or reading_mnemonic)
+**Then** response status is 400 Bad Request with validation error
+
+**Given** an unauthenticated request
+**When** PATCH `/api/v1/me/progress/{item_type}/{item_id}` is called
+**Then** response status is 401 Unauthorized
+
+**And** update endpoint is added to `src/progress/router.py`
+**And** `src/progress/service.py` contains `update_progress_item` method
+**And** `src/progress/schemas.py` defines `ProgressUpdateRequest` with optional `meaning_note` and `reading_mnemonic` fields
+
+---
+
+## Epic 7: WaniKani Integration
+
+Users can import their burned kanji from WaniKani to bootstrap progress. Includes WK API client with rate limit handling and source tracking.
+
+### Story 7.1: WaniKani API Client & Import Endpoint
+
+As a **user**,
+I want **to import my burned kanji from WaniKani**,
+So that **I can bootstrap my progress with items I've already mastered**.
+
+**Acceptance Criteria:**
+
+**Given** the database from Epic 1
+**When** the WaniKani API client is created
+**Then** `src/wanikani/service.py` contains `WaniKaniService` with:
+- `__init__` method accepting API key
+- `get_burned_kanji()` method that calls WaniKani API `/subjects?types=kanji&hidden=true`
+- Rate limit handling: respects `RateLimit-Remaining` header, waits when needed (NFR5)
+- Error handling for API failures (NFR6): returns graceful error if API unavailable
+
+**And** `src/wanikani/schemas.py` defines `WaniKaniImportRequest`, `WaniKaniImportResponse`, `BurnedKanjiItem`
+
+**Given** an authenticated user with a stored WaniKani API key
+**When** POST `/api/v1/me/import/wanikani` is called
+**Then** response status is 200
+**And** WaniKaniService fetches burned kanji from WaniKani API
+**And** for each burned kanji:
+  - Kanji character is matched to existing Kanji in database (by character)
+  - If kanji exists, UserItemProgress record is created/updated:
+    - `item_type` = "kanji"
+    - `item_id` = matched kanji id
+    - `srs_stage` = 9 (burned)
+    - `burned_at` = current timestamp
+    - `source` = "wanikani" (FR36)
+    - `unlocked_at` = current timestamp
+    - `next_review_at` = NULL (burned items don't have reviews)
+  - If kanji doesn't exist in database, it is skipped (logged but not imported)
+
+**Given** an authenticated user without a stored WaniKani API key
+**When** POST `/api/v1/me/import/wanikani` is called
+**Then** response status is 400 Bad Request with error indicating API key not configured
+
+**Given** an authenticated user with invalid WaniKani API key
+**When** POST `/api/v1/me/import/wanikani` is called
+**Then** response status is 401 Unauthorized (WaniKani API rejects the key)
+**And** error message indicates invalid API key
+
+**Given** WaniKani API is unavailable (network error, timeout)
+**When** POST `/api/v1/me/import/wanikani` is called
+**Then** response status is 502 Bad Gateway or 503 Service Unavailable
+**And** error message indicates WaniKani API is unavailable (NFR6)
+
+**Given** WaniKani API returns rate limit exceeded
+**When** POST `/api/v1/me/import/wanikani` is called
+**Then** service waits appropriately and retries, or returns 429 Too Many Requests with retry-after header (NFR5)
+
+**Given** an authenticated user imports kanji that already exists in their UserItemProgress
+**When** POST `/api/v1/me/import/wanikani` is called
+**Then** existing UserItemProgress record is updated (not duplicated)
+**And** `source` field is updated to "wanikani" if it was "manual"
+**And** `srs_stage` is set to 9 (burned) if not already burned
+
+**Given** an authenticated user
+**When** POST `/api/v1/me/import/wanikani` is called successfully
+**Then** response includes:
+  - `imported_count` (number of kanji imported)
+  - `skipped_count` (number of kanji not found in database)
+  - `total_burned` (total burned kanji from WaniKani)
+
+**Given** an unauthenticated request
+**When** POST `/api/v1/me/import/wanikani` is called
+**Then** response status is 401 Unauthorized
+
+**And** `src/wanikani/router.py` mounts at `/api/v1/me/import/wanikani`
+**And** `src/wanikani/service.py` uses `httpx` or similar for HTTP requests
+**And** import process is idempotent (safe to run multiple times)
+**And** WaniKani API key is retrieved from User model `wk_api_key` field (stored in Epic 1 Story 1.4)
