@@ -19,7 +19,7 @@ async def complete_lessons(
     db: AsyncSession = Depends(get_db),
 ) -> LessonCompleteResponse:
     """Complete lessons from the user's queue.
-    
+
     For vocab items, checks that all constituent kanji are learned.
     """
     service = LessonService(db)

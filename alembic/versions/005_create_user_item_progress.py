@@ -23,7 +23,7 @@ def upgrade() -> None:
     """Create user_item_progress table."""
     # Create progresssource enum type
     op.execute("CREATE TYPE progresssource AS ENUM ('manual', 'wanikani')")
-    
+
     op.create_table(
         "user_item_progress",
         sa.Column("id", sa.Integer(), autoincrement=True, nullable=False),
@@ -36,12 +36,19 @@ def upgrade() -> None:
         sa.Column("burned_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("meaning_note", sa.Text(), nullable=True),
         sa.Column("reading_mnemonic", sa.Text(), nullable=True),
-        sa.Column("source", sa.Enum("manual", "wanikani", name="progresssource"), nullable=False, server_default="'manual'"),
+        sa.Column(
+            "source",
+            sa.Enum("manual", "wanikani", name="progresssource"),
+            nullable=False,
+            server_default="'manual'",
+        ),
         sa.ForeignKeyConstraint(["user_id"], ["users.id"]),
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("user_id", "item_type", "item_id", name="uq_user_item_progress"),
     )
-    op.create_index("ix_user_item_progress_user_id", "user_item_progress", ["user_id"], unique=False)
+    op.create_index(
+        "ix_user_item_progress_user_id", "user_item_progress", ["user_id"], unique=False
+    )
     # Explicit composite index for query optimization
     op.create_index(
         "ix_user_item_progress_user_item",

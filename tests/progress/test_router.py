@@ -340,7 +340,7 @@ async def test_remove_from_queue_invalid_item_type(async_client: AsyncClient, db
     )
 
     # FastAPI will return 422 for invalid enum value
-    assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+    assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
 
 @pytest.mark.asyncio
@@ -364,7 +364,7 @@ async def test_remove_from_queue_invalid_item_id_returns_422(
     )
 
     # FastAPI will return 422 for invalid path parameter (must be > 0)
-    assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+    assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
     # Try to remove with zero item_id
     response = await async_client.delete(
@@ -373,7 +373,7 @@ async def test_remove_from_queue_invalid_item_id_returns_422(
     )
 
     # FastAPI will return 422 for invalid path parameter (must be > 0)
-    assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+    assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
 
 @pytest.mark.asyncio

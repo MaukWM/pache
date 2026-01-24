@@ -27,9 +27,7 @@ class LessonService:
         """Initialize service with database session."""
         self.db = db
 
-    async def _check_prerequisites(
-        self, user_id: int, vocab_id: int
-    ) -> list[str]:
+    async def _check_prerequisites(self, user_id: int, vocab_id: int) -> list[str]:
         """Check if all kanji prerequisites for a vocab item are learned.
 
         In WaniKani, kanji must be at GURU stage (srs_stage >= 5) before vocab can be learned.
@@ -71,9 +69,7 @@ class LessonService:
 
         # Find missing kanji
         missing_kanji = [
-            kanji.character
-            for kanji in vocab.kanji
-            if kanji.id not in learned_kanji_ids
+            kanji.character for kanji in vocab.kanji if kanji.id not in learned_kanji_ids
         ]
 
         return missing_kanji
@@ -165,9 +161,7 @@ class LessonService:
 
             # Check prerequisites for vocab items
             if selected_item.item_type == ItemType.VOCAB:
-                missing_kanji = await self._check_prerequisites(
-                    user_id, selected_item.item_id
-                )
+                missing_kanji = await self._check_prerequisites(user_id, selected_item.item_id)
                 if missing_kanji:
                     kanji_str = ", ".join(missing_kanji)
                     errors.append(

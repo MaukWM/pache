@@ -6,16 +6,14 @@ from httpx import AsyncClient
 from sqlalchemy import select
 
 from src.auth.models import Session, User
-from src.core.constants import ItemType, ProgressSource
+from src.core.constants import ItemType
 from src.kanji.models import Kanji
 from src.progress.models import LessonQueue, UserItemProgress
 from src.vocab.models import Vocab
 
 
 @pytest.mark.asyncio
-async def test_complete_lessons_direct_without_queue(
-    async_client: AsyncClient, db_session
-) -> None:
+async def test_complete_lessons_direct_without_queue(async_client: AsyncClient, db_session) -> None:
     """Test completing lessons directly without queue membership returns 200."""
     # Create user and session
     user = User(username="testuser")
@@ -117,9 +115,7 @@ async def test_complete_lessons_auto_removes_from_queue(
 
 
 @pytest.mark.asyncio
-async def test_complete_lessons_already_learned(
-    async_client: AsyncClient, db_session
-) -> None:
+async def test_complete_lessons_already_learned(async_client: AsyncClient, db_session) -> None:
     """Test that completing already learned items returns 400."""
     # Create user and session
     user = User(username="testuser")
@@ -166,9 +162,7 @@ async def test_complete_lessons_already_learned(
 
 
 @pytest.mark.asyncio
-async def test_complete_lessons_prerequisite_failure(
-    async_client: AsyncClient, db_session
-) -> None:
+async def test_complete_lessons_prerequisite_failure(async_client: AsyncClient, db_session) -> None:
     """Test that vocab items without learned kanji prerequisites return 400."""
     # Create user and session
     user = User(username="testuser")
