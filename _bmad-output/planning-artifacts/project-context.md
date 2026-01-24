@@ -23,6 +23,7 @@ _Critical rules and patterns for consistent implementation. Read this before wri
 | Linting | ruff | Latest |
 | Type Checking | mypy | Latest |
 | Testing | pytest + pytest-asyncio | Latest |
+| Japanese Data | jamdict + jamdict-data | Latest |
 
 ---
 

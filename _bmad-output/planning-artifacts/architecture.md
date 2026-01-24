@@ -51,7 +51,7 @@ _This document builds collaboratively through step-by-step discovery. Sections a
 |------------|--------|
 | WaniKani SRS intervals must be replicated exactly | Hardcoded interval configuration |
 | Reviews batched by hour, not exact timestamp | Query logic truncates to hour |
-| Kanji pre-seeded from KANJIDIC2 | Idempotent seed script, ~3000 records, runs on deployment |
+| Kanji pre-seeded via jamdict | Idempotent seed script using jamdict API, ~13000 kanji, runs on deployment |
 | Self-hosted deployment | Docker-based, simple operations |
 | Username-only auth (trusted users) | No password hashing, simple session tokens |
 | MySQL preferred | User familiarity, SQLAlchemy abstracts differences |
@@ -97,6 +97,7 @@ API Backend - Python/FastAPI with MySQL database
 | Validation | Pydantic | v2 (bundled with FastAPI) |
 | Migrations | Alembic | Latest |
 | Database | MySQL | 8.0+ |
+| Japanese Data | jamdict + jamdict-data | Latest |
 
 ### What This Decision Establishes
 
@@ -321,7 +322,7 @@ kanji-srs/
 │   ├── env.py
 │   └── script.py.mako
 ├── scripts/
-│   └── seed_kanji.py              # Idempotent kanji seeding from KANJIDIC2
+│   └── seed_kanji.py              # Idempotent kanji seeding via jamdict
 ├── src/
 │   ├── __init__.py
 │   ├── main.py                    # FastAPI app entry, lifespan, router mounting
@@ -472,7 +473,13 @@ def calculate_next_review(current_stage: int, correct: bool) -> tuple[int, datet
 **`scripts/seed_kanji.py`** - Idempotent database seeding:
 - Runs on deployment, safe to run multiple times
 - Checks if kanji exists before inserting
-- Sources from KANJIDIC2
+- Sources from jamdict (kanjidic2 via jamdict-data SQLite)
+- Optional `--update` flag to refresh metadata for existing records
+
+**jamdict Runtime Usage:**
+- Radical decomposition: `jam.krad[kanji_char]` returns list of radicals
+- Vocab lookup: `jam.lookup(word)` returns JMdict entries with readings/meanings
+- Used by kanji detail views and vocab creation autocomplete
 
 ## Architecture Validation Results
 
@@ -624,7 +631,7 @@ This architecture document is your complete guide for implementing Kanji SRS Pla
 # 1. Initialize project
 mkdir kanji-srs && cd kanji-srs
 uv init
-uv add fastapi sqlalchemy[asyncio] asyncmy alembic pydantic-settings structlog uvicorn
+uv add fastapi sqlalchemy[asyncio] asyncmy alembic pydantic-settings structlog uvicorn jamdict jamdict-data
 
 # 2. Set up pre-commit
 uv add --dev pre-commit pytest pytest-asyncio ruff mypy httpx
@@ -647,4 +654,3 @@ pre-commit install
 ---
 
 **Architecture Status:** READY FOR IMPLEMENTATION ✅
-

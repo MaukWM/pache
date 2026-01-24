@@ -23,6 +23,7 @@ RUN uv venv /venv \
 
 # Copy application code
 COPY src ./src
+COPY scripts ./scripts
 
 # Use venv by default
 ENV PATH="/venv/bin:$PATH"

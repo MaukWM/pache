@@ -88,7 +88,7 @@ NFR8: Sessions expire after reasonable inactivity period
 - Naming conventions per architecture document
 
 **From Architecture - Data:**
-- Idempotent kanji seeding script from KANJIDIC2 (~3000 records)
+- Idempotent kanji seeding script via jamdict (~13000 kanji)
 - SRS intervals hardcoded per WaniKani spec
 - Reviews batched by hour (truncate timestamp)
 - Item type polymorphism via discriminator in UserItemProgress
