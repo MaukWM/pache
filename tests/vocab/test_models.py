@@ -104,9 +104,7 @@ async def test_vocab_tag_relationship(db_session: AsyncSession) -> None:
     await db_session.flush()
 
     # Verify relationship
-    result = await db_session.execute(
-        select(Vocab).where(Vocab.id == vocab.id)
-    )
+    result = await db_session.execute(select(Vocab).where(Vocab.id == vocab.id))
     loaded_vocab = result.scalar_one()
     assert len(loaded_vocab.tags) == 2
     assert {t.name for t in loaded_vocab.tags} == {"N5", "common"}
@@ -151,9 +149,7 @@ async def test_vocab_kanji_relationship(db_session: AsyncSession) -> None:
     await db_session.flush()
 
     # Verify relationship
-    result = await db_session.execute(
-        select(Vocab).where(Vocab.id == vocab.id)
-    )
+    result = await db_session.execute(select(Vocab).where(Vocab.id == vocab.id))
     loaded_vocab = result.scalar_one()
     assert len(loaded_vocab.kanji) == 2
     assert {k.character for k in loaded_vocab.kanji} == {"日", "本"}

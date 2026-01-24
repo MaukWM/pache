@@ -99,3 +99,50 @@ def test_vocab_create_request_multiple_meanings() -> None:
         meanings=["day", "sun", "Japan"],
     )
     assert len(request.meanings) == 3
+
+
+def test_vocab_create_request_valid_tags() -> None:
+    """Test that valid tag names are accepted."""
+    request = VocabCreateRequest(
+        word="日本",
+        reading="にほん",
+        meanings=["Japan"],
+        tags=["N5", "common", "jlpt-n5", "beginner_vocab"],
+    )
+    assert request.tags == ["N5", "common", "jlpt-n5", "beginner_vocab"]
+
+
+def test_vocab_create_request_empty_tag_rejected() -> None:
+    """Test that empty tag names are rejected."""
+    with pytest.raises(ValidationError) as exc_info:
+        VocabCreateRequest(
+            word="test",
+            reading="test",
+            meanings=["test"],
+            tags=["valid", ""],
+        )
+    assert "must be 1-50 characters" in str(exc_info.value)
+
+
+def test_vocab_create_request_tag_too_long_rejected() -> None:
+    """Test that tag names over 50 characters are rejected."""
+    with pytest.raises(ValidationError) as exc_info:
+        VocabCreateRequest(
+            word="test",
+            reading="test",
+            meanings=["test"],
+            tags=["a" * 51],
+        )
+    assert "must be 1-50 characters" in str(exc_info.value)
+
+
+def test_vocab_create_request_tag_invalid_chars_rejected() -> None:
+    """Test that tag names with invalid characters are rejected."""
+    with pytest.raises(ValidationError) as exc_info:
+        VocabCreateRequest(
+            word="test",
+            reading="test",
+            meanings=["test"],
+            tags=["invalid tag!"],  # spaces and special chars not allowed
+        )
+    assert "must contain only letters, numbers, hyphens, underscores" in str(exc_info.value)

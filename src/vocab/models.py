@@ -1,14 +1,14 @@
 """Vocabulary database models."""
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
 from sqlalchemy import (
+    JSON,
     Column,
     DateTime,
     ForeignKey,
     Integer,
-    JSON,
     String,
     Table,
     Text,
@@ -48,13 +48,11 @@ class Vocab(Base):
     word: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
     reading: Mapped[str] = mapped_column(String(100), nullable=False)
     meanings: Mapped[list[str]] = mapped_column(JSON, nullable=False)
-    creator_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("users.id"), nullable=False
-    )
+    creator_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), nullable=False)
     creator_comment: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
-        default=lambda: datetime.now(timezone.utc),
+        default=lambda: datetime.now(UTC),
         nullable=False,
     )
 
@@ -75,7 +73,7 @@ class Tag(Base):
     name: Mapped[str] = mapped_column(String(50), unique=True, nullable=False, index=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
-        default=lambda: datetime.now(timezone.utc),
+        default=lambda: datetime.now(UTC),
         nullable=False,
     )
 

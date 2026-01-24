@@ -2,7 +2,7 @@
 
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from src.kanji.schemas import KanjiResponse
 
@@ -27,6 +27,19 @@ class VocabCreateRequest(BaseModel):
     tags: list[str] = Field(default_factory=list)
     creator_comment: str | None = None
 
+    @field_validator("tags")
+    @classmethod
+    def validate_tags(cls, v: list[str]) -> list[str]:
+        """Validate each tag name."""
+        for tag in v:
+            if not tag or len(tag) > 50:
+                raise ValueError(f"Tag '{tag}' must be 1-50 characters")
+            if not tag.replace("-", "").replace("_", "").isalnum():
+                raise ValueError(
+                    f"Tag '{tag}' must contain only letters, numbers, hyphens, underscores"
+                )
+        return v
+
 
 class VocabResponse(BaseModel):
     """Response schema for vocabulary."""
@@ -38,6 +51,7 @@ class VocabResponse(BaseModel):
     reading: str
     meanings: list[str]
     creator_id: int
+    creator_username: str  # Added for FR18
     creator_comment: str | None
     created_at: datetime
     tags: list[TagResponse]
