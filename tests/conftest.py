@@ -1,15 +1,19 @@
 """Pytest configuration and fixtures."""
 
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, Generator
 
 import pytest
 from fastapi.testclient import TestClient
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
+from src.auth.models import Session, User  # noqa: F401
 from src.database import Base, get_db
-from src.main import app
 
+# Import all models to ensure they're registered with Base.metadata
+from src.kanji.models import Kanji  # noqa: F401
+from src.main import app
+from src.vocab.models import Tag, Vocab  # noqa: F401
 
 # Create test database engine (in-memory SQLite)
 test_engine = create_async_engine(
@@ -50,7 +54,7 @@ async def override_get_db() -> AsyncGenerator[AsyncSession, None]:
 
 
 @pytest.fixture(scope="function", autouse=True)
-def override_dependency() -> None:
+def override_dependency() -> Generator[None, None, None]:
     """Override get_db dependency for all tests."""
     app.dependency_overrides[get_db] = override_get_db
     yield

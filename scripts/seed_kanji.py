@@ -73,9 +73,7 @@ async def seed_kanji(db: AsyncSession, kanji_data_list: list[dict]) -> tuple[int
 
     for kanji_data in tqdm(kanji_data_list, desc="Seeding kanji", unit="kanji"):
         # Check if kanji already exists
-        result = await db.execute(
-            select(Kanji).where(Kanji.character == kanji_data["character"])
-        )
+        result = await db.execute(select(Kanji).where(Kanji.character == kanji_data["character"]))
         existing = result.scalar_one_or_none()
 
         if existing is not None:

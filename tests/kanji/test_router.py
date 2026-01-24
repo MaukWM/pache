@@ -12,9 +12,10 @@ from src.main import app
 @pytest.mark.asyncio
 async def test_list_kanji_empty(async_client: AsyncClient, db_session: AsyncSession):
     """Test listing kanji when database is empty."""
+
     async def override_get_db():
         yield db_session
-    
+
     app.dependency_overrides[get_db] = override_get_db
     try:
         response = await async_client.get("/api/v1/kanji")
@@ -50,7 +51,7 @@ async def test_list_kanji_only_active(async_client: AsyncClient, db_session: Asy
 
     async def override_get_db():
         yield db_session
-    
+
     app.dependency_overrides[get_db] = override_get_db
     try:
         response = await async_client.get("/api/v1/kanji")
@@ -89,7 +90,7 @@ async def test_list_kanji_include_inactive(async_client: AsyncClient, db_session
 
     async def override_get_db():
         yield db_session
-    
+
     app.dependency_overrides[get_db] = override_get_db
     try:
         response = await async_client.get("/api/v1/kanji?include_inactive=true")
@@ -119,7 +120,7 @@ async def test_get_kanji_by_id(async_client: AsyncClient, db_session: AsyncSessi
 
     async def override_get_db():
         yield db_session
-    
+
     app.dependency_overrides[get_db] = override_get_db
     try:
         response = await async_client.get(f"/api/v1/kanji/{kanji.id}")
@@ -152,7 +153,7 @@ async def test_get_kanji_by_character(async_client: AsyncClient, db_session: Asy
 
     async def override_get_db():
         yield db_session
-    
+
     app.dependency_overrides[get_db] = override_get_db
     try:
         response = await async_client.get("/api/v1/kanji/月")
@@ -167,9 +168,10 @@ async def test_get_kanji_by_character(async_client: AsyncClient, db_session: Asy
 @pytest.mark.asyncio
 async def test_get_kanji_not_found_by_id(async_client: AsyncClient, db_session: AsyncSession):
     """Test getting non-existent kanji by ID returns 404."""
+
     async def override_get_db():
         yield db_session
-    
+
     app.dependency_overrides[get_db] = override_get_db
     try:
         response = await async_client.get("/api/v1/kanji/99999")
@@ -180,11 +182,14 @@ async def test_get_kanji_not_found_by_id(async_client: AsyncClient, db_session: 
 
 
 @pytest.mark.asyncio
-async def test_get_kanji_not_found_by_character(async_client: AsyncClient, db_session: AsyncSession):
+async def test_get_kanji_not_found_by_character(
+    async_client: AsyncClient, db_session: AsyncSession
+):
     """Test getting non-existent kanji by character returns 404."""
+
     async def override_get_db():
         yield db_session
-    
+
     app.dependency_overrides[get_db] = override_get_db
     try:
         response = await async_client.get("/api/v1/kanji/漢")
@@ -197,9 +202,10 @@ async def test_get_kanji_not_found_by_character(async_client: AsyncClient, db_se
 @pytest.mark.asyncio
 async def test_get_kanji_invalid_identifier(async_client: AsyncClient, db_session: AsyncSession):
     """Test getting kanji with invalid identifier returns 400."""
+
     async def override_get_db():
         yield db_session
-    
+
     app.dependency_overrides[get_db] = override_get_db
     try:
         response = await async_client.get("/api/v1/kanji/abc")
@@ -210,7 +216,9 @@ async def test_get_kanji_invalid_identifier(async_client: AsyncClient, db_sessio
 
 
 @pytest.mark.asyncio
-async def test_kanji_endpoints_no_auth_required(async_client: AsyncClient, db_session: AsyncSession):
+async def test_kanji_endpoints_no_auth_required(
+    async_client: AsyncClient, db_session: AsyncSession
+):
     """Test that kanji endpoints do not require authentication."""
     kanji = Kanji(
         character="日",
@@ -226,7 +234,7 @@ async def test_kanji_endpoints_no_auth_required(async_client: AsyncClient, db_se
 
     async def override_get_db():
         yield db_session
-    
+
     app.dependency_overrides[get_db] = override_get_db
     try:
         # List endpoint - no auth header

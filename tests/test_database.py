@@ -4,9 +4,6 @@ import pytest
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.database import get_db
-from src.main import app
-
 
 @pytest.mark.asyncio
 async def test_get_db_returns_async_session(db_session: AsyncSession):
