@@ -1,6 +1,6 @@
 # Story 3.3: Browse & Filter Vocabulary
 
-Status: ready-for-dev
+Status: review
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -52,38 +52,38 @@ So that **I can discover interesting terms added by friends**.
 
 ## Tasks / Subtasks
 
-- [ ] Task 1: Add browse methods to VocabService (AC: 1, 2, 3, 4)
-  - [ ] Implement `get_all` method with optional filters:
+- [x] Task 1: Add browse methods to VocabService (AC: 1, 2, 3, 4)
+  - [x] Implement `get_all` method with optional filters:
     - `tag: str | None` - filter by tag name
     - `creator: str | None` - filter by creator username
-  - [ ] Implement query joining for filter conditions
-  - [ ] Ensure eager loading of relationships (tags, kanji, creator)
-  - [ ] Write tests for filtering logic
+  - [x] Implement query joining for filter conditions
+  - [x] Ensure eager loading of relationships (tags, kanji, creator)
+  - [x] Write tests for filtering logic
 
-- [ ] Task 2: Add get_by_id method to VocabService (AC: 5)
-  - [ ] Implement `get_by_id` method
-  - [ ] Eager load relationships (tags, kanji, creator)
-  - [ ] Return None if not found
-  - [ ] Write tests
+- [x] Task 2: Add get_by_id method to VocabService (AC: 5)
+  - [x] Implement `get_by_id` method
+  - [x] Eager load relationships (tags, kanji, creator)
+  - [x] Return None if not found
+  - [x] Write tests
 
-- [ ] Task 3: Add GET endpoints to vocab router (AC: 1-7)
-  - [ ] Implement GET `/vocab` endpoint:
+- [x] Task 3: Add GET endpoints to vocab router (AC: 1-7)
+  - [x] Implement GET `/vocab` endpoint:
     - Query params: `tag`, `creator` (both optional)
     - No authentication required
     - Return list of VocabResponse
-  - [ ] Implement GET `/vocab/{vocab_id}` endpoint:
+  - [x] Implement GET `/vocab/{vocab_id}` endpoint:
     - Path param: vocab_id (int)
     - Return VocabResponse or 404
-  - [ ] Write integration tests
+  - [x] Write integration tests
 
-- [ ] Task 4: Write comprehensive tests
-  - [ ] Test browse returns all vocab
-  - [ ] Test filter by tag
-  - [ ] Test filter by creator
-  - [ ] Test combined filters (AND logic)
-  - [ ] Test get by ID success
-  - [ ] Test get by ID 404
-  - [ ] Test no auth required for browse
+- [x] Task 4: Write comprehensive tests
+  - [x] Test browse returns all vocab
+  - [x] Test filter by tag
+  - [x] Test filter by creator
+  - [x] Test combined filters (AND logic)
+  - [x] Test get by ID success
+  - [x] Test get by ID 404
+  - [x] Test no auth required for browse
 
 ## Dev Notes
 
@@ -276,10 +276,86 @@ async def sample_vocab(db: AsyncSession, sample_user, sample_kanji):
 
 ### Agent Model Used
 
-{{agent_model_name_version}}
+Claude Sonnet 4.5
 
 ### Debug Log References
 
 ### Completion Notes List
 
+✅ **Task 1 Complete**: Added `get_all` method to VocabService with optional tag and creator filters. Uses SQLAlchemy joins with `selectinload` for eager loading of relationships (tags, kanji, creator). Implemented AND logic for multiple filters. Added comprehensive service tests.
+
+✅ **Task 2 Complete**: Added `get_by_id` method to VocabService with eager loading of all relationships. Returns None when vocab not found. Added tests for success and not-found cases.
+
+✅ **Task 3 Complete**: Implemented GET `/api/v1/vocab` endpoint with optional query params (tag, creator). Implemented GET `/api/v1/vocab/{vocab_id}` endpoint with 404 handling. Both endpoints do not require authentication (public/shared pool). Added comprehensive router integration tests.
+
+✅ **Task 4 Complete**: Added tests covering all acceptance criteria:
+- Browse all vocabulary with relationships loaded
+- Filter by tag
+- Filter by creator username
+- Combined filters (AND logic)
+- Get by ID success case
+- Get by ID 404 case
+- No authentication required verification
+
 ### File List
+
+**Modified Files:**
+- `src/vocab/service.py` - Added `get_all()` and `get_by_id()` methods with eager loading
+- `src/vocab/router.py` - Added GET `/vocab` and GET `/vocab/{vocab_id}` endpoints
+
+**Test Files:**
+- `tests/vocab/test_service.py` - Added 6 new tests for service methods (browse and filter)
+- `tests/vocab/test_router.py` - Added 7 new tests for router endpoints (browse, filter, get by ID)
+
+## Senior Developer Review (AI)
+
+**Review Date:** 2026-01-24
+**Reviewer:** Adversarial AI Code Reviewer
+**Review Outcome:** Changes Requested
+
+### Summary
+
+Found 4 issues during code review. All HIGH and MEDIUM issues have been fixed automatically.
+
+### Issues Found
+
+**HIGH Severity (1):**
+- ✅ **FIXED**: Missing kanji filter - Kanji relationships were loaded but filtering by kanji ID was not implemented. User explicitly requested this feature. Added `kanji_id` parameter to `get_all()` method and router endpoint.
+
+**MEDIUM Severity (2):**
+- ✅ **FIXED**: Code duplication - `VocabResponse` construction was duplicated 3 times across router endpoints. Extracted to `_vocab_to_response()` helper function.
+- ✅ **FIXED**: Missing import - Added `Vocab` import to router for type hints in helper function.
+
+**LOW Severity (1):**
+- ⚠️ **NOTED**: Missing pagination - `get_all()` can return unbounded results. Consider adding pagination in future iteration (not blocking for current story).
+
+### Action Items
+
+All HIGH and MEDIUM issues have been automatically fixed:
+- [x] Added kanji filter to `VocabService.get_all()` method
+- [x] Added `kanji_id` query parameter to GET `/vocab` endpoint
+- [x] Extracted `VocabResponse` construction to `_vocab_to_response()` helper
+- [x] Added tests for kanji filtering (2 new service tests, 1 new router test)
+- [x] Fixed import statements
+
+### Test Coverage
+
+Added 3 new tests:
+- `test_get_all_filters_by_kanji_id` - Service test for kanji filtering
+- `test_get_all_filters_by_multiple_filters_including_kanji` - Service test for combined filters with kanji
+- `test_list_vocab_filters_by_kanji_id` - Router integration test for kanji filter
+
+## Change Log
+
+- 2026-01-24: Story 3.3 implementation completed
+  - Added `get_all()` method to VocabService with tag and creator filters (AND logic)
+  - Added `get_by_id()` method to VocabService with eager loading
+  - Implemented GET `/api/v1/vocab` endpoint with optional filters (no auth required)
+  - Implemented GET `/api/v1/vocab/{vocab_id}` endpoint with 404 handling (no auth required)
+  - Added comprehensive test coverage (13 new tests total)
+  - All acceptance criteria satisfied (AC1-AC7)
+- 2026-01-24: Code review fixes applied
+  - Added kanji filter (`kanji_id` parameter) to `get_all()` method and router endpoint
+  - Extracted `VocabResponse` construction to `_vocab_to_response()` helper function to eliminate duplication
+  - Added 3 new tests for kanji filtering functionality
+  - Total: 16 tests now cover all filtering scenarios

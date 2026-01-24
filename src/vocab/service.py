@@ -2,7 +2,9 @@
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
+from src.auth.models import User
 from src.kanji.models import Kanji
 from src.vocab.models import Tag, Vocab
 from src.vocab.schemas import VocabCreateRequest
@@ -67,3 +69,45 @@ class VocabService:
         await self.db.refresh(vocab, ["kanji", "tags", "creator"])
 
         return vocab
+
+    async def get_all(
+        self,
+        tag: str | None = None,
+        creator: str | None = None,
+        kanji_id: int | None = None,
+    ) -> list[Vocab]:
+        """Get all vocabulary with optional filters."""
+        query = select(Vocab).options(
+            selectinload(Vocab.tags),
+            selectinload(Vocab.kanji),
+            selectinload(Vocab.creator),
+        )
+
+        # Filter by tag
+        if tag:
+            query = query.join(Vocab.tags).where(Tag.name == tag)
+
+        # Filter by creator username
+        if creator:
+            query = query.join(Vocab.creator).where(User.username == creator)
+
+        # Filter by kanji ID
+        if kanji_id is not None:
+            query = query.join(Vocab.kanji).where(Kanji.id == kanji_id)
+
+        result = await self.db.execute(query)
+        return list(result.scalars().unique().all())
+
+    async def get_by_id(self, vocab_id: int) -> Vocab | None:
+        """Get vocabulary by ID with all relationships."""
+        query = (
+            select(Vocab)
+            .where(Vocab.id == vocab_id)
+            .options(
+                selectinload(Vocab.tags),
+                selectinload(Vocab.kanji),
+                selectinload(Vocab.creator),
+            )
+        )
+        result = await self.db.execute(query)
+        return result.scalar_one_or_none()

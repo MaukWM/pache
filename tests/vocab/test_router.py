@@ -209,3 +209,375 @@ async def test_create_vocab_auto_activates_kanji(async_client: AsyncClient, db_s
     # Verify kanji was activated
     await db_session.refresh(kanji)
     assert kanji.active is True
+
+
+@pytest.mark.asyncio
+async def test_list_vocab_returns_all(async_client: AsyncClient, db_session) -> None:
+    """Test that GET /vocab returns all vocabulary."""
+    # Create users
+    user1 = User(username="floppa")
+    user2 = User(username="testuser")
+    db_session.add_all([user1, user2])
+    await db_session.flush()
+
+    # Create kanji
+    kanji = Kanji(
+        character="日",
+        meanings=["day"],
+        readings_on=["ニチ"],
+        readings_kun=["ひ"],
+        stroke_count=4,
+    )
+    db_session.add(kanji)
+    await db_session.flush()
+
+    # Create vocab via service (since we don't have auth for this test)
+    from src.vocab.schemas import VocabCreateRequest
+    from src.vocab.service import VocabService
+
+    service = VocabService(db_session)
+    vocab1 = await service.create_vocab(
+        VocabCreateRequest(
+            word="日本語",
+            readings=["にほんご"],
+            meanings=["Japanese language"],
+            kanji_ids=[kanji.id],
+            tags=["language"],
+        ),
+        creator_id=user1.id,
+    )
+    vocab2 = await service.create_vocab(
+        VocabCreateRequest(
+            word="日本",
+            readings=["にほん"],
+            meanings=["Japan"],
+            tags=["country"],
+        ),
+        creator_id=user2.id,
+    )
+    await db_session.commit()
+
+    # Get all vocab (no auth required)
+    response = await async_client.get("/api/v1/vocab")
+
+    assert response.status_code == status.HTTP_200_OK
+    data = response.json()
+    assert len(data) == 2
+    vocab_ids = {v["id"] for v in data}
+    assert vocab_ids == {vocab1.id, vocab2.id}
+
+    # Verify each vocab has required fields
+    for vocab_data in data:
+        assert "id" in vocab_data
+        assert "word" in vocab_data
+        assert "creator_username" in vocab_data
+        assert "tags" in vocab_data
+        assert "kanji" in vocab_data
+
+
+@pytest.mark.asyncio
+async def test_list_vocab_filters_by_tag(async_client: AsyncClient, db_session) -> None:
+    """Test that GET /vocab?tag=slang filters by tag."""
+    # Create user
+    user = User(username="testuser")
+    db_session.add(user)
+    await db_session.flush()
+
+    # Create vocab via service
+    from src.vocab.schemas import VocabCreateRequest
+    from src.vocab.service import VocabService
+
+    service = VocabService(db_session)
+    vocab1 = await service.create_vocab(
+        VocabCreateRequest(
+            word="日本語",
+            readings=["にほんご"],
+            meanings=["Japanese language"],
+            tags=["slang", "language"],
+        ),
+        creator_id=user.id,
+    )
+    await service.create_vocab(
+        VocabCreateRequest(
+            word="日本",
+            readings=["にほん"],
+            meanings=["Japan"],
+            tags=["country"],
+        ),
+        creator_id=user.id,
+    )
+    await db_session.commit()
+
+    # Filter by tag
+    response = await async_client.get("/api/v1/vocab?tag=slang")
+
+    assert response.status_code == status.HTTP_200_OK
+    data = response.json()
+    assert len(data) == 1
+    assert data[0]["id"] == vocab1.id
+    tag_names = {t["name"] for t in data[0]["tags"]}
+    assert "slang" in tag_names
+
+
+@pytest.mark.asyncio
+async def test_list_vocab_filters_by_creator(async_client: AsyncClient, db_session) -> None:
+    """Test that GET /vocab?creator=floppa filters by creator."""
+    # Create users
+    user1 = User(username="floppa")
+    user2 = User(username="testuser")
+    db_session.add_all([user1, user2])
+    await db_session.flush()
+
+    # Create vocab via service
+    from src.vocab.schemas import VocabCreateRequest
+    from src.vocab.service import VocabService
+
+    service = VocabService(db_session)
+    vocab1 = await service.create_vocab(
+        VocabCreateRequest(
+            word="日本語",
+            readings=["にほんご"],
+            meanings=["Japanese language"],
+        ),
+        creator_id=user1.id,
+    )
+    await service.create_vocab(
+        VocabCreateRequest(
+            word="日本",
+            readings=["にほん"],
+            meanings=["Japan"],
+        ),
+        creator_id=user2.id,
+    )
+    await db_session.commit()
+
+    # Filter by creator
+    response = await async_client.get("/api/v1/vocab?creator=floppa")
+
+    assert response.status_code == status.HTTP_200_OK
+    data = response.json()
+    assert len(data) == 1
+    assert data[0]["id"] == vocab1.id
+    assert data[0]["creator_username"] == "floppa"
+
+
+@pytest.mark.asyncio
+async def test_list_vocab_filters_by_tag_and_creator(async_client: AsyncClient, db_session) -> None:
+    """Test that GET /vocab?tag=slang&creator=floppa filters by both (AND logic)."""
+    # Create users
+    user1 = User(username="floppa")
+    user2 = User(username="testuser")
+    db_session.add_all([user1, user2])
+    await db_session.flush()
+
+    # Create vocab via service
+    from src.vocab.schemas import VocabCreateRequest
+    from src.vocab.service import VocabService
+
+    service = VocabService(db_session)
+    vocab1 = await service.create_vocab(
+        VocabCreateRequest(
+            word="日本語",
+            readings=["にほんご"],
+            meanings=["Japanese language"],
+            tags=["slang"],
+        ),
+        creator_id=user1.id,  # floppa + slang
+    )
+    await service.create_vocab(
+        VocabCreateRequest(
+            word="日本",
+            readings=["にほん"],
+            meanings=["Japan"],
+            tags=["slang"],
+        ),
+        creator_id=user2.id,  # testuser + slang
+    )
+    await service.create_vocab(
+        VocabCreateRequest(
+            word="語",
+            readings=["ご"],
+            meanings=["language"],
+            tags=["other"],
+        ),
+        creator_id=user1.id,  # floppa + other tag
+    )
+    await db_session.commit()
+
+    # Filter by both
+    response = await async_client.get("/api/v1/vocab?tag=slang&creator=floppa")
+
+    assert response.status_code == status.HTTP_200_OK
+    data = response.json()
+    assert len(data) == 1
+    assert data[0]["id"] == vocab1.id
+    assert data[0]["creator_username"] == "floppa"
+    tag_names = {t["name"] for t in data[0]["tags"]}
+    assert "slang" in tag_names
+
+
+@pytest.mark.asyncio
+async def test_get_vocab_by_id_success(async_client: AsyncClient, db_session) -> None:
+    """Test that GET /vocab/{vocab_id} returns vocabulary details."""
+    # Create user
+    user = User(username="testuser")
+    db_session.add(user)
+    await db_session.flush()
+
+    # Create kanji
+    kanji = Kanji(
+        character="日",
+        meanings=["day"],
+        readings_on=["ニチ"],
+        readings_kun=["ひ"],
+        stroke_count=4,
+    )
+    db_session.add(kanji)
+    await db_session.flush()
+
+    # Create vocab via service
+    from src.vocab.schemas import VocabCreateRequest
+    from src.vocab.service import VocabService
+
+    service = VocabService(db_session)
+    vocab = await service.create_vocab(
+        VocabCreateRequest(
+            word="日本語",
+            readings=["にほんご"],
+            meanings=["Japanese language"],
+            kanji_ids=[kanji.id],
+            tags=["language"],
+            creator_comment="Test comment",
+        ),
+        creator_id=user.id,
+    )
+    await db_session.commit()
+
+    # Get by ID (no auth required)
+    response = await async_client.get(f"/api/v1/vocab/{vocab.id}")
+
+    assert response.status_code == status.HTTP_200_OK
+    data = response.json()
+    assert data["id"] == vocab.id
+    assert data["word"] == "日本語"
+    assert data["readings"] == ["にほんご"]
+    assert data["meanings"] == ["Japanese language"]
+    assert data["creator_username"] == "testuser"
+    assert data["creator_comment"] == "Test comment"
+    assert len(data["kanji"]) == 1
+    assert data["kanji"][0]["id"] == kanji.id
+    assert len(data["tags"]) == 1
+    assert data["tags"][0]["name"] == "language"
+
+
+@pytest.mark.asyncio
+async def test_get_vocab_by_id_not_found(async_client: AsyncClient) -> None:
+    """Test that GET /vocab/{vocab_id} returns 404 when vocab doesn't exist."""
+    response = await async_client.get("/api/v1/vocab/999")
+
+    assert response.status_code == status.HTTP_404_NOT_FOUND
+    assert "not found" in response.json()["detail"].lower()
+
+
+@pytest.mark.asyncio
+async def test_list_vocab_no_auth_required(async_client: AsyncClient, db_session) -> None:
+    """Test that GET /vocab does not require authentication."""
+    # Create user and vocab via service
+    user = User(username="testuser")
+    db_session.add(user)
+    await db_session.flush()
+
+    from src.vocab.schemas import VocabCreateRequest
+    from src.vocab.service import VocabService
+
+    service = VocabService(db_session)
+    await service.create_vocab(
+        VocabCreateRequest(
+            word="日本語",
+            readings=["にほんご"],
+            meanings=["Japanese language"],
+        ),
+        creator_id=user.id,
+    )
+    await db_session.commit()
+
+    # Request without auth header
+    response = await async_client.get("/api/v1/vocab")
+
+    # Should succeed (no 401)
+    assert response.status_code == status.HTTP_200_OK
+
+
+@pytest.mark.asyncio
+async def test_list_vocab_filters_by_kanji_id(async_client: AsyncClient, db_session) -> None:
+    """Test that GET /vocab?kanji_id=X filters by kanji ID."""
+    # Create user
+    user = User(username="testuser")
+    db_session.add(user)
+    await db_session.flush()
+
+    # Create kanji
+    kanji1 = Kanji(
+        character="日",
+        meanings=["day"],
+        readings_on=["ニチ"],
+        readings_kun=["ひ"],
+        stroke_count=4,
+    )
+    kanji2 = Kanji(
+        character="本",
+        meanings=["book"],
+        readings_on=["ホン"],
+        readings_kun=["もと"],
+        stroke_count=5,
+    )
+    db_session.add_all([kanji1, kanji2])
+    await db_session.flush()
+
+    # Create vocab via service
+    from src.vocab.schemas import VocabCreateRequest
+    from src.vocab.service import VocabService
+
+    service = VocabService(db_session)
+    vocab1 = await service.create_vocab(
+        VocabCreateRequest(
+            word="日本語",
+            readings=["にほんご"],
+            meanings=["Japanese language"],
+            kanji_ids=[kanji1.id, kanji2.id],
+        ),
+        creator_id=user.id,
+    )
+    vocab2 = await service.create_vocab(
+        VocabCreateRequest(
+            word="日本",
+            readings=["にほん"],
+            meanings=["Japan"],
+            kanji_ids=[kanji1.id],
+        ),
+        creator_id=user.id,
+    )
+    await service.create_vocab(
+        VocabCreateRequest(
+            word="本",
+            readings=["ほん"],
+            meanings=["book"],
+            kanji_ids=[kanji2.id],
+        ),
+        creator_id=user.id,
+    )
+    await db_session.commit()
+
+    # Filter by kanji1 ID
+    response = await async_client.get(f"/api/v1/vocab?kanji_id={kanji1.id}")
+
+    assert response.status_code == status.HTTP_200_OK
+    data = response.json()
+    assert len(data) == 2
+    vocab_ids = {v["id"] for v in data}
+    assert vocab_ids == {vocab1.id, vocab2.id}
+
+    # Verify kanji1 is in both results
+    for vocab_data in data:
+        kanji_ids_in_vocab = {k["id"] for k in vocab_data["kanji"]}
+        assert kanji1.id in kanji_ids_in_vocab
