@@ -359,3 +359,134 @@ async def test_get_queue_cleans_up_orphaned_entries(db_session: AsyncSession) ->
         select(LessonQueue).where(LessonQueue.user_id == user.id)
     )
     assert len(list(remaining.scalars().all())) == 0
+
+
+@pytest.mark.asyncio
+async def test_remove_from_queue_success(db_session: AsyncSession) -> None:
+    """Test removing an item from queue successfully."""
+    # Create user
+    user = User(username="testuser")
+    db_session.add(user)
+    await db_session.flush()
+
+    # Create kanji
+    kanji = Kanji(
+        character="漢",
+        meanings=["Chinese"],
+        readings_on=["kan"],
+        readings_kun=[],
+        stroke_count=13,
+    )
+    db_session.add(kanji)
+    await db_session.flush()
+
+    # Add to queue
+    queue_item = LessonQueue(
+        user_id=user.id,
+        item_type=ItemType.KANJI,
+        item_id=kanji.id,
+    )
+    db_session.add(queue_item)
+    await db_session.commit()
+
+    # Remove from queue
+    service = ProgressService(db_session)
+    await service.remove_from_queue(
+        user_id=user.id,
+        item_type=ItemType.KANJI,
+        item_id=kanji.id,
+    )
+
+    # Verify item was removed
+    result = await db_session.execute(
+        select(LessonQueue).where(
+            LessonQueue.user_id == user.id,
+            LessonQueue.item_type == ItemType.KANJI,
+            LessonQueue.item_id == kanji.id,
+        )
+    )
+    assert result.scalar_one_or_none() is None
+
+
+@pytest.mark.asyncio
+async def test_remove_from_queue_not_found(db_session: AsyncSession) -> None:
+    """Test removing an item not in queue raises 404."""
+    # Create user
+    user = User(username="testuser")
+    db_session.add(user)
+    await db_session.flush()
+
+    # Create kanji
+    kanji = Kanji(
+        character="漢",
+        meanings=["Chinese"],
+        readings_on=["kan"],
+        readings_kun=[],
+        stroke_count=13,
+    )
+    db_session.add(kanji)
+    await db_session.commit()
+
+    # Try to remove item not in queue
+    service = ProgressService(db_session)
+    with pytest.raises(HTTPException) as exc_info:
+        await service.remove_from_queue(
+            user_id=user.id,
+            item_type=ItemType.KANJI,
+            item_id=kanji.id,
+        )
+
+    assert exc_info.value.status_code == status.HTTP_404_NOT_FOUND
+    assert "not found in queue" in str(exc_info.value.detail)
+
+
+@pytest.mark.asyncio
+async def test_remove_from_queue_only_user_items(db_session: AsyncSession) -> None:
+    """Test that users can only remove their own items."""
+    # Create two users
+    user1 = User(username="user1")
+    user2 = User(username="user2")
+    db_session.add(user1)
+    db_session.add(user2)
+    await db_session.flush()
+
+    # Create kanji
+    kanji = Kanji(
+        character="漢",
+        meanings=["Chinese"],
+        readings_on=["kan"],
+        readings_kun=[],
+        stroke_count=13,
+    )
+    db_session.add(kanji)
+    await db_session.flush()
+
+    # Add to queue for user1
+    queue_item = LessonQueue(
+        user_id=user1.id,
+        item_type=ItemType.KANJI,
+        item_id=kanji.id,
+    )
+    db_session.add(queue_item)
+    await db_session.commit()
+
+    # Try to remove user1's item as user2
+    service = ProgressService(db_session)
+    with pytest.raises(HTTPException) as exc_info:
+        await service.remove_from_queue(
+            user_id=user2.id,
+            item_type=ItemType.KANJI,
+            item_id=kanji.id,
+        )
+
+    assert exc_info.value.status_code == status.HTTP_404_NOT_FOUND
+
+    # Verify user1's item still exists
+    result = await db_session.execute(
+        select(LessonQueue).where(
+            LessonQueue.user_id == user1.id,
+            LessonQueue.item_type == ItemType.KANJI,
+            LessonQueue.item_id == kanji.id,
+        )
+    )
+    assert result.scalar_one_or_none() is not None

@@ -199,3 +199,37 @@ class ProgressService:
             await self.db.commit()
 
         return responses
+
+    async def remove_from_queue(
+        self,
+        user_id: int,
+        item_type: ItemType,
+        item_id: int,
+    ) -> None:
+        """Remove an item from the user's lesson queue.
+        
+        Example:
+            await service.remove_from_queue(
+                user_id=1,
+                item_type=ItemType.VOCAB,
+                item_id=123
+            )
+        """
+        # Query for the queue item
+        query = select(LessonQueue).where(
+            LessonQueue.user_id == user_id,
+            LessonQueue.item_type == item_type,
+            LessonQueue.item_id == item_id,
+        )
+        result = await self.db.execute(query)
+        queue_item = result.scalar_one_or_none()
+
+        if queue_item is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Item ({item_type.value}, {item_id}) not found in queue",
+            )
+
+        # Delete the queue item
+        await self.db.delete(queue_item)
+        await self.db.commit()
