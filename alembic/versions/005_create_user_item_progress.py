@@ -30,7 +30,7 @@ def upgrade() -> None:
         sa.Column("user_id", sa.Integer(), nullable=False),
         sa.Column("item_type", sa.Enum("kanji", "vocab", name="itemtype"), nullable=False),
         sa.Column("item_id", sa.Integer(), nullable=False),
-        sa.Column("srs_stage", sa.Integer(), nullable=False, server_default="0"),
+        sa.Column("srs_stage", sa.Integer(), nullable=False, server_default=sa.text("1")),
         sa.Column("next_review_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("unlocked_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("burned_at", sa.DateTime(timezone=True), nullable=True),

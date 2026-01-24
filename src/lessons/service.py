@@ -1,12 +1,12 @@
 """Lesson service layer."""
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime
 
 from fastapi import HTTPException, status
-from sqlalchemy import and_, or_, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.core.constants import ItemType, ProgressSource
+from src.core.constants import SRS_INTERVALS, ItemType, ProgressSource
 from src.kanji.models import Kanji
 from src.progress.models import LessonQueue, UserItemProgress
 from src.progress.schemas import (
@@ -18,10 +18,6 @@ from src.progress.schemas import (
     VocabItemDetails,
 )
 from src.vocab.models import Vocab
-
-# WaniKani SRS intervals (in hours) for each stage
-# Stage 1 (Apprentice 1) -> Stage 2: 4 hours
-SRS_STAGE_1_INTERVAL_HOURS = 4 # TODO: Isnt this or isnt there a constants file? Or perhaps not yet
 
 
 class LessonService:
@@ -163,9 +159,8 @@ class LessonService:
                 )
             )
             if existing_progress.scalar_one_or_none():
-                errors.append(
-                    f"Item ({selected_item.item_type.value}, {selected_item.item_id}) already learned"
-                )
+                item_type_val = selected_item.item_type.value
+                errors.append(f"Item ({item_type_val}, {selected_item.item_id}) already learned")
                 continue
 
             # Check prerequisites for vocab items
@@ -191,8 +186,8 @@ class LessonService:
             )
 
         # Calculate next review time (4 hours from now for stage 1)
-        now = datetime.now(timezone.utc)
-        next_review = now + timedelta(hours=SRS_STAGE_1_INTERVAL_HOURS)
+        now = datetime.now(UTC)
+        next_review = now + SRS_INTERVALS[1]
 
         # Process all valid items atomically
         completed_items: list[LessonItemResponse] = []

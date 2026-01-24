@@ -1,6 +1,6 @@
 """Tests for lesson service."""
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime
 
 import pytest
 from fastapi import HTTPException, status
@@ -8,9 +8,9 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.auth.models import User
-from src.core.constants import ItemType, ProgressSource
+from src.core.constants import SRS_INTERVALS, ItemType
 from src.kanji.models import Kanji
-from src.lessons.service import LessonService, SRS_STAGE_1_INTERVAL_HOURS
+from src.lessons.service import LessonService
 from src.progress.models import LessonQueue, UserItemProgress
 from src.progress.schemas import LessonCompleteRequest, SelectedItem
 from src.vocab.models import Vocab
@@ -147,13 +147,13 @@ async def test_complete_lessons_sets_next_review_time(db_session: AsyncSession) 
     await db_session.flush()
 
     # Complete lesson
-    before_complete = datetime.now(timezone.utc)
+    before_complete = datetime.now(UTC)
     service = LessonService(db_session)
     request = LessonCompleteRequest(
         item_ids=[SelectedItem(item_type=ItemType.KANJI, item_id=kanji.id)],
     )
     response = await service.complete_lessons(user_id=user.id, request=request)
-    after_complete = datetime.now(timezone.utc)
+    after_complete = datetime.now(UTC)
 
     # Verify response has next_review_at
     assert response.count == 1
@@ -161,8 +161,8 @@ async def test_complete_lessons_sets_next_review_time(db_session: AsyncSession) 
     assert response.items[0].next_review_at is not None
 
     # Verify next_review_at is approximately 4 hours from now
-    expected_min = before_complete + timedelta(hours=SRS_STAGE_1_INTERVAL_HOURS)
-    expected_max = after_complete + timedelta(hours=SRS_STAGE_1_INTERVAL_HOURS)
+    expected_min = before_complete + SRS_INTERVALS[1]
+    expected_max = after_complete + SRS_INTERVALS[1]
     assert expected_min <= response.items[0].next_review_at <= expected_max
 
     # Verify in database
@@ -174,7 +174,7 @@ async def test_complete_lessons_sets_next_review_time(db_session: AsyncSession) 
     # Handle both timezone-aware and naive datetimes from DB (SQLite may lose timezone info)
     db_next_review = progress.next_review_at
     if db_next_review.tzinfo is None:
-        db_next_review = db_next_review.replace(tzinfo=timezone.utc)
+        db_next_review = db_next_review.replace(tzinfo=UTC)
     assert expected_min <= db_next_review <= expected_max
 
 
@@ -341,6 +341,36 @@ async def test_complete_lessons_already_learned(db_session: AsyncSession) -> Non
     assert "already learned" in exc_info.value.detail.lower()
 
 
+@pytest.mark.asyncio
+async def test_complete_lessons_item_not_found(db_session: AsyncSession) -> None:
+    """Test that completing non-existent items raises error."""
+    # Create user
+    user = User(username="testuser")
+    db_session.add(user)
+    await db_session.flush()
+
+    # Try to complete lesson for non-existent kanji
+    service = LessonService(db_session)
+    request = LessonCompleteRequest(
+        item_ids=[SelectedItem(item_type=ItemType.KANJI, item_id=99999)],
+    )
+
+    with pytest.raises(HTTPException) as exc_info:
+        await service.complete_lessons(user_id=user.id, request=request)
+
+    assert exc_info.value.status_code == status.HTTP_400_BAD_REQUEST
+    assert "not found" in exc_info.value.detail.lower()
+
+    # Try to complete lesson for non-existent vocab
+    request = LessonCompleteRequest(
+        item_ids=[SelectedItem(item_type=ItemType.VOCAB, item_id=99999)],
+    )
+
+    with pytest.raises(HTTPException) as exc_info:
+        await service.complete_lessons(user_id=user.id, request=request)
+
+    assert exc_info.value.status_code == status.HTTP_400_BAD_REQUEST
+    assert "not found" in exc_info.value.detail.lower()
 
 
 @pytest.mark.asyncio

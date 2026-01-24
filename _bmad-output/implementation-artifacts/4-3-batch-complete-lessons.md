@@ -171,6 +171,17 @@ So that **I can move items into SRS rotation with one action, without requiring 
     - Test POST /me/lessons prerequisite satisfied
     - Test POST /me/lessons unauthenticated (401)
 
+### Review Follow-ups (AI)
+
+- [x] [AI-Review][HIGH] Fix migration server_default: change `server_default="0"` to `server_default="1"` [alembic/versions/005_create_user_item_progress.py:33]
+- [x] [AI-Review][HIGH] Fix model default: change `default=0` to `default=1` for srs_stage [src/progress/models.py:81]
+- [x] [AI-Review][MEDIUM] Move SRS_STAGE_1_INTERVAL_HOURS to constants.py as centralized SRS_INTERVALS dict [src/lessons/service.py:24]
+- [x] [AI-Review][MEDIUM] Update docstring: remove Stage 0 documentation, document stages 1-9 only [src/progress/models.py:52-66]
+- [x] [AI-Review][MEDIUM] Add missing test: test_complete_lessons_item_not_found for kanji/vocab not found error [tests/lessons/test_service.py]
+- [x] [AI-Review][MEDIUM] Remove unused imports: `and_`, `or_` no longer used after simplification [src/lessons/service.py:6]
+- [x] [AI-Review][LOW] Consider using sa.text() for server_default string clarity [alembic/versions/005_create_user_item_progress.py:39]
+- [x] [AI-Review][LOW] Document src/lessons/__init__.py in File List if created [story file]
+
 ## Dev Notes
 
 ### Architecture Requirements
@@ -234,24 +245,60 @@ Claude Opus 4.5
 - LessonService tests (direct completion without queue, auto-removal from queue, next_review_at, prerequisites, validation)
 - Router tests (all endpoints, error cases, authentication)
 
+✅ **Code Review Follow-ups Complete** (2026-01-24):
+- [HIGH] Fixed migration server_default from "0" to sa.text("1") for srs_stage
+- [HIGH] Fixed model default from 0 to 1 for srs_stage
+- [MEDIUM] Moved SRS interval constant to centralized SRS_INTERVALS dict in constants.py
+- [MEDIUM] Updated UserItemProgress docstring to document stages 1-9 only (removed Stage 0)
+- [MEDIUM] Added test_complete_lessons_item_not_found test for kanji/vocab not found errors
+- [MEDIUM] Removed unused imports (and_, or_, timedelta) and fixed import ordering
+- [LOW] Used sa.text() for server_default clarity in migration
+- [LOW] Documented src/lessons/__init__.py in File List
+
 ## File List
 
-- `src/core/constants.py` - Added ProgressSource enum
-- `src/progress/models.py` - Added UserItemProgress model
+- `src/core/constants.py` - Added ProgressSource enum, SRS_INTERVALS dict
+- `src/progress/models.py` - Added UserItemProgress model (fixed srs_stage default to 1, updated docstring)
 - `src/auth/models.py` - Added item_progress relationship to User model
-- `alembic/versions/005_create_user_item_progress.py` - Migration for user_item_progress table
+- `alembic/versions/005_create_user_item_progress.py` - Migration for user_item_progress table (fixed server_default to 1 with sa.text())
 - `src/progress/schemas.py` - Added SelectedItem, LessonCompleteRequest, LessonItemResponse, LessonCompleteResponse schemas
 - `src/progress/service.py` - Fixed missing readings_on/readings_kun in kanji item details
-- `src/lessons/service.py` - Created LessonService with simplified lesson completion (no queue requirement)
+- `src/lessons/__init__.py` - Module docstring for lessons package
+- `src/lessons/service.py` - Created LessonService with simplified lesson completion (no queue requirement), uses SRS_INTERVALS from constants
 - `src/lessons/router.py` - Created lessons router with POST endpoint
 - `src/main.py` - Mounted lessons router
 - `tests/progress/test_models.py` - Added UserItemProgress model tests
-- `tests/lessons/test_service.py` - Created comprehensive LessonService tests (simplified flow)
+- `tests/lessons/test_service.py` - Created comprehensive LessonService tests (added test_complete_lessons_item_not_found)
 - `tests/lessons/test_router.py` - Created comprehensive router tests (simplified flow)
 - `tests/conftest.py` - Added UserItemProgress import
 
+## Senior Developer Review (AI)
+
+**Review Date:** 2026-01-24
+**Reviewer:** Claude Opus 4.5
+**Outcome:** ~~Changes Requested~~ → **All Issues Resolved** (2026-01-24)
+
+### Action Items
+
+- [x] [HIGH] Fix migration server_default: srs_stage should default to 1, not 0
+- [x] [HIGH] Fix model default: srs_stage should default to 1, not 0
+- [x] [MEDIUM] Move SRS interval constant to constants.py
+- [x] [MEDIUM] Update UserItemProgress docstring (remove Stage 0)
+- [x] [MEDIUM] Add test for item not found error case
+- [x] [MEDIUM] Remove unused imports (and_, or_)
+- [x] [LOW] Consider sa.text() for server_default clarity
+- [x] [LOW] Document __init__.py in File List
+
+**Summary:** Core implementation is solid. Main issues are the srs_stage default values (0 instead of 1) in both the model and migration, which contradict the simplified flow where items start at stage 1. Also missing a test case and has some cleanup items from the refactor.
+
 ## Change Log
 
+- 2026-01-24: **CODE REVIEW FOLLOW-UPS COMPLETE** - All 8 action items addressed (2 HIGH, 4 MEDIUM, 2 LOW)
+  - Fixed srs_stage defaults to 1 (migration and model)
+  - Centralized SRS_INTERVALS in constants.py
+  - Added missing test_complete_lessons_item_not_found test
+  - Code cleanup (unused imports, docstrings)
+- 2026-01-24: **CODE REVIEW** - 8 action items identified (2 HIGH, 4 MEDIUM, 2 LOW)
 - 2026-01-24: **SIMPLIFIED LESSON FLOW** - Story 4.3 updated
   - **Key change**: Queue membership NO LONGER required for lesson completion
   - Items can be completed directly from the pool with one action

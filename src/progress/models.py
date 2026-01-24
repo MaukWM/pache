@@ -53,12 +53,11 @@ class UserItemProgress(Base):
     """User item progress model for tracking SRS progress on kanji and vocab items.
 
     Tracks the user's learning progress through the SRS (Spaced Repetition System) stages:
-    - Stage 0: Lesson (just completed lesson, not yet in SRS) # TODO: Not possible anymore
-    - Stages 1-4: Apprentice
-    - Stages 5-6: Guru
+    - Stages 1-4: Apprentice (items start at stage 1 after lesson completion)
+    - Stages 5-6: Guru (kanji must reach this level before vocab can be learned)
     - Stage 7: Master
     - Stage 8: Enlightened
-    - Stage 9: Burned
+    - Stage 9: Burned (complete - no more reviews)
 
     Note on foreign key handling:
     Similar to LessonQueue, the `item_id` field uses a polymorphic reference pattern.
@@ -78,7 +77,7 @@ class UserItemProgress(Base):
     item_id: Mapped[int] = mapped_column(
         Integer, nullable=False
     )  # Polymorphic FK: references kanji.id or vocab.id based on item_type
-    srs_stage: Mapped[int] = mapped_column(Integer, nullable=False, default=0) # 0 is invalid
+    srs_stage: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     next_review_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     unlocked_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
