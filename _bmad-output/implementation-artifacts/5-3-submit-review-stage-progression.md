@@ -270,4 +270,3 @@ If user rapidly submits reading and meaning simultaneously:
 ### Completion Notes List
 
 ### File List
-

@@ -33,9 +33,7 @@ class ReviewResponse(BaseModel):
     meaning_correct: bool
     srs_stage_before: int = Field(..., ge=1, le=9, description="SRS stage before review")
     srs_stage_after: int = Field(..., ge=1, le=9, description="SRS stage after review")
-    next_review_at: datetime | None = Field(
-        ..., description="Next review time, or None if burned"
-    )
+    next_review_at: datetime | None = Field(..., description="Next review time, or None if burned")
 
     model_config = {"from_attributes": True}
 

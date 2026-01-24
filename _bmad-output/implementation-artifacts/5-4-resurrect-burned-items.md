@@ -215,4 +215,3 @@ From Story 4.2 (remove from queue):
 ### Completion Notes List
 
 ### File List
-

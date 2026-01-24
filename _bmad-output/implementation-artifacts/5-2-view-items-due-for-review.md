@@ -8,7 +8,7 @@ Status: ready-for-dev
 
 As a **user**,
 I want **to see items that are due for review**,
-So that **I know what to study next**.
+So that **I know what I have to study next**.
 
 ## Acceptance Criteria
 
@@ -31,40 +31,33 @@ So that **I know what to study next**.
 **Then** response status is 200
 **And** response returns empty list `[]`
 
-**AC3: Limit parameter**
-**Given** an authenticated user
-**When** GET `/api/v1/me/reviews?limit=10` is called with optional limit parameter
-**Then** response returns at most 10 items
-**And** items are ordered by next_review_at (oldest first)
-
-**AC4: Authentication required**
+**AC3: Authentication required**
 **Given** an unauthenticated request
 **When** GET `/api/v1/me/reviews` is called
 **Then** response status is 401 Unauthorized
 
-**AC5:** `src/reviews/router.py` mounts at `/api/v1/me/reviews`
+**AC4:** `src/reviews/router.py` mounts at `/api/v1/me/reviews`
 
-**AC6:** `src/reviews/service.py` contains `ReviewService` with `get_due_reviews` method
+**AC5:** `src/reviews/service.py` contains `ReviewService` with `get_due_reviews` method
 
-**AC7:** Hour-batching logic truncates timestamps to hour precision before comparison
+**AC6:** Hour-batching logic truncates timestamps to hour precision before comparison
 
 ## Tasks / Subtasks
 
-- [ ] Task 1: Create ReviewService (AC: 6, 7)
+- [ ] Task 1: Create ReviewService (AC: 5, 6)
   - [ ] Create `src/reviews/service.py`
   - [ ] Add ReviewService class with `__init__(self, db: AsyncSession)`
-  - [ ] Implement `get_due_reviews(user_id: int, limit: int | None = None) -> list[ReviewItemResponse]`:
+  - [ ] Implement `get_due_reviews(user_id: int) -> list[ReviewItemResponse]`:
     - Query UserItemProgress for user
     - Filter where srs_stage < 9 (not burned)
     - Filter where next_review_at is not None
     - Truncate current time to hour precision
     - Filter where next_review_at (truncated to hour) <= current_hour
     - Order by next_review_at ascending (oldest first)
-    - Apply limit if provided
     - Eagerly load item details (kanji or vocab)
     - Return formatted response with item details
 
-- [ ] Task 2: Add hour truncation helper (AC: 7)
+- [ ] Task 2: Add hour truncation helper (AC: 6)
   - [ ] Add `truncate_to_hour(dt: datetime) -> datetime` function to `src/reviews/srs.py`
   - [ ] Function should set minute, second, microsecond to 0
   - [ ] Use for both query filter and timestamp comparison
@@ -82,11 +75,10 @@ So that **I know what to study next**.
       - count: int
   - [ ] Import KanjiItemDetails and VocabItemDetails from progress schemas
 
-- [ ] Task 4: Create router endpoint (AC: 1, 2, 3, 4, 5)
+- [ ] Task 4: Create router endpoint (AC: 1, 2, 3, 4)
   - [ ] Create `src/reviews/router.py`
   - [ ] Add GET `/api/v1/me/reviews` endpoint:
     - Requires authentication (Depends(get_current_user))
-    - Optional query param: limit (int, default None)
     - Calls ReviewService.get_due_reviews
     - Returns DueReviewsResponse
     - Handles 401 for unauthenticated
@@ -101,13 +93,11 @@ So that **I know what to study next**.
     - Test get_due_reviews excludes burned items (srs_stage=9)
     - Test get_due_reviews excludes items with future next_review_at
     - Test get_due_reviews hour batching (items due within current hour included)
-    - Test get_due_reviews respects limit parameter
     - Test get_due_reviews orders by next_review_at ascending
     - Test get_due_reviews returns empty list when no items due
     - Test get_due_reviews includes correct item details (kanji vs vocab)
   - [ ] Create `tests/reviews/test_router.py`:
     - Test GET /me/reviews returns due items
-    - Test GET /me/reviews with limit parameter
     - Test GET /me/reviews empty response
     - Test GET /me/reviews unauthenticated (401)
   - [ ] Add tests to `tests/reviews/test_srs.py`:
@@ -219,4 +209,3 @@ From Story 4.3:
 ### Completion Notes List
 
 ### File List
-

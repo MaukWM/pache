@@ -1,6 +1,6 @@
 # Story 5.1: SRS Core Logic & Review Log Model
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -295,3 +295,4 @@ None
 - 2026-01-24: Story 5.1 implemented - SRS core logic and ReviewLog model complete
 - 2026-01-24: Code review completed - 12 action items created (3 High, 4 Medium refactoring design per user feedback, 2 Low)
 - 2026-01-24: Addressed code review findings - 12 items resolved (7 High, 3 Medium, 2 Low). Major changes: fixed SRS interval calculation, added input validation, refactored ReviewLog to consolidate reading/meaning into single record.
+- 2026-01-24: 2nd iteration code review passed - all 12 fixes verified, 29 tests pass, ruff/mypy clean. Status → done.
