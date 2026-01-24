@@ -1,6 +1,6 @@
 # Story 5.2: View Items Due for Review
 
-Status: ready-for-dev
+Status: in-progress
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -102,6 +102,83 @@ So that **I know what I have to study next**.
     - Test GET /me/reviews unauthenticated (401)
   - [ ] Add tests to `tests/reviews/test_srs.py`:
     - Test truncate_to_hour function
+
+## Review Follow-ups (AI)
+
+### [HIGH] Issue 1: Missing database index on `next_review_at`
+**Location:** `alembic/versions/005_create_user_item_progress.py:34`
+**Action:**
+- [x] Create new Alembic migration to add index on `next_review_at` column
+- [x] Consider composite index on `(user_id, next_review_at, srs_stage)` as mentioned in story line 137 for optimal query performance
+- [x] Migration should add: `op.create_index("ix_user_item_progress_next_review_at", "user_item_progress", ["next_review_at"])`
+- [x] Optionally add composite index: `op.create_index("ix_user_item_progress_user_review_stage", "user_item_progress", ["user_id", "next_review_at", "srs_stage"])`
+
+### [HIGH] Issue 2: Inefficient query pattern - loads all items then filters in Python
+**Location:** `src/reviews/service.py:44-65`
+**Action:**
+- [x] Optimize query to filter at database level when possible
+- [x] For MySQL/PostgreSQL: Use database datetime truncation functions (e.g., MySQL `DATE_FORMAT` or PostgreSQL `date_trunc`)
+- [x] For SQLite compatibility: Keep Python filtering but add comment explaining the trade-off
+- [x] Consider adding a database abstraction layer or conditional logic based on database type
+- [x] Update query to filter `next_review_at <= current_hour` at SQL level when database supports it
+
+### [MEDIUM] Issue 3: Silent failure on orphaned progress entries
+**Location:** `src/reviews/service.py:94-108`
+**Action:**
+- [x] Add warning log when orphaned progress entries are detected (when `kanji_map.get()` or `vocab_map.get()` returns None)
+- [x] Log should include: `user_id`, `item_type`, `item_id` for debugging
+- [x] Use `logger.warning()` from `src.logging`
+- [x] Add TODO comment: "When Sentry is integrated, also send notification for orphaned progress entries"
+- [x] Example log: `logger.warning("orphaned_progress_entry", user_id=user_id, item_type=progress.item_type, item_id=progress.item_id)`
+
+### [MEDIUM] Issue 4: Missing File List documentation
+**Location:** `_bmad-output/implementation-artifacts/5-2-view-items-due-for-review.md:211`
+**Action:**
+- [x] Add comment explaining why File List is empty: "File List was not populated during initial implementation due to agent interruption. Files changed in commit 102dd21:"
+- [x] Add actual file list:
+  - `src/main.py` - Added reviews router mount
+  - `src/reviews/router.py` - Created router with GET endpoint
+  - `src/reviews/schemas.py` - Added ReviewItemResponse and DueReviewsResponse schemas
+  - `src/reviews/service.py` - Created ReviewService with get_due_reviews method
+  - `src/reviews/srs.py` - Added truncate_to_hour function
+  - `tests/reviews/test_router.py` - Created router tests
+  - `tests/reviews/test_service.py` - Created service tests
+  - `tests/reviews/test_srs.py` - Added truncate_to_hour tests
+
+### [MEDIUM] Issue 5: Missing error handling for database failures
+**Location:** `src/reviews/service.py:24-128`, `src/reviews/router.py:15-29`
+**Action:**
+- [x] Add try/except block in `ReviewService.get_due_reviews()` to catch database exceptions
+- [x] Add try/except block in router endpoint `get_due_reviews()`
+- [x] Handle `SQLAlchemyError` and return appropriate HTTP status codes (500 for server errors)
+- [x] Log errors with context (user_id, error type) using `logger.error()`
+- [x] Return meaningful error messages without exposing internal details
+- [x] Consider using FastAPI's `HTTPException` for consistent error responses
+
+### [MEDIUM] Issue 6: Test hour-batching logic is fragile
+**Location:** `tests/reviews/test_service.py:138-181`, `tests/reviews/test_router.py:344-398`
+**Action:**
+- [x] Refactor hour-batching tests to use fixed timestamps instead of `datetime.now(UTC)`
+- [x] Use `freezegun` library or mock `datetime.now()` for deterministic tests
+- [x] Create test fixtures with fixed times (e.g., `2026-01-24T14:30:00Z` for item due later in hour)
+- [x] Ensure tests don't depend on execution time
+- [x] Test both edge cases: item due at start of hour (14:00) and end of hour (14:59)
+
+### [LOW] Issue 7: Type safety concern with item_details access
+**Location:** `tests/reviews/test_service.py:56, 295-298`
+**Action:**
+- [x] Use proper type narrowing in tests when accessing `item_details`
+- [x] Cast to specific type: `details = cast(KanjiItemDetails, reviews[0].item_details)` or use type guards
+- [x] If casting solution is janky, leave as-is (dictionary access works at runtime)
+- [x] Consider adding helper function `get_kanji_details(item: ReviewItemResponse) -> KanjiItemDetails` if needed
+
+### [LOW] Issue 8: Missing validation for empty item_ids lists
+**Location:** `src/reviews/service.py:70-86`
+**Action:**
+- [x] Add logging when item IDs are missing from kanji_map or vocab_map
+- [x] Log warning when `progress.item_id` not found in corresponding map
+- [x] Include context: `user_id`, `item_type`, `item_id` in log message
+- [x] This complements issue #3 logging for orphaned entries
 
 ## Dev Notes
 
@@ -209,3 +286,21 @@ From Story 4.3:
 ### Completion Notes List
 
 ### File List
+
+<!-- File List was not populated during initial implementation due to agent interruption. Files changed in commit 102dd21: -->
+- `src/main.py` - Added reviews router mount
+- `src/reviews/router.py` - Created router with GET endpoint
+- `src/reviews/schemas.py` - Added ReviewItemResponse and DueReviewsResponse schemas
+- `src/reviews/service.py` - Created ReviewService with get_due_reviews method
+- `src/reviews/srs.py` - Added truncate_to_hour function
+- `tests/reviews/test_router.py` - Created router tests
+- `tests/reviews/test_service.py` - Created service tests
+- `tests/reviews/test_srs.py` - Added truncate_to_hour tests
+
+<!-- Files changed during review feedback implementation: -->
+- `alembic/versions/007_add_index_next_review_at.py` - Added database indexes for query optimization
+- `src/reviews/service.py` - Optimized query with MySQL DATE_FORMAT, added logging and error handling
+- `src/reviews/router.py` - Added error handling for database failures
+- `tests/reviews/test_service.py` - Fixed hour-batching tests using freezegun
+- `tests/reviews/test_router.py` - Fixed hour-batching tests using freezegun
+- `pyproject.toml` - Added freezegun to dev dependencies

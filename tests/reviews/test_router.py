@@ -3,6 +3,7 @@
 from datetime import UTC, datetime, timedelta
 
 import pytest
+from freezegun import freeze_time
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -14,9 +15,7 @@ from src.vocab.models import Vocab
 
 
 @pytest.mark.asyncio
-async def test_get_due_reviews_success(
-    async_client: AsyncClient, db_session: AsyncSession
-) -> None:
+async def test_get_due_reviews_success(async_client: AsyncClient, db_session: AsyncSession) -> None:
     """Test GET /api/v1/me/reviews returns due items."""
     # Create user and session
     user = User(username="testuser")
@@ -341,6 +340,7 @@ async def test_get_due_reviews_excludes_future_items(
 
 
 @pytest.mark.asyncio
+@freeze_time("2026-01-24 14:30:00", tz_offset=0)
 async def test_get_due_reviews_hour_batching(
     async_client: AsyncClient, db_session: AsyncSession
 ) -> None:
@@ -365,22 +365,16 @@ async def test_get_due_reviews_hour_batching(
     db_session.add(kanji)
     await db_session.flush()
 
-    # Create progress record due later in the current hour
-    # e.g., if current time is 14:05, this item due at 14:30 should be included
-    # because hour batching means items due at 14:xx are available at 14:00
-    now = datetime.now(UTC)
-    current_hour_later = now.replace(minute=30, second=0, microsecond=0)
-    if now.minute >= 30:
-        # If we're past :30, the item would already be considered due
-        # So we ensure the test is valid by using a time definitely in the current hour
-        current_hour_later = now.replace(minute=45, second=0, microsecond=0)
-
+    # Create progress record due later in the current hour (14:45)
+    # Hour batching means items due at 14:xx are available at 14:00
+    # So item due at 14:45 should be included when current time is 14:30
+    item_due_time = datetime(2026, 1, 24, 14, 45, 0, 0, tzinfo=UTC)
     progress = UserItemProgress(
         user_id=user.id,
         item_type=ItemType.KANJI,
         item_id=kanji.id,
         srs_stage=3,
-        next_review_at=current_hour_later,
+        next_review_at=item_due_time,
     )
     db_session.add(progress)
     await db_session.commit()
