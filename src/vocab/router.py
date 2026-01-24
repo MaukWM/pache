@@ -36,7 +36,7 @@ async def create_vocab(
     return VocabResponse(
         id=vocab.id,
         word=vocab.word,
-        reading=vocab.reading,
+        readings=vocab.readings,
         meanings=vocab.meanings,
         creator_id=vocab.creator_id,
         creator_username=vocab.creator.username,

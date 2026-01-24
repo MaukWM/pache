@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.auth.models import User
 from src.kanji.models import Kanji
-from src.vocab.models import Tag, Vocab
+from src.vocab.models import Tag
 from src.vocab.schemas import VocabCreateRequest
 from src.vocab.service import VocabService
 
@@ -40,7 +40,7 @@ async def test_create_vocab_with_all_fields(db_session: AsyncSession) -> None:
     service = VocabService(db_session)
     request = VocabCreateRequest(
         word="日本語",
-        reading="にほんご",
+        readings=["にほんご"],
         meanings=["Japanese language"],
         kanji_ids=[kanji1.id, kanji2.id],
         tags=["language", "N5"],
@@ -53,7 +53,7 @@ async def test_create_vocab_with_all_fields(db_session: AsyncSession) -> None:
     # Verify vocab was created
     assert vocab.id is not None
     assert vocab.word == "日本語"
-    assert vocab.reading == "にほんご"
+    assert vocab.readings == ["にほんご"]
     assert vocab.meanings == ["Japanese language"]
     assert vocab.creator_id == user.id
     assert vocab.creator_comment == "Found in my textbook"
@@ -94,7 +94,7 @@ async def test_create_vocab_auto_activates_kanji(db_session: AsyncSession) -> No
     service = VocabService(db_session)
     request = VocabCreateRequest(
         word="日本",
-        reading="にほん",
+        readings=["にほん"],
         meanings=["Japan"],
         kanji_ids=[kanji.id],
     )
@@ -124,7 +124,7 @@ async def test_create_vocab_reuses_existing_tags(db_session: AsyncSession) -> No
     service = VocabService(db_session)
     request = VocabCreateRequest(
         word="日本語",
-        reading="にほんご",
+        readings=["にほんご"],
         meanings=["Japanese language"],
         tags=["N5", "new-tag"],  # N5 exists, new-tag doesn't
     )
@@ -153,7 +153,7 @@ async def test_create_vocab_invalid_kanji_id(db_session: AsyncSession) -> None:
     service = VocabService(db_session)
     request = VocabCreateRequest(
         word="日本語",
-        reading="にほんご",
+        readings=["にほんご"],
         meanings=["Japanese language"],
         kanji_ids=[99999],  # Invalid kanji ID
     )
@@ -175,7 +175,7 @@ async def test_create_vocab_duplicate_word_rejected(db_session: AsyncSession) ->
     # Create first vocab
     request1 = VocabCreateRequest(
         word="日本",
-        reading="にほん",
+        readings=["にほん"],
         meanings=["Japan"],
     )
     await service.create_vocab(request1, creator_id=user.id)
@@ -183,7 +183,7 @@ async def test_create_vocab_duplicate_word_rejected(db_session: AsyncSession) ->
     # Try to create duplicate
     request2 = VocabCreateRequest(
         word="日本",  # Same word
-        reading="にっぽん",  # Different reading
+        readings=["にっぽん"],  # Different reading
         meanings=["Japan (alternative reading)"],
     )
 
@@ -213,7 +213,7 @@ async def test_create_vocab_loads_relationships(db_session: AsyncSession) -> Non
     service = VocabService(db_session)
     request = VocabCreateRequest(
         word="日本",
-        reading="にほん",
+        readings=["にほん"],
         meanings=["Japan"],
         kanji_ids=[kanji.id],
         tags=["test"],

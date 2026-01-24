@@ -22,9 +22,7 @@ class VocabService:
     ) -> Vocab:
         """Create a new vocabulary item with kanji links and tags."""
         # Check for duplicate word
-        existing = await self.db.execute(
-            select(Vocab).where(Vocab.word == request.word)
-        )
+        existing = await self.db.execute(select(Vocab).where(Vocab.word == request.word))
         if existing.scalar_one_or_none():
             raise ValueError(f"Vocabulary '{request.word}' already exists")
 
@@ -39,9 +37,7 @@ class VocabService:
         # Get or create tags
         tags = []
         for tag_name in request.tags:
-            result = await self.db.execute(
-                select(Tag).where(Tag.name == tag_name)
-            )
+            result = await self.db.execute(select(Tag).where(Tag.name == tag_name))
             tag = result.scalar_one_or_none()
             if tag is None:
                 tag = Tag(name=tag_name)
@@ -51,7 +47,7 @@ class VocabService:
         # Create vocab
         vocab = Vocab(
             word=request.word,
-            reading=request.reading,
+            readings=request.readings,
             meanings=request.meanings,
             creator_id=creator_id,
             creator_comment=request.creator_comment,
@@ -66,7 +62,7 @@ class VocabService:
                 kanji.active = True
 
         await self.db.commit()
-        
+
         # Load relationships
         await self.db.refresh(vocab, ["kanji", "tags", "creator"])
 

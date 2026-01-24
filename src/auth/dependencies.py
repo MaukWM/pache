@@ -1,7 +1,7 @@
 """Authentication dependencies for FastAPI."""
 
 from fastapi import Depends, HTTPException, status
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -17,9 +17,7 @@ async def get_current_user(
 ) -> User:
     """Get the current authenticated user from the session token."""
     token = credentials.credentials
-    result = await db.execute(
-        select(Session).where(Session.token == token)
-    )
+    result = await db.execute(select(Session).where(Session.token == token))
     session = result.scalar_one_or_none()
     if session is None:
         raise HTTPException(
@@ -27,9 +25,7 @@ async def get_current_user(
             detail="Invalid authentication token",
         )
 
-    result = await db.execute(
-        select(User).where(User.id == session.user_id)
-    )
+    result = await db.execute(select(User).where(User.id == session.user_id))
     user = result.scalar_one_or_none()
     if user is None:
         raise HTTPException(

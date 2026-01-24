@@ -21,7 +21,7 @@ class VocabCreateRequest(BaseModel):
     """Request schema for creating vocabulary."""
 
     word: str = Field(..., min_length=1, max_length=100)
-    reading: str = Field(..., min_length=1, max_length=100)
+    readings: list[str] = Field(..., min_length=1)
     meanings: list[str] = Field(..., min_length=1)
     kanji_ids: list[int] = Field(default_factory=list)
     tags: list[str] = Field(default_factory=list)
@@ -48,7 +48,7 @@ class VocabResponse(BaseModel):
 
     id: int
     word: str
-    reading: str
+    readings: list[str]
     meanings: list[str]
     creator_id: int
     creator_username: str  # Added for FR18

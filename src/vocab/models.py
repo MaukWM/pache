@@ -46,7 +46,7 @@ class Vocab(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     word: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
-    reading: Mapped[str] = mapped_column(String(100), nullable=False)
+    readings: Mapped[list[str]] = mapped_column(JSON, nullable=False)
     meanings: Mapped[list[str]] = mapped_column(JSON, nullable=False)
     creator_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), nullable=False)
     creator_comment: Mapped[str | None] = mapped_column(Text, nullable=True)

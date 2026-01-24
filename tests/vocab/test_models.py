@@ -22,7 +22,7 @@ async def test_vocab_model_creation(db_session: AsyncSession) -> None:
     # Create vocab
     vocab = Vocab(
         word="日本語",
-        reading="にほんご",
+        readings=["にほんご"],
         meanings=["Japanese language"],
         creator_id=user.id,
         creator_comment="Test comment",
@@ -33,7 +33,7 @@ async def test_vocab_model_creation(db_session: AsyncSession) -> None:
     # Verify
     assert vocab.id is not None
     assert vocab.word == "日本語"
-    assert vocab.reading == "にほんご"
+    assert vocab.readings == ["にほんご"]
     assert vocab.meanings == ["Japanese language"]
     assert vocab.creator_id == user.id
     assert vocab.creator_comment == "Test comment"
@@ -94,7 +94,7 @@ async def test_vocab_tag_relationship(db_session: AsyncSession) -> None:
     # Create vocab with tags
     vocab = Vocab(
         word="日本語",
-        reading="にほんご",
+        readings=["にほんご"],
         meanings=["Japanese language"],
         creator_id=user.id,
     )
@@ -139,7 +139,7 @@ async def test_vocab_kanji_relationship(db_session: AsyncSession) -> None:
     # Create vocab with kanji links
     vocab = Vocab(
         word="日本",
-        reading="にほん",
+        readings=["にほん"],
         meanings=["Japan"],
         creator_id=user.id,
     )
@@ -166,7 +166,7 @@ async def test_vocab_creator_relationship(db_session: AsyncSession) -> None:
     # Create vocab
     vocab = Vocab(
         word="猫",
-        reading="ねこ",
+        readings=["ねこ"],
         meanings=["cat"],
         creator_id=user.id,
     )
@@ -205,7 +205,7 @@ async def test_tag_vocab_items_relationship(db_session: AsyncSession) -> None:
     # Create multiple vocab with same tag
     vocab1 = Vocab(
         word="猫",
-        reading="ねこ",
+        readings=["ねこ"],
         meanings=["cat"],
         creator_id=user.id,
     )
@@ -213,7 +213,7 @@ async def test_tag_vocab_items_relationship(db_session: AsyncSession) -> None:
 
     vocab2 = Vocab(
         word="犬",
-        reading="いぬ",
+        readings=["いぬ"],
         meanings=["dog"],
         creator_id=user.id,
     )

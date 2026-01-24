@@ -46,7 +46,7 @@ async def test_create_vocab_success(async_client: AsyncClient, db_session) -> No
         "/api/v1/vocab",
         json={
             "word": "日本語",
-            "reading": "にほんご",
+            "readings": ["にほんご"],
             "meanings": ["Japanese language"],
             "kanji_ids": [kanji1.id, kanji2.id],
             "tags": ["language", "N5"],
@@ -58,7 +58,7 @@ async def test_create_vocab_success(async_client: AsyncClient, db_session) -> No
     assert response.status_code == status.HTTP_201_CREATED
     data = response.json()
     assert data["word"] == "日本語"
-    assert data["reading"] == "にほんご"
+    assert data["readings"] == ["にほんご"]
     assert data["meanings"] == ["Japanese language"]
     assert data["creator_id"] == user.id
     assert data["creator_username"] == "testuser"
@@ -85,7 +85,7 @@ async def test_create_vocab_invalid_kanji_id(async_client: AsyncClient, db_sessi
         "/api/v1/vocab",
         json={
             "word": "日本語",
-            "reading": "にほんご",
+            "readings": ["にほんご"],
             "meanings": ["Japanese language"],
             "kanji_ids": [99999],
         },
@@ -103,7 +103,7 @@ async def test_create_vocab_unauthorized(async_client: AsyncClient) -> None:
         "/api/v1/vocab",
         json={
             "word": "日本語",
-            "reading": "にほんご",
+            "readings": ["にほんご"],
             "meanings": ["Japanese language"],
         },
     )
@@ -118,7 +118,7 @@ async def test_create_vocab_invalid_token(async_client: AsyncClient) -> None:
         "/api/v1/vocab",
         json={
             "word": "日本語",
-            "reading": "にほんご",
+            "readings": ["にほんご"],
             "meanings": ["Japanese language"],
         },
         headers={"Authorization": "Bearer invalid-token"},
@@ -144,7 +144,7 @@ async def test_create_vocab_duplicate_word(async_client: AsyncClient, db_session
         "/api/v1/vocab",
         json={
             "word": "日本",
-            "reading": "にほん",
+            "readings": ["にほん"],
             "meanings": ["Japan"],
         },
         headers={"Authorization": "Bearer test-token-123"},
@@ -156,7 +156,7 @@ async def test_create_vocab_duplicate_word(async_client: AsyncClient, db_session
         "/api/v1/vocab",
         json={
             "word": "日本",  # Same word
-            "reading": "にっぽん",
+            "readings": ["にっぽん"],
             "meanings": ["Japan"],
         },
         headers={"Authorization": "Bearer test-token-123"},
@@ -197,7 +197,7 @@ async def test_create_vocab_auto_activates_kanji(async_client: AsyncClient, db_s
         "/api/v1/vocab",
         json={
             "word": "日本",
-            "reading": "にほん",
+            "readings": ["にほん"],
             "meanings": ["Japan"],
             "kanji_ids": [kanji.id],
         },
