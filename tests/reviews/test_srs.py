@@ -5,7 +5,7 @@ from datetime import UTC, datetime, timedelta
 import pytest
 
 from src.core.constants import SRS_INTERVALS
-from src.reviews.srs import calculate_next_review
+from src.reviews.srs import calculate_next_review, truncate_to_hour
 
 
 class TestCalculateNextReviewCorrect:
@@ -185,3 +185,72 @@ class TestEdgeCases:
             expected_new_stage = max(1, stage - 2)
             assert new_stage == expected_new_stage
             assert next_review is not None  # Always get a new review time on incorrect
+
+
+class TestTruncateToHour:
+    """Tests for hour truncation function (FR28 - review batching)."""
+
+    def test_truncates_minutes_to_zero(self) -> None:
+        """Test that minutes are set to zero."""
+        dt = datetime(2026, 1, 24, 14, 30, 0, 0, tzinfo=UTC)
+        result = truncate_to_hour(dt)
+        assert result.minute == 0
+
+    def test_truncates_seconds_to_zero(self) -> None:
+        """Test that seconds are set to zero."""
+        dt = datetime(2026, 1, 24, 14, 0, 45, 0, tzinfo=UTC)
+        result = truncate_to_hour(dt)
+        assert result.second == 0
+
+    def test_truncates_microseconds_to_zero(self) -> None:
+        """Test that microseconds are set to zero."""
+        dt = datetime(2026, 1, 24, 14, 0, 0, 123456, tzinfo=UTC)
+        result = truncate_to_hour(dt)
+        assert result.microsecond == 0
+
+    def test_preserves_hour(self) -> None:
+        """Test that the hour is preserved."""
+        dt = datetime(2026, 1, 24, 14, 30, 45, 123456, tzinfo=UTC)
+        result = truncate_to_hour(dt)
+        assert result.hour == 14
+
+    def test_preserves_date(self) -> None:
+        """Test that year, month, day are preserved."""
+        dt = datetime(2026, 1, 24, 14, 30, 45, 123456, tzinfo=UTC)
+        result = truncate_to_hour(dt)
+        assert result.year == 2026
+        assert result.month == 1
+        assert result.day == 24
+
+    def test_preserves_timezone(self) -> None:
+        """Test that timezone is preserved."""
+        dt = datetime(2026, 1, 24, 14, 30, 45, 123456, tzinfo=UTC)
+        result = truncate_to_hour(dt)
+        assert result.tzinfo == UTC
+
+    def test_full_truncation(self) -> None:
+        """Test complete truncation from all non-zero values."""
+        dt = datetime(2026, 1, 24, 14, 30, 45, 123456, tzinfo=UTC)
+        result = truncate_to_hour(dt)
+        expected = datetime(2026, 1, 24, 14, 0, 0, 0, tzinfo=UTC)
+        assert result == expected
+
+    def test_already_truncated_datetime(self) -> None:
+        """Test that already truncated datetime remains unchanged."""
+        dt = datetime(2026, 1, 24, 14, 0, 0, 0, tzinfo=UTC)
+        result = truncate_to_hour(dt)
+        assert result == dt
+
+    def test_midnight(self) -> None:
+        """Test truncation at midnight."""
+        dt = datetime(2026, 1, 24, 0, 30, 45, 123456, tzinfo=UTC)
+        result = truncate_to_hour(dt)
+        expected = datetime(2026, 1, 24, 0, 0, 0, 0, tzinfo=UTC)
+        assert result == expected
+
+    def test_end_of_day(self) -> None:
+        """Test truncation at end of day (23:59:59)."""
+        dt = datetime(2026, 1, 24, 23, 59, 59, 999999, tzinfo=UTC)
+        result = truncate_to_hour(dt)
+        expected = datetime(2026, 1, 24, 23, 0, 0, 0, tzinfo=UTC)
+        assert result == expected

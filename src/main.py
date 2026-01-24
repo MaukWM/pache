@@ -11,6 +11,7 @@ from src.kanji.router import router as kanji_router
 from src.lessons.router import router as lessons_router
 from src.logging import logger
 from src.progress.router import router as progress_router
+from src.reviews.router import router as reviews_router
 from src.settings import settings
 from src.vocab.router import router as vocab_router
 
@@ -50,6 +51,7 @@ app.include_router(kanji_router, prefix=settings.api_prefix)
 app.include_router(vocab_router, prefix=settings.api_prefix)
 app.include_router(progress_router, prefix=settings.api_prefix)
 app.include_router(lessons_router, prefix=settings.api_prefix)
+app.include_router(reviews_router, prefix=settings.api_prefix)
 
 
 @app.get("/")

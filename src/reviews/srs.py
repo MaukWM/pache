@@ -7,11 +7,37 @@ SRS Algorithm:
 - Correct answer: Advance to next stage (max stage 9)
 - Incorrect answer: Drop ~2 stages (min stage 1)
 - Stage 9 (Burned): No more reviews, item is permanently learned
+
+Hour Batching (FR28):
+- Reviews are batched by hour, not exact timestamp
+- An item due at 14:30 becomes reviewable at 14:00
+- This prevents "drip-feeding" of reviews throughout the hour
 """
 
 from datetime import UTC, datetime
 
 from src.core.constants import SRS_INTERVALS
+
+
+def truncate_to_hour(dt: datetime) -> datetime:
+    """Truncate datetime to hour precision for review batching.
+
+    Per FR28, WaniKani batches reviews by hour. An item due at 14:30
+    becomes reviewable at 14:00. This function implements that truncation.
+
+    Args:
+        dt: The datetime to truncate.
+
+    Returns:
+        The datetime with minute, second, and microsecond set to 0.
+
+    Examples:
+        >>> from datetime import datetime, UTC
+        >>> dt = datetime(2026, 1, 24, 14, 30, 45, 123456, tzinfo=UTC)
+        >>> truncate_to_hour(dt)
+        datetime.datetime(2026, 1, 24, 14, 0, 0, tzinfo=datetime.timezone.utc)
+    """
+    return dt.replace(minute=0, second=0, microsecond=0)
 
 
 def calculate_next_review(current_stage: int, correct: bool) -> tuple[int, datetime | None]:

@@ -5,6 +5,7 @@ from datetime import datetime
 from pydantic import BaseModel, Field
 
 from src.core.constants import ItemType
+from src.progress.schemas import KanjiItemDetails, VocabItemDetails
 
 
 class ReviewCreateRequest(BaseModel):
@@ -54,3 +55,28 @@ class ReviewLogResponse(BaseModel):
     reviewed_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+class ReviewItemResponse(BaseModel):
+    """Response schema for a single review item due for review.
+
+    Includes full item details for immediate use in the review session.
+    """
+
+    item_type: ItemType
+    item_id: int = Field(..., gt=0)
+    srs_stage: int = Field(..., ge=1, le=8, description="SRS stage (1-8, excludes burned items)")
+    next_review_at: datetime
+    item_details: KanjiItemDetails | VocabItemDetails
+
+    model_config = {"from_attributes": True}
+
+
+class DueReviewsResponse(BaseModel):
+    """Response schema for listing items due for review.
+
+    Returns all items where next_review_at (truncated to hour) <= current hour.
+    """
+
+    items: list[ReviewItemResponse]
+    count: int = Field(..., ge=0, description="Number of items due for review")
