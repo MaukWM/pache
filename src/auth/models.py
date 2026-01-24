@@ -10,6 +10,7 @@ from src.database import Base
 
 if TYPE_CHECKING:
     from src.progress.models import LessonQueue, UserItemProgress
+    from src.reviews.models import ReviewLog
     from src.vocab.models import Vocab
 
 
@@ -37,6 +38,9 @@ class User(Base):
     )
     item_progress: Mapped[list["UserItemProgress"]] = relationship(
         "UserItemProgress", back_populates="user", cascade="all, delete-orphan"
+    )
+    review_logs: Mapped[list["ReviewLog"]] = relationship(
+        "ReviewLog", back_populates="user", cascade="all, delete-orphan"
     )
 
 

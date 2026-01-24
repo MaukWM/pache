@@ -1,4 +1,31 @@
-"""Application constants."""
+"""Application constants.
+
+WaniKani SRS (Spaced Repetition System) Constants
+================================================
+
+The SRS system uses 9 stages to track learning progress:
+
+**Apprentice (Stages 1-4):** Learning phase - frequent reviews
+  - Stage 1 → 2: 4 hours
+  - Stage 2 → 3: 8 hours
+  - Stage 3 → 4: 1 day
+  - Stage 4 → Guru 1: 2 days
+
+**Guru (Stages 5-6):** Short-term memory - less frequent reviews
+  - Stage 5 → 6: 1 week
+  - Stage 6 → Master: 2 weeks
+
+**Master (Stage 7):** Medium-term memory
+  - Stage 7 → Enlightened: 30 days
+
+**Enlightened (Stage 8):** Long-term memory
+  - Stage 8 → Burned: 120 days
+
+**Burned (Stage 9):** Permanent memory - no more reviews
+
+**Incorrect Answer Penalty:**
+Drop approximately 2 stages (minimum stage 1), then recalculate next review.
+"""
 
 from datetime import timedelta
 from enum import Enum

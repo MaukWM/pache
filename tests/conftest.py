@@ -14,6 +14,7 @@ from src.database import Base, get_db
 from src.kanji.models import Kanji  # noqa: F401
 from src.main import app
 from src.progress.models import LessonQueue, UserItemProgress  # noqa: F401
+from src.reviews.models import ReviewLog  # noqa: F401
 from src.vocab.models import Tag, Vocab  # noqa: F401
 
 # Create test database engine (in-memory SQLite)
