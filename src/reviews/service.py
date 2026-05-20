@@ -11,8 +11,9 @@ from src.kanji.models import Kanji
 from src.logging import logger
 from src.progress.models import UserItemProgress
 from src.progress.schemas import KanjiItemDetails, VocabItemDetails
-from src.reviews.schemas import ReviewItemResponse
-from src.reviews.srs import truncate_to_hour
+from src.reviews.models import ReviewLog
+from src.reviews.schemas import ReviewCreateRequest, ReviewItemResponse, ReviewResponse
+from src.reviews.srs import calculate_next_review, truncate_to_hour
 from src.vocab.models import Vocab
 
 
@@ -192,6 +193,104 @@ class ReviewService:
             logger.error(
                 "database_error_getting_due_reviews",
                 user_id=user_id,
+                error_type=type(e).__name__,
+                error=str(e),
+            )
+            raise
+
+    async def submit_review(self, user_id: int, request: ReviewCreateRequest) -> ReviewResponse:
+        """Submit a review for an item and update SRS stage.
+
+        Creates a ReviewLog entry and updates UserItemProgress based on review outcome.
+        Both reading and meaning must be correct to advance stage (FR26).
+
+        Args:
+            user_id: The ID of the user submitting the review.
+            request: The review submission request with correctness values.
+
+        Returns:
+            ReviewResponse with stage progression details.
+
+        Raises:
+            ValueError: If item is not in progress or is burned.
+            SQLAlchemyError: If a database error occurs.
+        """
+        try:
+            now = datetime.now(UTC)
+
+            # Find UserItemProgress for this item.
+            # Lock the row for the duration of the transaction to prevent concurrent
+            # submissions from racing on stage progression / duplicating ReviewLog rows.
+            query = (
+                select(UserItemProgress)
+                .where(
+                    UserItemProgress.user_id == user_id,
+                    UserItemProgress.item_type == request.item_type,
+                    UserItemProgress.item_id == request.item_id,
+                )
+                .with_for_update()
+            )
+            result = await self.db.execute(query)
+            progress = result.scalar_one_or_none()
+
+            if progress is None:
+                raise ValueError("Item not in progress")
+
+            # Verify item is not burned
+            if progress.srs_stage >= 9:
+                raise ValueError("Item is burned")
+
+            # Verify item is due for review.
+            # next_review_at == None: newly unlocked item, always allow.
+            # next_review_at != None: must be <= current hour (FR28 hour-batching).
+            if progress.next_review_at is not None:
+                current_hour = truncate_to_hour(now)
+                item_dt = progress.next_review_at
+                if item_dt.tzinfo is None:
+                    item_dt = item_dt.replace(tzinfo=UTC)
+                if truncate_to_hour(item_dt) > current_hour:
+                    raise ValueError("Item is not yet due for review")
+
+            # Both reading AND meaning must pass to advance (FR26)
+            correct = request.reading_correct and request.meaning_correct
+            current_stage = progress.srs_stage
+            new_stage, next_review_at = calculate_next_review(current_stage, correct)
+
+            review_log = ReviewLog(
+                user_id=user_id,
+                item_type=request.item_type,
+                item_id=request.item_id,
+                reading_correct=request.reading_correct,
+                meaning_correct=request.meaning_correct,
+                srs_stage_before=current_stage,
+                srs_stage_after=new_stage,
+                reviewed_at=now,
+            )
+            self.db.add(review_log)
+
+            progress.srs_stage = new_stage
+            progress.next_review_at = next_review_at
+            if new_stage == 9:
+                progress.burned_at = now
+
+            await self.db.commit()
+
+            return ReviewResponse(
+                item_type=request.item_type,
+                item_id=request.item_id,
+                reading_correct=request.reading_correct,
+                meaning_correct=request.meaning_correct,
+                srs_stage_before=current_stage,
+                srs_stage_after=new_stage,
+                next_review_at=next_review_at,
+            )
+        except SQLAlchemyError as e:
+            await self.db.rollback()
+            logger.error(
+                "database_error_submitting_review",
+                user_id=user_id,
+                item_type=request.item_type,
+                item_id=request.item_id,
                 error_type=type(e).__name__,
                 error=str(e),
             )

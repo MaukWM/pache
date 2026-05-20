@@ -597,3 +597,328 @@ async def test_get_due_reviews_value_error_returns_400(
         assert response.status_code == 400
         data = response.json()
         assert "Invalid user_id" in data["detail"]
+
+
+# ============================================================================
+# Tests for POST /api/v1/me/reviews (submit_review)
+# ============================================================================
+
+
+@pytest.mark.asyncio
+@freeze_time("2026-01-24 12:00:00", tz_offset=0)
+async def test_post_submit_review_success(
+    async_client: AsyncClient, db_session: AsyncSession
+) -> None:
+    """Test POST /api/v1/me/reviews successfully submits review (AC1)."""
+    # Create user and session
+    user = User(username="testuser")
+    db_session.add(user)
+    await db_session.flush()
+
+    session = Session(user_id=user.id, token="test-token-submit")
+    db_session.add(session)
+    await db_session.flush()
+
+    # Create vocab
+    vocab = Vocab(
+        word="日本語",
+        readings=["にほんご"],
+        meanings=["Japanese language"],
+        creator_id=user.id,
+    )
+    db_session.add(vocab)
+    await db_session.flush()
+
+    # Create progress record at stage 3
+    progress = UserItemProgress(
+        user_id=user.id,
+        item_type=ItemType.VOCAB,
+        item_id=vocab.id,
+        srs_stage=3,
+        next_review_at=datetime.now(UTC) - timedelta(hours=1),
+    )
+    db_session.add(progress)
+    await db_session.commit()
+
+    # Submit review
+    response = await async_client.post(
+        "/api/v1/me/reviews",
+        headers={"Authorization": "Bearer test-token-submit"},
+        json={
+            "item_type": "vocab",
+            "item_id": vocab.id,
+            "reading_correct": True,
+            "meaning_correct": True,
+        },
+    )
+
+    # Verify response
+    assert response.status_code == 200
+    data = response.json()
+    assert data["item_type"] == "vocab"
+    assert data["item_id"] == vocab.id
+    assert data["reading_correct"] is True
+    assert data["meaning_correct"] is True
+    assert data["srs_stage_before"] == 3
+    assert data["srs_stage_after"] == 4
+    assert data["next_review_at"] is not None
+
+
+@pytest.mark.asyncio
+async def test_post_submit_review_not_in_progress(
+    async_client: AsyncClient, db_session: AsyncSession
+) -> None:
+    """Test POST /api/v1/me/reviews returns 400 when item not in progress (AC5)."""
+    # Create user and session
+    user = User(username="testuser")
+    db_session.add(user)
+    await db_session.flush()
+
+    session = Session(user_id=user.id, token="test-token-not-progress")
+    db_session.add(session)
+    await db_session.flush()
+
+    # Create vocab (but no progress record)
+    vocab = Vocab(
+        word="日本語",
+        readings=["にほんご"],
+        meanings=["Japanese language"],
+        creator_id=user.id,
+    )
+    db_session.add(vocab)
+    await db_session.commit()
+
+    # Submit review for item not in progress
+    response = await async_client.post(
+        "/api/v1/me/reviews",
+        headers={"Authorization": "Bearer test-token-not-progress"},
+        json={
+            "item_type": "vocab",
+            "item_id": vocab.id,
+            "reading_correct": True,
+            "meaning_correct": True,
+        },
+    )
+
+    # Verify 400 Bad Request
+    assert response.status_code == 400
+    data = response.json()
+    assert "not in progress" in data["detail"].lower()
+
+
+@pytest.mark.asyncio
+async def test_post_submit_review_burned_item(
+    async_client: AsyncClient, db_session: AsyncSession
+) -> None:
+    """Test POST /api/v1/me/reviews returns 400 when item is burned (AC6)."""
+    # Create user and session
+    user = User(username="testuser")
+    db_session.add(user)
+    await db_session.flush()
+
+    session = Session(user_id=user.id, token="test-token-burned")
+    db_session.add(session)
+    await db_session.flush()
+
+    # Create vocab
+    vocab = Vocab(
+        word="日本語",
+        readings=["にほんご"],
+        meanings=["Japanese language"],
+        creator_id=user.id,
+    )
+    db_session.add(vocab)
+    await db_session.flush()
+
+    # Create burned progress record
+    progress = UserItemProgress(
+        user_id=user.id,
+        item_type=ItemType.VOCAB,
+        item_id=vocab.id,
+        srs_stage=9,  # Burned
+        next_review_at=None,
+        burned_at=datetime.now(UTC),
+    )
+    db_session.add(progress)
+    await db_session.commit()
+
+    # Submit review for burned item
+    response = await async_client.post(
+        "/api/v1/me/reviews",
+        headers={"Authorization": "Bearer test-token-burned"},
+        json={
+            "item_type": "vocab",
+            "item_id": vocab.id,
+            "reading_correct": True,
+            "meaning_correct": True,
+        },
+    )
+
+    # Verify 400 Bad Request
+    assert response.status_code == 400
+    data = response.json()
+    assert "burned" in data["detail"].lower()
+
+
+@pytest.mark.asyncio
+async def test_post_submit_review_missing_fields(
+    async_client: AsyncClient, db_session: AsyncSession
+) -> None:
+    """Test POST /api/v1/me/reviews returns 400 when fields are missing (AC7)."""
+    # Create user and session
+    user = User(username="testuser")
+    db_session.add(user)
+    await db_session.flush()
+
+    session = Session(user_id=user.id, token="test-token-missing")
+    db_session.add(session)
+    await db_session.commit()
+
+    # Submit review with missing reading_correct
+    response = await async_client.post(
+        "/api/v1/me/reviews",
+        headers={"Authorization": "Bearer test-token-missing"},
+        json={
+            "item_type": "vocab",
+            "item_id": 123,
+            "meaning_correct": True,
+            # reading_correct missing
+        },
+    )
+
+    # Verify 422 Validation Error (FastAPI default for missing required fields)
+    assert response.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_post_submit_review_invalid_item_type(
+    async_client: AsyncClient, db_session: AsyncSession
+) -> None:
+    """Test POST /api/v1/me/reviews returns 400 when item_type is invalid (AC7)."""
+    # Create user and session
+    user = User(username="testuser")
+    db_session.add(user)
+    await db_session.flush()
+
+    session = Session(user_id=user.id, token="test-token-invalid-type")
+    db_session.add(session)
+    await db_session.commit()
+
+    # Submit review with invalid item_type
+    response = await async_client.post(
+        "/api/v1/me/reviews",
+        headers={"Authorization": "Bearer test-token-invalid-type"},
+        json={
+            "item_type": "invalid_type",
+            "item_id": 123,
+            "reading_correct": True,
+            "meaning_correct": True,
+        },
+    )
+
+    # Verify 422 Validation Error (FastAPI validates enum)
+    assert response.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_post_submit_review_invalid_item_id(
+    async_client: AsyncClient, db_session: AsyncSession
+) -> None:
+    """Test POST /api/v1/me/reviews returns 400 when item_id is invalid (AC7)."""
+    # Create user and session
+    user = User(username="testuser")
+    db_session.add(user)
+    await db_session.flush()
+
+    session = Session(user_id=user.id, token="test-token-invalid-id")
+    db_session.add(session)
+    await db_session.commit()
+
+    # Submit review with invalid item_id (non-positive)
+    response = await async_client.post(
+        "/api/v1/me/reviews",
+        headers={"Authorization": "Bearer test-token-invalid-id"},
+        json={
+            "item_type": "vocab",
+            "item_id": 0,  # Invalid: must be > 0
+            "reading_correct": True,
+            "meaning_correct": True,
+        },
+    )
+
+    # Verify 422 Validation Error (FastAPI validates Field(gt=0))
+    assert response.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_post_submit_review_unauthenticated(async_client: AsyncClient) -> None:
+    """Test POST /api/v1/me/reviews returns 401 when not authenticated (AC8)."""
+    # Make request without auth header
+    response = await async_client.post(
+        "/api/v1/me/reviews",
+        json={
+            "item_type": "vocab",
+            "item_id": 123,
+            "reading_correct": True,
+            "meaning_correct": True,
+        },
+    )
+
+    # Verify 401 Unauthorized
+    assert response.status_code in (401, 403)
+
+
+@pytest.mark.asyncio
+@freeze_time("2026-01-24 12:00:00", tz_offset=0)
+async def test_post_submit_review_not_yet_due(
+    async_client: AsyncClient, db_session: AsyncSession
+) -> None:
+    """Test POST /api/v1/me/reviews returns 400 when item is not yet due for review."""
+    # Create user and session
+    user = User(username="testuser")
+    db_session.add(user)
+    await db_session.flush()
+
+    session = Session(user_id=user.id, token="test-token-not-due")
+    db_session.add(session)
+    await db_session.flush()
+
+    # Create vocab
+    vocab = Vocab(
+        word="日本語",
+        readings=["にほんご"],
+        meanings=["Japanese language"],
+        creator_id=user.id,
+    )
+    db_session.add(vocab)
+    await db_session.flush()
+
+    # Create progress record at stage 8 (120 day wait) with future review time
+    # Item was reviewed 1 day ago, so next_review_at is 119 days from now
+    future_time = datetime(2026, 5, 23, 12, 0, 0, tzinfo=UTC)  # ~119 days later
+    progress = UserItemProgress(
+        user_id=user.id,
+        item_type=ItemType.VOCAB,
+        item_id=vocab.id,
+        srs_stage=8,
+        next_review_at=future_time,  # Not due yet - 4 month wait, only 1 day passed
+    )
+    db_session.add(progress)
+    await db_session.commit()
+
+    # Submit review for item not yet due
+    response = await async_client.post(
+        "/api/v1/me/reviews",
+        headers={"Authorization": "Bearer test-token-not-due"},
+        json={
+            "item_type": "vocab",
+            "item_id": vocab.id,
+            "reading_correct": True,
+            "meaning_correct": True,
+        },
+    )
+
+    # Verify 400 Bad Request
+    assert response.status_code == 400
+    data = response.json()
+    assert "not yet due for review" in data["detail"].lower()

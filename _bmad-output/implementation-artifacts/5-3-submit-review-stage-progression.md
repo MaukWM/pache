@@ -1,6 +1,6 @@
 # Story 5.3: Submit Review with Stage Progression
 
-Status: ready-for-dev
+Status: review
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -12,68 +12,103 @@ So that **items progress through SRS stages based on my performance**.
 
 ## Acceptance Criteria
 
-**AC1: Submit single review (reading or meaning)**
+**AC1: Submit review with both reading and meaning**
 **Given** an authenticated user with an item in UserItemProgress at stage 3
 **When** POST `/api/v1/me/reviews` is called with:
 ```json
 {
   "item_type": "vocab",
   "item_id": 123,
-  "review_type": "reading",
-  "correct": true
+  "reading_correct": true,
+  "meaning_correct": true
 }
 ```
 **Then** response status is 200
-**And** a ReviewLog record is created with review details
-**And** UserItemProgress is NOT updated yet (waiting for both reading and meaning - FR26)
-**And** response includes the submitted review result
+**And** a ReviewLog record is created with:
+  - `reading_correct: true`, `meaning_correct: true`
+  - `srs_stage_before: 3`, `srs_stage_after: 4`
+  - `reviewed_at` set to current timestamp
+**And** UserItemProgress is updated:
+  - `srs_stage` advances from 3 to 4 (both reading and meaning passed - FR26)
+  - `next_review_at` is calculated using `calculate_next_review(3, correct=True)` which uses SRS_INTERVALS[3] = 1 day from now
+**And** response includes ReviewResponse with new stage and next_review_at
 
-**AC2: Complete review session (both reading and meaning correct)**
-**Given** the same user submits the meaning review for the same item
+**AC2: Incorrect answer handling (both incorrect)**
+**Given** an authenticated user with an item at stage 5
 **When** POST `/api/v1/me/reviews` is called with:
 ```json
 {
   "item_type": "vocab",
   "item_id": 123,
-  "review_type": "meaning",
-  "correct": true
+  "reading_correct": false,
+  "meaning_correct": false
 }
 ```
 **Then** response status is 200
-**And** a ReviewLog record is created for the meaning review
+**And** ReviewLog record is created with:
+  - `reading_correct: false`, `meaning_correct: false`
+  - `srs_stage_before: 5`, `srs_stage_after: 3` (drops ~2 stages, minimum 1 - FR27)
 **And** UserItemProgress is updated:
-  - `srs_stage` advances from 3 to 4 (both reading and meaning passed - FR26)
-  - `next_review_at` is calculated using SRS_INTERVALS (2 days from now for stage 3→4)
-**And** response indicates session complete with new stage
+  - `srs_stage` drops from 5 to 3
+  - `next_review_at` is recalculated using `calculate_next_review(5, correct=False)` which uses SRS_INTERVALS[3]
 
-**AC3: Incorrect answer handling**
-**Given** an authenticated user submits a review with `correct: false`
-**When** POST `/api/v1/me/reviews` is called
+**AC3: Mixed result (one correct, one incorrect)**
+**Given** an authenticated user with an item at stage 4
+**When** POST `/api/v1/me/reviews` is called with:
+```json
+{
+  "item_type": "vocab",
+  "item_id": 123,
+  "reading_correct": false,
+  "meaning_correct": true
+}
+```
 **Then** response status is 200
-**And** ReviewLog record is created
-**And** if both reading and meaning have been submitted:
-  - UserItemProgress `srs_stage` drops ~2 stages (minimum stage 1) (FR27)
-  - `next_review_at` is recalculated based on new stage
+**And** ReviewLog record is created with both correctness values
+**And** UserItemProgress stage drops (because reading failed - FR26: both must pass)
+**And** `srs_stage` drops from 4 to 2 (max(1, 4-2))
+**And** `next_review_at` is recalculated for the new stage
 
-**AC4: Mixed result (one correct, one incorrect)**
-**Given** an authenticated user submits reading review with `correct: false`
-**When** meaning review is then submitted with `correct: true`
-**Then** UserItemProgress stage drops (because reading failed - FR26: both must pass)
-**And** `next_review_at` is recalculated for the new (lower) stage
+**AC4: Burn item (advance to stage 9)**
+**Given** an authenticated user with an item at stage 8
+**When** POST `/api/v1/me/reviews` is called with both correct:
+```json
+{
+  "item_type": "vocab",
+  "item_id": 123,
+  "reading_correct": true,
+  "meaning_correct": true
+}
+```
+**Then** response status is 200
+**And** ReviewLog record is created with `srs_stage_after: 9`
+**And** UserItemProgress is updated:
+  - `srs_stage` advances to 9 (burned)
+  - `burned_at` is set to current timestamp
+  - `next_review_at` is set to None (no more reviews)
+**And** response indicates item is burned
 
 **AC5: Item not in progress**
 **Given** an authenticated user submits review for item not in their UserItemProgress
 **When** POST `/api/v1/me/reviews` is called
-**Then** response status is 400 Bad Request with error message
+**Then** response status is 400 Bad Request with error message indicating item not in progress
 
 **AC6: Burned item rejection**
 **Given** an authenticated user submits review for item at stage 9 (burned)
 **When** POST `/api/v1/me/reviews` is called
 **Then** response status is 400 Bad Request with error indicating item is burned
 
-**AC7: Invalid review type**
-**Given** an authenticated user submits review with invalid `review_type`
-**When** POST `/api/v1/me/reviews` is called
+**AC6b: Item not yet due for review**
+**Given** an authenticated user submits review for item where `next_review_at` is in the future
+**When** POST `/api/v1/me/reviews` is called (e.g., reviewing a stage 8 item with 4 month wait after only 1 day)
+**Then** response status is 400 Bad Request with error indicating item is not yet due for review
+
+**AC7: Invalid request validation**
+**Given** an authenticated user submits review with invalid fields
+**When** POST `/api/v1/me/reviews` is called with:
+  - Missing `reading_correct` or `meaning_correct`
+  - Invalid `item_type` (not "kanji" or "vocab")
+  - Invalid `item_id` (non-positive)
 **Then** response status is 400 Bad Request with validation error
 
 **AC8: Authentication required**
@@ -84,89 +119,78 @@ So that **items progress through SRS stages based on my performance**.
 **AC9:** Review submission responds within 500ms under normal conditions (NFR1)
 
 **AC10:** `src/reviews/service.py` contains `submit_review` method with:
-  - ReviewLog creation logic
-  - Stage progression logic (only when both reading and meaning submitted)
-  - SRS interval calculation using `src/reviews/srs.py`
+  - ReviewLog creation logic (single record with both reading_correct and meaning_correct)
+  - Stage progression logic (immediate evaluation based on both correctness values)
+  - SRS interval calculation using `src/reviews/srs.py::calculate_next_review`
   - Transaction handling to ensure data consistency
 
 ## Tasks / Subtasks
 
-- [ ] Task 1: Add review submission to ReviewService (AC: 1, 2, 3, 4, 10)
-  - [ ] Add `submit_review(user_id: int, request: ReviewCreateRequest) -> ReviewSubmitResponse` method
-  - [ ] Verify item exists in UserItemProgress for user
-  - [ ] Verify item is not burned (srs_stage < 9)
-  - [ ] Create ReviewLog entry with:
-    - user_id, item_type, item_id, review_type, correct
+- [x] Task 1: Add submit_review to ReviewService (AC: 1, 2, 3, 4, 10)
+  - [x] Add `submit_review(user_id: int, request: ReviewCreateRequest) -> ReviewResponse` method
+  - [x] Verify item exists in UserItemProgress for user
+  - [x] Verify item is not burned (srs_stage < 9)
+  - [x] Verify item is due for review (next_review_at is None, in the past, or current hour)
+  - [x] Determine correctness: `correct = reading_correct and meaning_correct` (FR26: both must pass)
+  - [x] Get current stage from UserItemProgress
+  - [x] Calculate new stage and next_review_at using `calculate_next_review(current_stage, correct)`
+  - [x] Create ReviewLog entry with:
+    - user_id, item_type, item_id
+    - reading_correct, meaning_correct (both stored in single record)
     - srs_stage_before = current srs_stage
-    - srs_stage_after = calculated (may be same if session incomplete)
+    - srs_stage_after = calculated new_stage
     - reviewed_at = current timestamp
-  - [ ] Check if review session is complete (both reading and meaning submitted)
-  - [ ] If session complete, calculate new stage using `calculate_next_review`
-  - [ ] Update UserItemProgress with new srs_stage and next_review_at
-  - [ ] If stage becomes 9, set burned_at timestamp
-  - [ ] Return response indicating session status and new stage if complete
+  - [x] Update UserItemProgress with new srs_stage and next_review_at
+  - [x] If stage becomes 9, set burned_at timestamp and next_review_at = None
+  - [x] Return ReviewResponse with all details
 
-- [ ] Task 2: Implement review session tracking (AC: 2, 3, 4)
-  - [ ] Add helper method `_get_pending_reviews(user_id: int, item_type: ItemType, item_id: int) -> tuple[ReviewLog | None, ReviewLog | None]`
-  - [ ] Query ReviewLog for recent reviews (reading and meaning) in current session
-  - [ ] Session defined as: reviews for same item since last stage update
-  - [ ] Alternative approach: track by reviewed_at timestamp within a window (e.g., 24 hours)
-  - [ ] Determine if both reading and meaning submitted and their correctness
+- [x] Task 2: Create response schema (AC: 1)
+  - [x] Verify `ReviewResponse` schema exists in `src/reviews/schemas.py`:
+    - item_type: ItemType
+    - item_id: int
+    - reading_correct: bool
+    - meaning_correct: bool
+    - srs_stage_before: int
+    - srs_stage_after: int
+    - next_review_at: datetime | None
+  - [x] Schema should match ReviewLog model structure
 
-- [ ] Task 3: Add session determination logic (AC: 2, 3, 4)
-  - [ ] When both reading and meaning submitted:
-    - If BOTH correct: advance stage (current_stage + 1)
-    - If EITHER incorrect: drop stage (max(1, current_stage - 2))
-  - [ ] Calculate next_review_at using SRS_INTERVALS for new stage
-  - [ ] Handle stage 9 (burned): set burned_at, next_review_at = None
-
-- [ ] Task 4: Create response schemas (AC: 1, 2)
-  - [ ] Add to `src/reviews/schemas.py`:
-    - ReviewSubmitResponse schema:
-      - review_id: int (the created ReviewLog id)
-      - item_type: ItemType
-      - item_id: int
-      - review_type: ReviewType
-      - correct: bool
-      - session_complete: bool
-      - new_srs_stage: int | None (only if session complete)
-      - next_review_at: datetime | None (only if session complete)
-      - burned: bool (true if item reached stage 9)
-
-- [ ] Task 5: Create router endpoint (AC: 1, 5, 6, 7, 8)
-  - [ ] Add POST `/api/v1/me/reviews` endpoint to `src/reviews/router.py`:
+- [x] Task 3: Create router endpoint (AC: 1, 5, 6, 7, 8)
+  - [x] Add POST `/api/v1/me/reviews` endpoint to `src/reviews/router.py`:
     - Requires authentication (Depends(get_current_user))
     - Accepts ReviewCreateRequest
     - Calls ReviewService.submit_review
-    - Returns ReviewSubmitResponse
+    - Returns ReviewResponse
     - Handles 400 errors (not in progress, burned, validation)
     - Handles 401 for unauthenticated
 
-- [ ] Task 6: Ensure transaction safety (AC: 10)
-  - [ ] Wrap submit_review logic in transaction
-  - [ ] Ensure ReviewLog and UserItemProgress updates are atomic
-  - [ ] Handle concurrent submission edge cases
+- [x] Task 4: Ensure transaction safety (AC: 10)
+  - [x] Wrap submit_review logic in database transaction
+  - [x] Ensure ReviewLog creation and UserItemProgress update are atomic
+  - [x] Handle concurrent submission edge cases (database constraints prevent duplicates)
 
-- [ ] Task 7: Write comprehensive tests
-  - [ ] Add to `tests/reviews/test_service.py`:
-    - Test submit_review creates ReviewLog
-    - Test submit_review does not update stage on first submission (reading only)
-    - Test submit_review does not update stage on first submission (meaning only)
+- [x] Task 5: Write comprehensive tests
+  - [x] Add to `tests/reviews/test_service.py`:
+    - Test submit_review creates ReviewLog with both reading_correct and meaning_correct
     - Test submit_review advances stage when both correct
-    - Test submit_review drops stage when reading incorrect
-    - Test submit_review drops stage when meaning incorrect
     - Test submit_review drops stage when both incorrect
-    - Test submit_review burns item at stage 8 with correct answers
+    - Test submit_review drops stage when reading incorrect (meaning correct)
+    - Test submit_review drops stage when meaning incorrect (reading correct)
+    - Test submit_review burns item at stage 8 with both correct
+    - Test submit_review sets burned_at when reaching stage 9
+    - Test submit_review sets next_review_at to None when burned
     - Test submit_review item not in progress (400)
     - Test submit_review burned item (400)
-    - Test submit_review calculates correct next_review_at
+    - Test submit_review item not yet due for review (400) - including stage 8 with 4 month wait
+    - Test submit_review calculates correct next_review_at using SRS_INTERVALS
     - Test submit_review transaction atomicity
-  - [ ] Add to `tests/reviews/test_router.py`:
-    - Test POST /me/reviews first submission
-    - Test POST /me/reviews session complete
+  - [x] Add to `tests/reviews/test_router.py`:
+    - Test POST /me/reviews successful submission
     - Test POST /me/reviews not in progress (400)
     - Test POST /me/reviews burned (400)
-    - Test POST /me/reviews invalid review_type (400)
+    - Test POST /me/reviews not yet due for review (400)
+    - Test POST /me/reviews missing fields (400)
+    - Test POST /me/reviews invalid item_type (400)
     - Test POST /me/reviews unauthenticated (401)
 
 ## Dev Notes
@@ -178,40 +202,47 @@ So that **items progress through SRS stages based on my performance**.
 - Transaction handling for atomic operations
 - Performance target: 500ms response time (NFR1)
 
-### Review Session Logic (FR26)
+### Simplified Review Flow (FR26)
 
-**Critical Rule:** Both reading AND meaning must pass to advance.
+**Critical Rule:** Both reading AND meaning must pass to advance stage.
 
-The frontend validates correctness (user types answer, frontend checks). Backend receives a simple correct/incorrect result for each review type.
+The frontend validates correctness (user types answer, frontend checks). Backend receives both `reading_correct` and `meaning_correct` in a single request.
 
-**Session Flow:**
-1. User reviews reading → Backend records ReviewLog, stage unchanged
-2. User reviews meaning → Backend records ReviewLog, checks session
-3. If both submitted: evaluate and update stage
+**Simplified Flow:**
+1. User submits review with both reading and meaning results in one request
+2. Backend evaluates: `correct = reading_correct and meaning_correct`
+3. Backend immediately updates stage based on correctness
+4. Single ReviewLog record created with both correctness values
 
-**Session Tracking Options:**
-
-Option A: Query recent ReviewLogs
-- Find ReviewLogs for this (user, item_type, item_id) since last stage change
-- Session complete when both reading and meaning found
-
-Option B: Track last review timestamp on UserItemProgress
-- Add `last_review_started_at` field
-- Reset when stage changes
-- Session = reviews since last_review_started_at
-
-**Recommended: Option A** - simpler, no schema changes
+**No Session Tracking Needed:**
+- Previous design required tracking separate reading/meaning submissions
+- Simplified design: both submitted together, immediate evaluation
+- No need to query recent ReviewLogs or track session state
 
 ### Stage Progression Logic
 
+The `calculate_next_review` function in `src/reviews/srs.py` handles stage progression:
+
 ```python
-def determine_new_stage(current_stage: int, reading_correct: bool, meaning_correct: bool) -> int:
-    if reading_correct and meaning_correct:
-        # Advance (cap at 9)
-        return min(9, current_stage + 1)
+def calculate_next_review(current_stage: int, correct: bool) -> tuple[int, datetime | None]:
+    if correct:
+        # Advance to next stage (max 9)
+        new_stage = min(9, current_stage + 1)
+        if new_stage == 9:
+            return (9, None)  # Burned - no more reviews
+        next_review_at = datetime.now(UTC) + SRS_INTERVALS[current_stage]
+        return (new_stage, next_review_at)
     else:
         # Drop ~2 stages (minimum 1)
-        return max(1, current_stage - 2)
+        new_stage = max(1, current_stage - 2)
+        next_review_at = datetime.now(UTC) + SRS_INTERVALS[new_stage]
+        return (new_stage, next_review_at)
+```
+
+**Usage in submit_review:**
+```python
+correct = request.reading_correct and request.meaning_correct
+new_stage, next_review_at = calculate_next_review(current_stage, correct)
 ```
 
 ### Burning Items
@@ -227,21 +258,22 @@ Target: 500ms response time
 
 Optimizations:
 - Single query for UserItemProgress lookup
-- Efficient ReviewLog queries with proper indexes
+- Single ReviewLog insert
+- Single UserItemProgress update
 - Minimal database round-trips
 - Transaction scope kept minimal
 
 ### Concurrency Edge Case
 
-If user rapidly submits reading and meaning simultaneously:
-- Database constraints prevent issues
+If user rapidly submits multiple reviews simultaneously:
+- Database constraints prevent duplicate ReviewLog entries
 - Transaction isolation ensures consistent state
 - Worst case: one submission processes first, second sees updated state
 
 ### Dependencies
 
-- Story 5.1: ReviewLog model, SRS calculation function
-- Story 5.2: ReviewService class (extend it)
+- Story 5.1: ReviewLog model, SRS calculation function (`calculate_next_review`)
+- Story 5.2: ReviewService class (extend it), router structure
 - Story 4.3: UserItemProgress model
 
 ### Project Structure Notes
@@ -249,6 +281,25 @@ If user rapidly submits reading and meaning simultaneously:
 - POST endpoint same path as GET: `/api/v1/me/reviews`
 - Router handles both GET (due reviews) and POST (submit review)
 - Service methods: `get_due_reviews` (5.2) and `submit_review` (this story)
+- ReviewLog model stores both `reading_correct` and `meaning_correct` in single record (from Story 5.1, but simplified)
+
+### Key Implementation Details
+
+**ReviewCreateRequest Schema:**
+- `item_type: ItemType` (kanji or vocab)
+- `item_id: int` (must be > 0)
+- `reading_correct: bool` (required)
+- `meaning_correct: bool` (required)
+
+**ReviewLog Model:**
+- Stores both `reading_correct` and `meaning_correct` in single record
+- No `review_type` field (simplified design)
+- Single record per review submission
+
+**Stage Evaluation:**
+- `correct = reading_correct and meaning_correct` (both must pass - FR26)
+- If correct: advance stage
+- If incorrect: drop ~2 stages (minimum 1 - FR27)
 
 ### References
 
@@ -258,6 +309,8 @@ If user rapidly submits reading and meaning simultaneously:
 - [Source: _bmad-output/planning-artifacts/epics.md#NFR1 - 500ms response time]
 - [Source: _bmad-output/planning-artifacts/architecture.md#Service Layer Pattern]
 - [Source: src/reviews/srs.py - calculate_next_review function (from Story 5.1)]
+- [Source: src/reviews/models.py - ReviewLog model (from Story 5.1, simplified)]
+- [Source: src/reviews/schemas.py - ReviewCreateRequest and ReviewResponse schemas]
 
 ## Dev Agent Record
 
@@ -269,4 +322,21 @@ If user rapidly submits reading and meaning simultaneously:
 
 ### Completion Notes List
 
+- ✅ Implemented `submit_review` method in ReviewService with full SRS stage progression logic
+- ✅ Added POST `/api/v1/me/reviews` endpoint with authentication and error handling
+- ✅ Verified ReviewResponse schema already exists and matches requirements
+- ✅ Implemented transaction safety with commit/rollback for atomic operations
+- ✅ Added validation to prevent reviewing items before they're due (checks next_review_at)
+- ✅ Added comprehensive test coverage for all acceptance criteria:
+  - Service tests: stage advancement, stage dropping, burning items, edge cases, transaction atomicity
+  - Service tests: item not yet due validation (including stage 8 with 4 month wait)
+  - Router tests: successful submission, validation errors, authentication, error handling
+  - Router tests: item not yet due for review error handling
+- ✅ All tests follow red-green-refactor cycle and cover all acceptance criteria
+
 ### File List
+
+- `src/reviews/service.py` - Added `submit_review` method
+- `src/reviews/router.py` - Added POST `/api/v1/me/reviews` endpoint
+- `tests/reviews/test_service.py` - Added comprehensive service tests for submit_review
+- `tests/reviews/test_router.py` - Added router tests for POST endpoint
