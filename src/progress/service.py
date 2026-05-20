@@ -1,18 +1,22 @@
 """Progress tracking service layer."""
 
+from datetime import UTC, datetime
+
 from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.core.constants import ItemType
+from src.core.constants import SRS_INTERVALS, ItemType
 from src.kanji.models import Kanji
-from src.progress.models import LessonQueue
+from src.progress.models import LessonQueue, UserItemProgress
 from src.progress.schemas import (
     KanjiItemDetails,
     QueueItemResponse,
+    ResurrectResponse,
     VocabItemDetails,
 )
+from src.reviews.models import ReviewLog
 from src.vocab.models import Vocab
 
 
@@ -231,3 +235,70 @@ class ProgressService:
         # Delete the queue item
         await self.db.delete(queue_item)
         await self.db.commit()
+
+    async def resurrect_item(
+        self,
+        user_id: int,
+        item_type: ItemType,
+        item_id: int,
+    ) -> ResurrectResponse:
+        """Resurrect a burned (stage 9) item, resetting it to stage 1.
+
+        Raises:
+            HTTPException 404: progress row not found.
+            HTTPException 400: item is not burned.
+        """
+        now = datetime.now(UTC)
+
+        # Lock the progress row to prevent races with concurrent submit/resurrect.
+        query = (
+            select(UserItemProgress)
+            .where(
+                UserItemProgress.user_id == user_id,
+                UserItemProgress.item_type == item_type,
+                UserItemProgress.item_id == item_id,
+            )
+            .with_for_update()
+        )
+        result = await self.db.execute(query)
+        progress = result.scalar_one_or_none()
+
+        if progress is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Item not found in your progress",
+            )
+
+        if progress.srs_stage != 9:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Item is not burned (current stage: {progress.srs_stage})",
+            )
+
+        progress.srs_stage = 1
+        progress.burned_at = None
+        progress.next_review_at = now + SRS_INTERVALS[1]
+        # unlocked_at deliberately unchanged: preserves original lesson date.
+
+        # Audit trail: ReviewLog row with 9->1 stage transition uniquely marks resurrection.
+        resurrection_log = ReviewLog(
+            user_id=user_id,
+            item_type=item_type,
+            item_id=item_id,
+            reading_correct=True,
+            meaning_correct=True,
+            srs_stage_before=9,
+            srs_stage_after=1,
+            reviewed_at=now,
+        )
+        self.db.add(resurrection_log)
+
+        await self.db.commit()
+
+        return ResurrectResponse(
+            item_type=progress.item_type,
+            item_id=progress.item_id,
+            srs_stage=progress.srs_stage,
+            next_review_at=progress.next_review_at,
+            unlocked_at=progress.unlocked_at,
+        )

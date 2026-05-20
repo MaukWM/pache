@@ -84,3 +84,16 @@ class LessonCompleteResponse(BaseModel):
 
     items: list[LessonItemResponse]
     count: int = Field(..., description="Actual number of items processed")
+
+
+class ResurrectResponse(BaseModel):
+    """Response schema for a resurrected (un-burned) item."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    item_type: ItemType
+    item_id: int = Field(..., gt=0)
+    srs_stage: int = Field(..., ge=1, le=9, description="Reset SRS stage (always 1)")
+    next_review_at: datetime = Field(..., description="Next review time (4h after resurrection)")
+    unlocked_at: datetime = Field(..., description="Original lesson completion time (unchanged)")
+    message: str = Field(default="Item resurrected successfully")

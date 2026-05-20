@@ -7,10 +7,16 @@ from src.auth.dependencies import get_current_user
 from src.auth.models import User
 from src.core.constants import ItemType
 from src.database import get_db
-from src.progress.schemas import QueueItemRequest, QueueItemResponse, QueueListResponse
+from src.progress.schemas import (
+    QueueItemRequest,
+    QueueItemResponse,
+    QueueListResponse,
+    ResurrectResponse,
+)
 from src.progress.service import ProgressService
 
 router = APIRouter(prefix="/me/queue", tags=["progress"])
+progress_router = APIRouter(prefix="/me/progress", tags=["progress"])
 
 
 @router.post("", response_model=QueueItemResponse, status_code=status.HTTP_201_CREATED)
@@ -54,6 +60,26 @@ async def remove_from_queue(
     """
     service = ProgressService(db)
     await service.remove_from_queue(
+        user_id=current_user.id,
+        item_type=item_type,
+        item_id=item_id,
+    )
+
+
+@progress_router.post(
+    "/{item_type}/{item_id}/resurrect",
+    response_model=ResurrectResponse,
+    status_code=status.HTTP_200_OK,
+)
+async def resurrect_item(
+    item_type: ItemType = Path(..., description="Type of item to resurrect (kanji or vocab)"),
+    item_id: int = Path(..., gt=0, description="Positive item ID"),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> ResurrectResponse:
+    """Resurrect a burned item, resetting it to SRS stage 1."""
+    service = ProgressService(db)
+    return await service.resurrect_item(
         user_id=current_user.id,
         item_type=item_type,
         item_id=item_id,

@@ -10,6 +10,7 @@ from src.kanji.models import Kanji
 from src.kanji.router import router as kanji_router
 from src.lessons.router import router as lessons_router
 from src.logging import logger
+from src.progress.router import progress_router as progress_actions_router
 from src.progress.router import router as progress_router
 from src.reviews.router import router as reviews_router
 from src.settings import settings
@@ -50,6 +51,7 @@ logger.info("app_started", version=settings.api_version)
 app.include_router(kanji_router, prefix=settings.api_prefix)
 app.include_router(vocab_router, prefix=settings.api_prefix)
 app.include_router(progress_router, prefix=settings.api_prefix)
+app.include_router(progress_actions_router, prefix=settings.api_prefix)
 app.include_router(lessons_router, prefix=settings.api_prefix)
 app.include_router(reviews_router, prefix=settings.api_prefix)
 

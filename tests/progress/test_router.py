@@ -442,3 +442,123 @@ async def test_remove_from_queue_cannot_delete_other_user_items(
         )
     )
     assert result.scalar_one_or_none() is not None
+
+
+@pytest.mark.asyncio
+async def test_resurrect_endpoint_success(async_client: AsyncClient, db_session) -> None:
+    """POST /me/progress/{type}/{id}/resurrect returns 200 for burned item."""
+    from datetime import UTC, datetime
+
+    from src.progress.models import UserItemProgress
+
+    user = User(username="testuser")
+    db_session.add(user)
+    await db_session.flush()
+    session = Session(user_id=user.id, token="test-token-res-1")
+    db_session.add(session)
+
+    kanji = Kanji(character="漢", meanings=["Chinese"], readings_on=["kan"],
+                  readings_kun=[], stroke_count=13)
+    db_session.add(kanji)
+    await db_session.flush()
+
+    progress = UserItemProgress(
+        user_id=user.id, item_type=ItemType.KANJI, item_id=kanji.id,
+        srs_stage=9, burned_at=datetime(2026, 1, 20, tzinfo=UTC), next_review_at=None,
+    )
+    db_session.add(progress)
+    await db_session.commit()
+
+    response = await async_client.post(
+        f"/api/v1/me/progress/kanji/{kanji.id}/resurrect",
+        headers={"Authorization": "Bearer test-token-res-1"},
+    )
+    assert response.status_code == status.HTTP_200_OK
+    data = response.json()
+    assert data["item_type"] == "kanji"
+    assert data["item_id"] == kanji.id
+    assert data["srs_stage"] == 1
+    assert data["next_review_at"] is not None
+
+
+@pytest.mark.asyncio
+async def test_resurrect_endpoint_not_burned_returns_400(
+    async_client: AsyncClient, db_session
+) -> None:
+    """POST resurrect on non-burned item returns 400."""
+    from datetime import UTC, datetime, timedelta
+
+    from src.progress.models import UserItemProgress
+
+    user = User(username="testuser")
+    db_session.add(user)
+    await db_session.flush()
+    session = Session(user_id=user.id, token="test-token-res-2")
+    db_session.add(session)
+
+    kanji = Kanji(character="漢", meanings=["Chinese"], readings_on=["kan"],
+                  readings_kun=[], stroke_count=13)
+    db_session.add(kanji)
+    await db_session.flush()
+
+    progress = UserItemProgress(
+        user_id=user.id, item_type=ItemType.KANJI, item_id=kanji.id,
+        srs_stage=4,
+        next_review_at=datetime.now(UTC) + timedelta(days=1),
+    )
+    db_session.add(progress)
+    await db_session.commit()
+
+    response = await async_client.post(
+        f"/api/v1/me/progress/kanji/{kanji.id}/resurrect",
+        headers={"Authorization": "Bearer test-token-res-2"},
+    )
+    assert response.status_code == status.HTTP_400_BAD_REQUEST
+    assert "not burned" in response.json()["detail"].lower()
+
+
+@pytest.mark.asyncio
+async def test_resurrect_endpoint_not_found_returns_404(
+    async_client: AsyncClient, db_session
+) -> None:
+    """POST resurrect on missing progress row returns 404."""
+    user = User(username="testuser")
+    db_session.add(user)
+    await db_session.flush()
+    session = Session(user_id=user.id, token="test-token-res-3")
+    db_session.add(session)
+    await db_session.commit()
+
+    response = await async_client.post(
+        "/api/v1/me/progress/kanji/99999/resurrect",
+        headers={"Authorization": "Bearer test-token-res-3"},
+    )
+    assert response.status_code == status.HTTP_404_NOT_FOUND
+
+
+@pytest.mark.asyncio
+async def test_resurrect_endpoint_unauthorized_returns_401(
+    async_client: AsyncClient,
+) -> None:
+    """POST resurrect without auth returns 401."""
+    response = await async_client.post("/api/v1/me/progress/kanji/1/resurrect")
+    assert response.status_code == status.HTTP_401_UNAUTHORIZED
+
+
+@pytest.mark.asyncio
+async def test_resurrect_endpoint_invalid_item_type_returns_422(
+    async_client: AsyncClient, db_session
+) -> None:
+    """POST resurrect with invalid item_type returns 422 (FastAPI enum validation)."""
+    user = User(username="testuser")
+    db_session.add(user)
+    await db_session.flush()
+    session = Session(user_id=user.id, token="test-token-res-4")
+    db_session.add(session)
+    await db_session.commit()
+
+    response = await async_client.post(
+        "/api/v1/me/progress/banana/1/resurrect",
+        headers={"Authorization": "Bearer test-token-res-4"},
+    )
+    assert response.status_code == 422
