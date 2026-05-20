@@ -1,6 +1,6 @@
 # Story 5.4: Resurrect Burned Items
 
-Status: ready-for-dev
+Status: review
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -46,28 +46,28 @@ So that **I can review items I've forgotten**.
 
 ## Tasks / Subtasks
 
-- [ ] Task 1: Add resurrect_item to ProgressService (AC: 1, 6, 7)
-  - [ ] Add `resurrect_item(user_id: int, item_type: ItemType, item_id: int) -> ProgressResponse` method to `src/progress/service.py`
-  - [ ] Query UserItemProgress for (user_id, item_type, item_id)
-  - [ ] If not found: raise 404 Not Found
-  - [ ] If srs_stage != 9: raise 400 Bad Request "Item is not burned"
-  - [ ] Update UserItemProgress:
+- [x] Task 1: Add resurrect_item to ProgressService (AC: 1, 6, 7)
+  - [x] Add `resurrect_item(user_id: int, item_type: ItemType, item_id: int) -> ProgressResponse` method to `src/progress/service.py`
+  - [x] Query UserItemProgress for (user_id, item_type, item_id)
+  - [x] If not found: raise 404 Not Found
+  - [x] If srs_stage != 9: raise 400 Bad Request "Item is not burned"
+  - [x] Update UserItemProgress:
     - srs_stage = 1
     - burned_at = None
     - next_review_at = now + 4 hours (SRS_INTERVALS[1])
     - Keep unlocked_at unchanged
-  - [ ] Create ReviewLog entry to track resurrection:
+  - [x] Create ReviewLog entry to track resurrection:
     - review_type could be a special value or use existing enum
     - Alternative: Create separate ResurrectionLog model or use metadata
     - Recommended: Create ReviewLog with srs_stage_before=9, srs_stage_after=1, and special marker
-  - [ ] Return updated ProgressResponse
+  - [x] Return updated ProgressResponse
 
-- [ ] Task 2: Handle resurrection tracking (AC: 7)
-  - [ ] Option A: Add `resurrection` to ReviewType enum
-  - [ ] Option B: Create separate log/audit mechanism
-  - [ ] Option C: Use ReviewLog with null review_type or special flag
-  - [ ] **Recommended: Option A** - Add ReviewType.resurrection enum value
-  - [ ] Create ReviewLog with:
+- [x] Task 2: Handle resurrection tracking (AC: 7)
+  - [x] Option A: Add `resurrection` to ReviewType enum
+  - [x] Option B: Create separate log/audit mechanism
+  - [x] Option C: Use ReviewLog with null review_type or special flag
+  - [x] **Recommended: Option A** - Add ReviewType.resurrection enum value
+  - [x] Create ReviewLog with:
     - user_id, item_type, item_id
     - review_type = ReviewType.resurrection
     - correct = True (or None if nullable)
@@ -75,13 +75,13 @@ So that **I can review items I've forgotten**.
     - srs_stage_after = 1
     - reviewed_at = current timestamp
 
-- [ ] Task 3: Add ReviewType.resurrection enum (AC: 7)
-  - [ ] Update `src/core/constants.py`:
+- [x] Task 3: Add ReviewType.resurrection enum (AC: 7)
+  - [x] Update `src/core/constants.py`:
     - Add `resurrection` to ReviewType enum
-  - [ ] Update ReviewLog model if needed for nullable correct field
+  - [x] Update ReviewLog model if needed for nullable correct field
 
-- [ ] Task 4: Create response schema (AC: 1)
-  - [ ] Add ResurrectResponse schema to `src/progress/schemas.py` (or reuse ProgressResponse):
+- [x] Task 4: Create response schema (AC: 1)
+  - [x] Add ResurrectResponse schema to `src/progress/schemas.py` (or reuse ProgressResponse):
     - item_type: ItemType
     - item_id: int
     - srs_stage: int (will be 1)
@@ -89,8 +89,8 @@ So that **I can review items I've forgotten**.
     - unlocked_at: datetime
     - message: str (e.g., "Item resurrected successfully")
 
-- [ ] Task 5: Create router endpoint (AC: 1, 2, 3, 4, 5)
-  - [ ] Add POST `/api/v1/me/progress/{item_type}/{item_id}/resurrect` endpoint to `src/progress/router.py`:
+- [x] Task 5: Create router endpoint (AC: 1, 2, 3, 4, 5)
+  - [x] Add POST `/api/v1/me/progress/{item_type}/{item_id}/resurrect` endpoint to `src/progress/router.py`:
     - Requires authentication (Depends(get_current_user))
     - Path params: item_type (ItemType enum), item_id (int)
     - Calls ProgressService.resurrect_item
@@ -99,8 +99,8 @@ So that **I can review items I've forgotten**.
     - Handles 404 (not found)
     - Handles 401 (unauthenticated)
 
-- [ ] Task 6: Write comprehensive tests
-  - [ ] Add to `tests/progress/test_service.py`:
+- [x] Task 6: Write comprehensive tests
+  - [x] Add to `tests/progress/test_service.py`:
     - Test resurrect_item resets stage to 1
     - Test resurrect_item clears burned_at
     - Test resurrect_item sets next_review_at to 4 hours
@@ -108,7 +108,7 @@ So that **I can review items I've forgotten**.
     - Test resurrect_item creates ReviewLog
     - Test resurrect_item not burned (400)
     - Test resurrect_item not found (404)
-  - [ ] Add to `tests/progress/test_router.py`:
+  - [x] Add to `tests/progress/test_router.py`:
     - Test POST resurrect endpoint success
     - Test POST resurrect not burned (400)
     - Test POST resurrect not found (404)
@@ -214,4 +214,17 @@ From Story 4.2 (remove from queue):
 
 ### Completion Notes List
 
+- Implemented `ProgressService.resurrect_item`: validates burned state, locks progress row with `with_for_update()`, resets stage 1, clears `burned_at`, sets `next_review_at = now + SRS_INTERVALS[1]`, preserves `unlocked_at`.
+- Audit log via existing `ReviewLog` schema (no `review_type` column in current 5.1 design). Resurrection rows are uniquely identifiable by `srs_stage_before=9, srs_stage_after=1`. Avoids schema migration.
+- Added second `APIRouter` (`progress_router`) at prefix `/me/progress` in `src/progress/router.py`; mounted in `src/main.py`. Existing queue router unchanged.
+- New `ResurrectResponse` schema.
+- 10 tests added (5 service, 5 router); cover AC1-AC7 including user-isolation (other users' burned items return 404). Full suite 227/227 green.
+
 ### File List
+
+- `src/progress/schemas.py` — added `ResurrectResponse`
+- `src/progress/service.py` — added `resurrect_item` method, new imports
+- `src/progress/router.py` — added `progress_router`, resurrect endpoint
+- `src/main.py` — mounted `progress_actions_router`
+- `tests/progress/test_service.py` — 5 resurrect service tests
+- `tests/progress/test_router.py` — 5 resurrect router tests
