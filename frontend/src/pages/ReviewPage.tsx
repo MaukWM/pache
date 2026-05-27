@@ -3,6 +3,32 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api, type ReviewItem } from '../lib/api';
 import { romajiToHiraganaLive } from '../lib/romaji';
 
+function levenshtein(a: string, b: string): number {
+  const m = a.length, n = b.length;
+  const dp: number[][] = Array.from({ length: m + 1 }, () => Array(n + 1).fill(0));
+  for (let i = 0; i <= m; i++) dp[i][0] = i;
+  for (let j = 0; j <= n; j++) dp[0][j] = j;
+  for (let i = 1; i <= m; i++) {
+    for (let j = 1; j <= n; j++) {
+      dp[i][j] = a[i - 1] === b[j - 1]
+        ? dp[i - 1][j - 1]
+        : 1 + Math.min(dp[i - 1][j], dp[i][j - 1], dp[i - 1][j - 1]);
+    }
+  }
+  return dp[m][n];
+}
+
+function allowedDistance(len: number): number {
+  if (len <= 3) return 0;
+  if (len <= 5) return 1;
+  if (len <= 7) return 2;
+  return Math.min(3, Math.floor(len * 0.3));
+}
+
+function isKana(str: string): boolean {
+  return /^[\u3040-\u309F\u30A0-\u30FF\u3000-\u303Fー]+$/.test(str);
+}
+
 type CardType = 'reading' | 'meaning';
 type ReviewMode = 'scrambled' | 'paired';
 
@@ -55,6 +81,8 @@ export function ReviewPage() {
   const [input, setInput] = useState('');
   const [answered, setAnswered] = useState(false);
   const [correct, setCorrect] = useState<boolean | null>(null);
+  const [showInfo, setShowInfo] = useState(false);
+  const [inputError, setInputError] = useState('');
   const [results, setResults] = useState<Record<string, ItemResult>>({});
   const [completedCorrect, setCompletedCorrect] = useState(0);
   const [completedIncorrect, setCompletedIncorrect] = useState(0);
@@ -100,13 +128,21 @@ export function ReviewPage() {
     }
   }, [currentIndex, answered, started, cards.length]);
 
-  // Global Enter when answered
+  // Global keys when answered
   useEffect(() => {
     if (!answered) return;
     answeredAt.current = Date.now();
     const handler = (e: KeyboardEvent) => {
       if (e.key === 'Enter' && Date.now() - answeredAt.current > 150) {
-        advance();
+        commitAndAdvance();
+      }
+      if (e.key === 'Backspace' && !correct) {
+        // Undo wrong answer — retype
+        e.preventDefault();
+        undoAnswer();
+      }
+      if (e.key === 'f' || e.key === 'F') {
+        setShowInfo((v) => !v);
       }
     };
     window.addEventListener('keydown', handler);
@@ -229,49 +265,59 @@ export function ReviewPage() {
   const checkAnswer = () => {
     const trimmed = input.trim().toLowerCase();
     if (!trimmed) return;
+    setInputError('');
 
     let isCorrect: boolean;
     if (cardType === 'reading') {
+      if (!isKana(trimmed)) {
+        setInputError('Please enter your answer in kana');
+        return;
+      }
       const acceptable = getAcceptableReadings();
       isCorrect = acceptable.some((r) => r === katakanaToHiragana(trimmed));
     } else {
       isCorrect = meanings.some((m) => {
         const lower = m.toLowerCase();
-        return lower === trimmed || (trimmed.length >= 3 && lower.startsWith(trimmed));
+        if (lower === trimmed) return true;
+        const dist = levenshtein(lower, trimmed);
+        return dist <= allowedDistance(lower.length);
       });
     }
 
     setCorrect(isCorrect);
     setAnswered(true);
+    // Don't commit yet — wait for Enter (accept) or Backspace (redo)
+  };
 
-    // Track per-item results
+  // Undo: backspace when showing wrong answer → retype
+  const undoAnswer = () => {
+    setInput('');
+    setAnswered(false);
+    setCorrect(null);
+    setInputError('');
+  };
+
+  // Commit: lock in the answer and move on
+  const commitAndAdvance = () => {
     const key = itemKey(item);
     const updated = { ...results };
     if (!updated[key]) updated[key] = {};
-    if (isCorrect) {
+
+    if (correct) {
       if (cardType === 'reading') updated[key].reading_correct = true;
       else updated[key].meaning_correct = true;
     } else {
-      // Mark that this card type had a wrong answer (affects final submission)
       if (cardType === 'reading') updated[key].reading_wrong = true;
       else updated[key].meaning_wrong = true;
     }
     setResults(updated);
+    maybeSubmit(key, updated, item);
 
-    // Only submit when both are answered correctly (card passed)
-    if (isCorrect) {
-      maybeSubmit(key, updated, item);
-    }
-  };
-
-  const advance = () => {
+    // Advance or retry
     if (correct) {
-      // Correct — move forward
       setCurrentIndex((i) => i + 1);
     } else {
-      // Incorrect — put card back
       if (mode === 'scrambled') {
-        // Shuffle back into remaining cards
         setCards((prev) => {
           const remaining = prev.slice(currentIndex + 1);
           const insertAt = Math.floor(Math.random() * (remaining.length + 1));
@@ -280,18 +326,20 @@ export function ReviewPage() {
           return [...prev.slice(0, currentIndex + 1), ...remaining];
         });
         setCurrentIndex((i) => i + 1);
-      } else {
-        // Paired — retry same card (don't advance index, just reset input)
       }
+      // Paired: stays on same index, just resets below
     }
+
     setInput('');
     setAnswered(false);
     setCorrect(null);
+    setShowInfo(false);
+    setInputError('');
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {
-      if (answered) advance();
+      if (answered) commitAndAdvance();
       else checkAnswer();
     }
   };
@@ -358,46 +406,60 @@ export function ReviewPage() {
             autoCorrect="off"
             spellCheck={false}
           />
+          {inputError && (
+            <p className="text-center text-sm text-error mt-2">{inputError}</p>
+          )}
         </div>
 
         {answered && (
           <div className="max-w-2xl mx-auto px-4 pb-5 space-y-3">
-            <div className="text-center">
+            <div className="flex items-center justify-center gap-4">
               <span className={`font-bold text-lg ${correct ? 'text-success' : 'text-error'}`}>
                 {correct ? 'Correct!' : 'Incorrect'}
               </span>
+              <button
+                onClick={() => setShowInfo((v) => !v)}
+                className="text-xs text-text-muted hover:text-text px-2 py-1 rounded bg-surface-alt border border-border transition-colors"
+              >
+                {showInfo ? 'Hide Info' : 'Item Info'} <kbd className="ml-1 px-1 py-0.5 rounded bg-border text-[10px] font-mono">F</kbd>
+              </button>
             </div>
 
-            <div className="bg-surface-alt rounded-lg p-4 space-y-3 text-sm">
-              <div>
-                <div className="text-text-muted text-xs uppercase tracking-wide mb-1">Meanings</div>
-                <div>{meanings.join(', ')}</div>
-              </div>
-              {isKanji ? (
-                <div className="grid grid-cols-2 gap-3">
-                  {readingsOn.length > 0 && (
-                    <div>
-                      <div className="text-text-muted text-xs uppercase tracking-wide mb-1">On'yomi</div>
-                      <div>{readingsOn.join('、')}</div>
-                    </div>
-                  )}
-                  {readingsKun.length > 0 && (
-                    <div>
-                      <div className="text-text-muted text-xs uppercase tracking-wide mb-1">Kun'yomi</div>
-                      <div>{readingsKun.join('、')}</div>
-                    </div>
-                  )}
-                </div>
-              ) : vocabReadings.length > 0 && (
+            {showInfo && (
+              <div className="bg-surface-alt rounded-lg p-4 space-y-3 text-sm">
                 <div>
-                  <div className="text-text-muted text-xs uppercase tracking-wide mb-1">Readings</div>
-                  <div>{vocabReadings.join('、')}</div>
+                  <div className="text-text-muted text-xs uppercase tracking-wide mb-1">Meanings</div>
+                  <div>{meanings.join(', ')}</div>
                 </div>
-              )}
-            </div>
+                {isKanji ? (
+                  <div className="grid grid-cols-2 gap-3">
+                    {readingsOn.length > 0 && (
+                      <div>
+                        <div className="text-text-muted text-xs uppercase tracking-wide mb-1">On'yomi</div>
+                        <div>{readingsOn.join('、')}</div>
+                      </div>
+                    )}
+                    {readingsKun.length > 0 && (
+                      <div>
+                        <div className="text-text-muted text-xs uppercase tracking-wide mb-1">Kun'yomi</div>
+                        <div>{readingsKun.join('、')}</div>
+                      </div>
+                    )}
+                  </div>
+                ) : vocabReadings.length > 0 && (
+                  <div>
+                    <div className="text-text-muted text-xs uppercase tracking-wide mb-1">Readings</div>
+                    <div>{vocabReadings.join('、')}</div>
+                  </div>
+                )}
+              </div>
+            )}
 
-            <div className="text-center text-xs text-text-muted">
-              Press <kbd className="px-1.5 py-0.5 rounded bg-border text-text text-[10px] font-mono">Enter</kbd> to {correct ? 'continue' : 'try again'}
+            <div className="text-center text-xs text-text-muted space-x-3">
+              <span><kbd className="px-1.5 py-0.5 rounded bg-border text-text text-[10px] font-mono">Enter</kbd> {correct ? 'continue' : 'accept'}</span>
+              {!correct && (
+                <span><kbd className="px-1.5 py-0.5 rounded bg-border text-text text-[10px] font-mono">Backspace</kbd> retype</span>
+              )}
             </div>
           </div>
         )}
