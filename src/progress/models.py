@@ -35,7 +35,7 @@ class LessonQueue(Base):
     user_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("users.id"), nullable=False, index=True
     )
-    item_type: Mapped[ItemType] = mapped_column(Enum(ItemType), nullable=False)
+    item_type: Mapped[ItemType] = mapped_column(Enum(ItemType, values_callable=lambda e: [m.value for m in e]), nullable=False)
     item_id: Mapped[int] = mapped_column(
         Integer, nullable=False
     )  # Polymorphic FK: references kanji.id or vocab.id based on item_type
@@ -73,7 +73,7 @@ class UserItemProgress(Base):
     user_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("users.id"), nullable=False, index=True
     )
-    item_type: Mapped[ItemType] = mapped_column(Enum(ItemType), nullable=False)
+    item_type: Mapped[ItemType] = mapped_column(Enum(ItemType, values_callable=lambda e: [m.value for m in e]), nullable=False)
     item_id: Mapped[int] = mapped_column(
         Integer, nullable=False
     )  # Polymorphic FK: references kanji.id or vocab.id based on item_type
@@ -88,7 +88,7 @@ class UserItemProgress(Base):
     meaning_note: Mapped[str | None] = mapped_column(Text, nullable=True)
     reading_mnemonic: Mapped[str | None] = mapped_column(Text, nullable=True)
     source: Mapped[ProgressSource] = mapped_column(
-        Enum(ProgressSource), nullable=False, default=ProgressSource.MANUAL
+        Enum(ProgressSource, values_callable=lambda e: [m.value for m in e]), nullable=False, default=ProgressSource.MANUAL
     )
 
     # Relationships

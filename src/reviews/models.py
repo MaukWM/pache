@@ -30,7 +30,7 @@ class ReviewLog(Base):
     user_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
     )
-    item_type: Mapped[ItemType] = mapped_column(Enum(ItemType), nullable=False)
+    item_type: Mapped[ItemType] = mapped_column(Enum(ItemType, values_callable=lambda e: [m.value for m in e]), nullable=False)
     item_id: Mapped[int] = mapped_column(Integer, nullable=False)
     reading_correct: Mapped[bool] = mapped_column(Boolean, nullable=False)
     meaning_correct: Mapped[bool] = mapped_column(Boolean, nullable=False)
