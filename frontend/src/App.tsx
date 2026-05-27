@@ -6,6 +6,7 @@ import { LoginPage } from './pages/LoginPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { KanjiPage } from './pages/KanjiPage';
 import { VocabPage } from './pages/VocabPage';
+import { LessonsPage } from './pages/LessonsPage';
 import { AccountPage } from './pages/AccountPage';
 
 const queryClient = new QueryClient({
@@ -27,6 +28,7 @@ function ProtectedRoutes() {
         <Route index element={<DashboardPage />} />
         <Route path="kanji" element={<KanjiPage />} />
         <Route path="vocab" element={<VocabPage />} />
+        <Route path="lessons" element={<LessonsPage />} />
         <Route path="account" element={<AccountPage />} />
       </Route>
     </Routes>

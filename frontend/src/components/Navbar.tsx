@@ -5,6 +5,7 @@ const NAV_LINKS = [
   { to: '/', label: 'Dashboard' },
   { to: '/kanji', label: 'Kanji' },
   { to: '/vocab', label: 'Vocab' },
+  { to: '/lessons', label: 'Lessons' },
 ];
 
 export function Navbar() {
