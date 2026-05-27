@@ -1,6 +1,6 @@
 """WaniKani import service."""
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timezone
 
 import httpx
 from fastapi import HTTPException, status
@@ -71,6 +71,7 @@ class WaniKaniService:
                     assignments.append({
                         "subject_id": item["data"]["subject_id"],
                         "srs_stage": item["data"]["srs_stage"],
+                        "available_at": item["data"].get("available_at"),
                     })
 
                 url = data["pages"]["next_url"]
@@ -128,12 +129,18 @@ class WaniKaniService:
             wk_stage = assignment["srs_stage"]
             is_burned = wk_stage == 9
 
+            # Parse WK's available_at for review scheduling
+            available_at = assignment.get("available_at")
+            next_review: datetime | None = None
+            if available_at and not is_burned:
+                next_review = datetime.fromisoformat(available_at.replace("Z", "+00:00"))
+
             progress = UserItemProgress(
                 user_id=user_id,
                 item_type=ItemType.KANJI,
                 item_id=kanji.id,
                 srs_stage=wk_stage,
-                next_review_at=None if is_burned else now,
+                next_review_at=next_review,
                 unlocked_at=now,
                 burned_at=now if is_burned else None,
                 source=ProgressSource.WANIKANI,
