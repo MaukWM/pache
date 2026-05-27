@@ -4,6 +4,7 @@ import { useAuth } from '../lib/auth';
 const NAV_LINKS = [
   { to: '/', label: 'Dashboard' },
   { to: '/kanji', label: 'Kanji' },
+  { to: '/vocab', label: 'Vocab' },
 ];
 
 export function Navbar() {
