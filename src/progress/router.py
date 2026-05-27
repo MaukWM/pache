@@ -7,7 +7,9 @@ from src.auth.dependencies import get_current_user
 from src.auth.models import User
 from src.core.constants import ItemType
 from src.database import get_db
+from src.progress.models import UserItemProgress
 from src.progress.schemas import (
+    ProgressItemResponse,
     QueueItemRequest,
     QueueItemResponse,
     QueueListResponse,
@@ -17,6 +19,33 @@ from src.progress.service import ProgressService
 
 router = APIRouter(prefix="/me/queue", tags=["progress"])
 progress_router = APIRouter(prefix="/me/progress", tags=["progress"])
+
+
+@progress_router.get("", response_model=list[ProgressItemResponse])
+async def get_progress(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> list[ProgressItemResponse]:
+    """Get all progress items for the current user."""
+    from sqlalchemy import select
+    result = await db.execute(
+        select(UserItemProgress).where(UserItemProgress.user_id == current_user.id)
+    )
+    items = result.scalars().all()
+    return [
+        ProgressItemResponse(
+            item_type=item.item_type,
+            item_id=item.item_id,
+            srs_stage=item.srs_stage,
+            next_review_at=item.next_review_at,
+            unlocked_at=item.unlocked_at,
+            burned_at=item.burned_at,
+            meaning_note=item.meaning_note,
+            reading_mnemonic=item.reading_mnemonic,
+            source=item.source,
+        )
+        for item in items
+    ]
 
 
 @router.post("", response_model=QueueItemResponse, status_code=status.HTTP_201_CREATED)

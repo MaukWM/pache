@@ -2,6 +2,7 @@ import { useState, useMemo, useRef, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api, type KanjiItem } from '../lib/api';
 import { romajiToKana } from '../lib/romaji';
+import { SRS_STAGE_COLORS, getSrsGroup } from '../lib/srs';
 
 const CHUNK_SIZE = 250;
 const INITIAL_LOAD = 250;
@@ -45,6 +46,12 @@ export function KanjiPage() {
   const kanji = useQuery({
     queryKey: ['kanji', 'all'],
     queryFn: () => api.getKanji({ include_inactive: 'true' }),
+  });
+
+  // Fetch user progress to color-code tiles by SRS stage
+  const progressMap = useQuery({
+    queryKey: ['progressMap'],
+    queryFn: api.getProgressMap,
   });
 
   const filtered = useMemo(() => {
@@ -169,18 +176,24 @@ export function KanjiPage() {
 
               {/* Grid */}
               <div className="grid grid-cols-[repeat(auto-fill,minmax(3.2rem,1fr))] gap-1.5">
-                {chunk.items.map((k) => (
-                  <button
-                    key={k.id}
-                    onClick={() => setSelected(k)}
-                    className={`aspect-square rounded-lg flex items-center justify-center text-white text-2xl kanji-text hover:scale-105 transition-all cursor-pointer ${
-                      k.active ? 'bg-wk-kanji' : 'bg-gray-400 hover:bg-wk-kanji'
-                    } ${selected?.id === k.id ? 'ring-2 ring-wk-kanji ring-offset-2' : ''}`}
-                    title={`${k.character} — ${k.meanings.join(', ')}`}
-                  >
-                    {k.character}
-                  </button>
-                ))}
+                {chunk.items.map((k) => {
+                  const srsStage = progressMap.data?.[`kanji-${k.id}`];
+                  const stageColor = srsStage != null ? SRS_STAGE_COLORS[srsStage] : undefined;
+                  const group = srsStage != null ? getSrsGroup(srsStage) : undefined;
+                  return (
+                    <button
+                      key={k.id}
+                      onClick={() => setSelected(k)}
+                      className={`aspect-square rounded-lg flex items-center justify-center text-white text-2xl hover:scale-105 transition-all cursor-pointer ${
+                        selected?.id === k.id ? 'ring-2 ring-offset-2' : ''
+                      } ${!stageColor ? 'bg-border hover:bg-text-muted/30 text-text-muted' : ''}`}
+                      style={stageColor ? { backgroundColor: stageColor } : undefined}
+                      title={`${k.character} — ${k.meanings.join(', ')}${group ? ` (${group})` : ''}`}
+                    >
+                      {k.character}
+                    </button>
+                  );
+                })}
               </div>
             </div>
           ))}
@@ -246,7 +259,7 @@ function KanjiDetail({
       </button>
 
       <div className="flex items-start gap-6">
-        <div className="bg-wk-kanji w-20 h-20 rounded-xl flex items-center justify-center text-white text-4xl kanji-text shadow-md shrink-0">
+        <div className="bg-wk-kanji w-20 h-20 rounded-xl flex items-center justify-center text-white text-4xl shadow-md shrink-0">
           {kanji.character}
         </div>
         <div className="space-y-3 flex-1">

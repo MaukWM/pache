@@ -86,6 +86,22 @@ class LessonCompleteResponse(BaseModel):
     count: int = Field(..., description="Actual number of items processed")
 
 
+class ProgressItemResponse(BaseModel):
+    """Response schema for a user's progress on a single item."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    item_type: ItemType
+    item_id: int
+    srs_stage: int
+    next_review_at: datetime | None
+    unlocked_at: datetime
+    burned_at: datetime | None
+    meaning_note: str | None
+    reading_mnemonic: str | None
+    source: str
+
+
 class ResurrectResponse(BaseModel):
     """Response schema for a resurrected (un-burned) item."""
 

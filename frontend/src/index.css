@@ -11,15 +11,15 @@
   --color-srs-guru: #882d9e;
   --color-srs-master: #294ddb;
   --color-srs-enlightened: #0093dd;
-  --color-srs-burned: #434343;
+   --color-srs-burned: #c8a000;
 
-  /* UI colors */
-  --color-bg: #f0f0f0;
-  --color-surface: #ffffff;
-  --color-surface-alt: #fafafa;
-  --color-text: #333333;
-  --color-text-muted: #888888;
-  --color-border: #e0e0e0;
+  /* UI colors — soft light mode */
+  --color-bg: #eef0f2;
+  --color-surface: #f8f8fa;
+  --color-surface-alt: #f0f1f4;
+  --color-text: #3a3a4a;
+  --color-text-muted: #8a8a9a;
+  --color-border: #d8dae0;
   --color-accent: #ff00aa;
   --color-accent-hover: #e0008f;
   --color-success: #88cc00;
@@ -29,10 +29,5 @@
 body {
   background-color: var(--color-bg);
   color: var(--color-text);
-  font-family: 'Helvetica Neue', Arial, sans-serif;
-}
-
-/* Clean kanji rendering */
-.kanji-text {
-  font-family: 'Noto Sans JP', 'Hiragino Kaku Gothic Pro', 'Yu Gothic', 'Meiryo', sans-serif;
+  font-family: 'Noto Sans JP', 'Helvetica Neue', Arial, sans-serif;
 }
