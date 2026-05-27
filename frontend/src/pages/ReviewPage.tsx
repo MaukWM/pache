@@ -163,7 +163,6 @@ export function ReviewPage() {
     if (reviewItems.length === 0) {
       return (
         <div className="flex flex-col items-center justify-center py-20 space-y-4 text-center">
-          <div className="text-5xl">&#128516;</div>
           <h2 className="text-2xl font-bold">No reviews due</h2>
           <p className="text-text-muted">Come back later when items are ready for review.</p>
         </div>

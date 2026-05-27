@@ -13,6 +13,7 @@ export function VocabPage() {
   const [showCreate, setShowCreate] = useState(false);
   const [tagFilter, setTagFilter] = useState('');
   const [creatorFilter, setCreatorFilter] = useState('');
+  const [hideKnown, setHideKnown] = useState(false);
 
   const params: Record<string, string> = {};
   if (tagFilter) params.tag = tagFilter;
@@ -45,8 +46,19 @@ export function VocabPage() {
     return [...creators].sort();
   }, [allVocab.data]);
 
+  const progressMap = useQuery({
+    queryKey: ['progressMap'],
+    queryFn: api.getProgressMap,
+  });
+
   const [selected, setSelected] = useState<VocabItem | null>(null);
-  const items = vocab.data || [];
+  const items = useMemo(() => {
+    let list = vocab.data || [];
+    if (hideKnown && progressMap.data) {
+      list = list.filter((v) => progressMap.data![`vocab-${v.id}`] == null);
+    }
+    return list;
+  }, [vocab.data, hideKnown, progressMap.data]);
 
   return (
     <div className="space-y-4">
@@ -99,6 +111,14 @@ export function VocabPage() {
           onChange={setCreatorFilter}
           options={allCreators}
         />
+        <button
+          onClick={() => setHideKnown(!hideKnown)}
+          className={`px-3 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-colors ${
+            hideKnown ? 'bg-wk-vocab text-white' : 'border border-border bg-surface hover:bg-border'
+          }`}
+        >
+          Hide Known
+        </button>
       </div>
 
       {/* Vocab grid — compact blocks */}

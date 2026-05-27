@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef, useCallback } from 'react';
+import { useState, useMemo, useRef, useCallback, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api, type KanjiItem } from '../lib/api';
 import { romajiToKana } from '../lib/romaji';
@@ -42,6 +42,7 @@ export function KanjiPage() {
   const [sort, setSort] = useState<SortMode>('frequency');
   const [selected, setSelected] = useState<KanjiItem | null>(null);
   const [visibleCount, setVisibleCount] = useState(INITIAL_LOAD);
+  const [hideKnown, setHideKnown] = useState(false);
 
   const kanji = useQuery({
     queryKey: ['kanji', 'all'],
@@ -54,7 +55,8 @@ export function KanjiPage() {
     queryFn: api.getProgressMap,
   });
 
-  const filtered = useMemo(() => {
+  // Full sorted list (before hide-known filtering) — used for stable chunk positions
+  const sortedAll = useMemo(() => {
     let items = kanji.data || [];
 
     if (search.trim()) {
@@ -77,15 +79,16 @@ export function KanjiPage() {
     return sortKanji(items, sort);
   }, [kanji.data, search, sort]);
 
-  // Reset visible count when filter/sort changes
-  const prevFilterLen = useRef(filtered.length);
-  if (filtered.length !== prevFilterLen.current) {
-    prevFilterLen.current = filtered.length;
+  const filtered = sortedAll;
+
+  // Reset visible count when sort/search changes
+  const prevSortedLen = useRef(sortedAll.length);
+  if (sortedAll.length !== prevSortedLen.current) {
+    prevSortedLen.current = sortedAll.length;
     if (visibleCount > INITIAL_LOAD) setVisibleCount(INITIAL_LOAD);
   }
 
-  const visible = filtered.slice(0, visibleCount);
-  const hasMore = visibleCount < filtered.length;
+  const hasMore = visibleCount < sortedAll.length;
 
   // Intersection observer for infinite scroll
   const observerRef = useRef<IntersectionObserver | null>(null);
@@ -106,25 +109,93 @@ export function KanjiPage() {
     [hasMore],
   );
 
-  // Split visible items into chunks with dividers
-  const chunks: { start: number; items: KanjiItem[] }[] = [];
-  for (let i = 0; i < visible.length; i += CHUNK_SIZE) {
-    chunks.push({
-      start: i,
-      items: visible.slice(i, i + CHUNK_SIZE),
-    });
-  }
+  // Build chunks — either by sort-mode groups or fixed-size blocks
+  const chunks = useMemo(() => {
+    const visible = sortedAll.slice(0, visibleCount);
+    const filterKnown = (items: KanjiItem[]) =>
+      hideKnown && progressMap.data
+        ? items.filter((k) => progressMap.data![`kanji-${k.id}`] == null)
+        : items;
+
+    // Group-based chunking for grade/jlpt/strokes
+    if (sort === 'grade') {
+      const groups = new Map<string, KanjiItem[]>();
+      for (const k of visible) {
+        const label = k.grade ? `Grade ${k.grade}` : 'No Grade';
+        if (!groups.has(label)) groups.set(label, []);
+        groups.get(label)!.push(k);
+      }
+      return [...groups.entries()].map(([label, items]) => ({
+        label,
+        items: filterKnown(items),
+      }));
+    }
+
+    if (sort === 'jlpt') {
+      const groups = new Map<string, KanjiItem[]>();
+      // Old JLPT had 4 levels: 4≈N5+N4, 3≈N3, 2≈N2, 1≈N1
+      const labelMap: Record<number, string> = {
+        4: 'JLPT N4 + N5',
+        3: 'JLPT N3',
+        2: 'JLPT N2',
+        1: 'JLPT N1',
+      };
+      for (const k of visible) {
+        const label = k.jlpt_level ? (labelMap[k.jlpt_level] || `JLPT ${k.jlpt_level}`) : 'Not in JLPT';
+        if (!groups.has(label)) groups.set(label, []);
+        groups.get(label)!.push(k);
+      }
+      return [...groups.entries()].map(([label, items]) => ({
+        label,
+        items: filterKnown(items),
+      }));
+    }
+
+    if (sort === 'strokes') {
+      const groups = new Map<string, KanjiItem[]>();
+      for (const k of visible) {
+        const label = `${k.stroke_count} Stroke${k.stroke_count !== 1 ? 's' : ''}`;
+        if (!groups.has(label)) groups.set(label, []);
+        groups.get(label)!.push(k);
+      }
+      return [...groups.entries()].map(([label, items]) => ({
+        label,
+        items: filterKnown(items),
+      }));
+    }
+
+    // Frequency / default: fixed-size blocks
+    const result: { label: string; items: KanjiItem[] }[] = [];
+    for (let i = 0; i < visible.length; i += CHUNK_SIZE) {
+      const chunkItems = visible.slice(i, i + CHUNK_SIZE);
+      result.push({
+        label: `${i + 1}–${Math.min(i + CHUNK_SIZE, sortedAll.length)}`,
+        items: filterKnown(chunkItems),
+      });
+    }
+    return result;
+  }, [sortedAll, visibleCount, hideKnown, progressMap.data, sort]);
+
+  // Load everything when hiding known or using grouped sort modes
+  const isGroupedSort = sort === 'grade' || sort === 'jlpt' || sort === 'strokes';
+  useEffect(() => {
+    if ((hideKnown || isGroupedSort) && hasMore) {
+      setVisibleCount(sortedAll.length);
+    }
+  }, [hideKnown, isGroupedSort, sortedAll.length]);
 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-4">
         <h1 className="text-2xl font-bold">Kanji</h1>
         <span className="text-sm text-text-muted">
-          {filtered.length.toLocaleString()} kanji
+          {hideKnown
+            ? `${(sortedAll.length - Object.keys(progressMap.data || {}).length).toLocaleString()} unknown / ${sortedAll.length.toLocaleString()}`
+            : `${sortedAll.length.toLocaleString()} kanji`}
         </span>
       </div>
 
-      {/* Search + Sort */}
+      {/* Search + Sort + Filter */}
       <div className="flex gap-3">
         <input
           type="text"
@@ -133,6 +204,14 @@ export function KanjiPage() {
           onChange={(e) => { setSearch(e.target.value); setVisibleCount(INITIAL_LOAD); }}
           className="flex-1 px-4 py-2.5 rounded-lg border border-border bg-surface focus:outline-none focus:ring-2 focus:ring-wk-kanji"
         />
+        <button
+          onClick={() => { setHideKnown(!hideKnown); setVisibleCount(INITIAL_LOAD); }}
+          className={`px-3 py-2.5 rounded-lg text-sm font-medium whitespace-nowrap transition-colors ${
+            hideKnown ? 'bg-wk-kanji text-white' : 'border border-border bg-surface hover:bg-border'
+          }`}
+        >
+          Hide Known
+        </button>
         <select
           value={sort}
           onChange={(e) => { setSort(e.target.value as SortMode); setVisibleCount(INITIAL_LOAD); }}
@@ -162,17 +241,16 @@ export function KanjiPage() {
       ) : (
         <div className="space-y-1">
           {chunks.map((chunk) => (
-            <div key={chunk.start}>
+            <div key={chunk.label}>
               {/* Section divider */}
-              {chunk.start > 0 && (
-                <div className="flex items-center gap-3 py-3">
-                  <div className="flex-1 h-px bg-border" />
-                  <span className="text-xs text-text-muted font-medium">
-                    {chunk.start + 1}–{Math.min(chunk.start + CHUNK_SIZE, filtered.length)}
-                  </span>
-                  <div className="flex-1 h-px bg-border" />
-                </div>
-              )}
+              <div className="flex items-center gap-3 py-2">
+                <div className="flex-1 h-px bg-border" />
+                <span className="text-xs text-text-muted font-medium">
+                  {chunk.label}
+                  {hideKnown && chunk.items.length === 0 && ' ✓'}
+                </span>
+                <div className="flex-1 h-px bg-border" />
+              </div>
 
               {/* Grid */}
               <div className="grid grid-cols-[repeat(auto-fill,minmax(3.2rem,1fr))] gap-1.5">
@@ -207,7 +285,7 @@ export function KanjiPage() {
 
           {!hasMore && filtered.length > CHUNK_SIZE && (
             <div className="text-center py-4 text-text-muted text-xs">
-              All {filtered.length.toLocaleString()} kanji loaded
+              All {sortedAll.length.toLocaleString()} kanji loaded
             </div>
           )}
         </div>
