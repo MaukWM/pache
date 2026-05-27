@@ -28,7 +28,7 @@ export function LoginPage() {
           <div className="w-20 h-20 bg-wk-kanji rounded-full mx-auto flex items-center justify-center mb-4">
             <span className="text-white text-3xl font-bold">漢</span>
           </div>
-          <h1 className="text-2xl font-bold text-text">KanjiSRS</h1>
+          <h1 className="text-2xl font-bold text-text">iwkisgwitnwk2</h1>
           <p className="text-text-muted text-sm mt-1">
             Social kanji learning for friends
           </p>

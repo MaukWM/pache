@@ -3,15 +3,11 @@ import { useAuth } from '../lib/auth';
 
 const NAV_LINKS = [
   { to: '/', label: 'Dashboard' },
-  { to: '/reviews', label: 'Reviews' },
-  { to: '/lessons', label: 'Lessons' },
-  { to: '/vocab', label: 'Vocab' },
   { to: '/kanji', label: 'Kanji' },
-  { to: '/progress', label: 'Progress' },
 ];
 
 export function Navbar() {
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
   const location = useLocation();
 
   return (
@@ -19,7 +15,7 @@ export function Navbar() {
       <div className="max-w-6xl mx-auto px-4">
         <div className="flex items-center justify-between h-14">
           <Link to="/" className="text-lg font-bold tracking-wide">
-            KanjiSRS
+            iwkisgwitnwk2
           </Link>
 
           <div className="flex items-center gap-1">
@@ -39,13 +35,14 @@ export function Navbar() {
           </div>
 
           <div className="flex items-center gap-3">
-            <span className="text-sm opacity-80">{user?.username}</span>
-            <button
-              onClick={logout}
-              className="text-sm px-3 py-1 rounded bg-white/10 hover:bg-white/20 transition-colors"
+            <Link
+              to="/account"
+              className={`text-sm px-3 py-1.5 rounded transition-colors ${
+                location.pathname === '/account' ? 'bg-white/20' : 'hover:bg-white/10'
+              }`}
             >
-              Logout
-            </button>
+              {user?.username}
+            </Link>
           </div>
         </div>
       </div>

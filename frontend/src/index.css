@@ -31,3 +31,8 @@ body {
   color: var(--color-text);
   font-family: 'Helvetica Neue', Arial, sans-serif;
 }
+
+/* Clean kanji rendering */
+.kanji-text {
+  font-family: 'Noto Sans JP', 'Hiragino Kaku Gothic Pro', 'Yu Gothic', 'Meiryo', sans-serif;
+}

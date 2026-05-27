@@ -4,11 +4,8 @@ import { AuthProvider, useAuth } from './lib/auth';
 import { Layout } from './components/Layout';
 import { LoginPage } from './pages/LoginPage';
 import { DashboardPage } from './pages/DashboardPage';
-import { ReviewPage } from './pages/ReviewPage';
-import { VocabPage } from './pages/VocabPage';
 import { KanjiPage } from './pages/KanjiPage';
-import { LessonsPage } from './pages/LessonsPage';
-import { ProgressPage } from './pages/ProgressPage';
+import { AccountPage } from './pages/AccountPage';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -27,11 +24,8 @@ function ProtectedRoutes() {
     <Routes>
       <Route element={<Layout />}>
         <Route index element={<DashboardPage />} />
-        <Route path="reviews" element={<ReviewPage />} />
-        <Route path="lessons" element={<LessonsPage />} />
-        <Route path="vocab" element={<VocabPage />} />
         <Route path="kanji" element={<KanjiPage />} />
-        <Route path="progress" element={<ProgressPage />} />
+        <Route path="account" element={<AccountPage />} />
       </Route>
     </Routes>
   );

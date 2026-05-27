@@ -28,16 +28,16 @@ export function LessonsPage() {
 
   const handleCompleteAll = () => {
     if (!queue.data?.length) return;
-    const items = queue.data.map((q: QueueItem) => ({
+    const item_ids = queue.data.map((q: QueueItem) => ({
       item_type: q.item_type,
       item_id: q.item_id,
     }));
-    completeMutation.mutate({ items });
+    completeMutation.mutate({ item_ids });
   };
 
   const handleCompleteOne = (item: QueueItem) => {
     completeMutation.mutate({
-      items: [{ item_type: item.item_type, item_id: item.item_id }],
+      item_ids: [{ item_type: item.item_type, item_id: item.item_id }],
     });
   };
 

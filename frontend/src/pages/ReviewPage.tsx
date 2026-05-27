@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { api, type ReviewItem } from '../lib/api';
+import { api } from '../lib/api';
 import { SRS_STAGE_NAMES, SRS_STAGE_COLORS } from '../lib/srs';
 
 type Phase = 'meaning' | 'reading' | 'result';
