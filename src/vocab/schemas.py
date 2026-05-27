@@ -17,6 +17,18 @@ class TagResponse(BaseModel):
     created_at: datetime
 
 
+class SentenceResponse(BaseModel):
+    """Response schema for a sentence."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    ja: str
+    en: str
+    added_by: int
+    created_at: datetime
+
+
 class VocabCreateRequest(BaseModel):
     """Request schema for creating vocabulary."""
 
@@ -51,8 +63,20 @@ class VocabResponse(BaseModel):
     readings: list[str]
     meanings: list[str]
     creator_id: int
-    creator_username: str  # Added for FR18
+    creator_username: str
     creator_comment: str | None
+    sentences: list[SentenceResponse]
     created_at: datetime
     tags: list[TagResponse]
     kanji: list[KanjiResponse]
+
+
+class SentenceCreateRequest(BaseModel):
+    """Request for creating a new sentence and linking to a vocab."""
+    ja: str = Field(..., min_length=1)
+    en: str = Field(..., min_length=1)
+
+
+class SentenceLinkRequest(BaseModel):
+    """Request for linking an existing sentence to a vocab."""
+    sentence_id: int

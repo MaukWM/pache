@@ -62,6 +62,40 @@ class Vocab(Base):
         "Tag", secondary=vocab_tags, back_populates="vocab_items"
     )
     kanji: Mapped[list["Kanji"]] = relationship("Kanji", secondary=vocab_kanji)
+    sentences: Mapped[list["VocabSentence"]] = relationship(
+        "VocabSentence", secondary="vocab_sentence_links", back_populates="vocab_items"
+    )
+
+
+# Junction table for Vocab <-> VocabSentence
+vocab_sentence_links = Table(
+    "vocab_sentence_links",
+    Base.metadata,
+    Column("vocab_id", Integer, ForeignKey("vocab.id"), primary_key=True),
+    Column("sentence_id", Integer, ForeignKey("vocab_sentences.id"), primary_key=True),
+)
+
+
+class VocabSentence(Base):
+    """A JP/EN sentence pair that can be linked to multiple vocab items."""
+
+    __tablename__ = "vocab_sentences"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    ja: Mapped[str] = mapped_column(Text, nullable=False)
+    en: Mapped[str] = mapped_column(Text, nullable=False)
+    added_by: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(UTC),
+        nullable=False,
+    )
+
+    # Relationships
+    author: Mapped["User"] = relationship("User")
+    vocab_items: Mapped[list["Vocab"]] = relationship(
+        "Vocab", secondary=vocab_sentence_links, back_populates="sentences"
+    )
 
 
 class Tag(Base):
