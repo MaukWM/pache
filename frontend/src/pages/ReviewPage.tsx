@@ -240,6 +240,9 @@ export function ReviewPage() {
   const readingsOn = item.item_details.readings_on || [];
   const readingsKun = item.item_details.readings_kun || [];
   const vocabReadings = (item.item_details as { readings?: string[] }).readings || [];
+  const vocabTags = (item.item_details as { tags?: string[] }).tags || [];
+  const vocabComment = (item.item_details as { creator_comment?: string | null }).creator_comment;
+  const vocabCreator = (item.item_details as { creator_username?: string | null }).creator_username;
 
   const headerBg = isKanji ? 'bg-wk-kanji' : 'bg-wk-vocab';
   const labelBg = cardType === 'reading' ? 'bg-[#303030] text-white' : 'bg-white text-text';
@@ -426,32 +429,56 @@ export function ReviewPage() {
             </div>
 
             {showInfo && (
-              <div className="bg-surface-alt rounded-lg p-4 space-y-3 text-sm">
-                <div>
-                  <div className="text-text-muted text-xs uppercase tracking-wide mb-1">Meanings</div>
-                  <div>{meanings.join(', ')}</div>
-                </div>
-                {isKanji ? (
-                  <div className="grid grid-cols-2 gap-3">
-                    {readingsOn.length > 0 && (
-                      <div>
-                        <div className="text-text-muted text-xs uppercase tracking-wide mb-1">On'yomi</div>
-                        <div>{readingsOn.join('、')}</div>
+              <div className="space-y-1">
+                {/* Meaning section — expanded when on meaning card */}
+                <details open={cardType === 'meaning'} className="bg-surface-alt rounded-lg overflow-hidden">
+                  <summary className="px-4 py-2 text-xs font-bold uppercase tracking-wide text-text-muted cursor-pointer hover:bg-border/50">
+                    Meaning
+                  </summary>
+                  <div className="px-4 pb-3 space-y-2 text-sm">
+                    <div>{meanings.join(', ')}</div>
+                  </div>
+                </details>
+
+                {/* Reading section — expanded when on reading card */}
+                <details open={cardType === 'reading'} className="bg-surface-alt rounded-lg overflow-hidden">
+                  <summary className="px-4 py-2 text-xs font-bold uppercase tracking-wide text-text-muted cursor-pointer hover:bg-border/50">
+                    Reading
+                  </summary>
+                  <div className="px-4 pb-3 space-y-2 text-sm">
+                    {isKanji ? (
+                      <div className="grid grid-cols-2 gap-3">
+                        {readingsOn.length > 0 && (
+                          <div>
+                            <span className="text-text-muted text-xs">On'yomi: </span>
+                            {readingsOn.join('、')}
+                          </div>
+                        )}
+                        {readingsKun.length > 0 && (
+                          <div>
+                            <span className="text-text-muted text-xs">Kun'yomi: </span>
+                            {readingsKun.join('、')}
+                          </div>
+                        )}
                       </div>
-                    )}
-                    {readingsKun.length > 0 && (
-                      <div>
-                        <div className="text-text-muted text-xs uppercase tracking-wide mb-1">Kun'yomi</div>
-                        <div>{readingsKun.join('、')}</div>
-                      </div>
+                    ) : (
+                      <div>{vocabReadings.join('、')}</div>
                     )}
                   </div>
-                ) : vocabReadings.length > 0 && (
-                  <div>
-                    <div className="text-text-muted text-xs uppercase tracking-wide mb-1">Readings</div>
-                    <div>{vocabReadings.join('、')}</div>
-                  </div>
-                )}
+                </details>
+              </div>
+            )}
+
+            {/* Tags & comment — always shown for vocab */}
+            {!isKanji && (vocabTags.length > 0 || vocabComment || vocabCreator) && (
+              <div className="flex items-center gap-2 flex-wrap text-xs text-text-muted">
+                {vocabTags.map((tag) => (
+                  <span key={tag} className="bg-wk-vocab/10 text-wk-vocab px-2 py-0.5 rounded-full font-medium">
+                    {tag}
+                  </span>
+                ))}
+                {vocabComment && <span className="italic">"{vocabComment}"</span>}
+                {vocabCreator && <span>by {vocabCreator}</span>}
               </div>
             )}
 

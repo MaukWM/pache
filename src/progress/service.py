@@ -68,6 +68,9 @@ class ProgressService:
                 "word": item.word,
                 "readings": item.readings,
                 "meanings": item.meanings,
+                "tags": [],
+                "creator_comment": None,
+                "creator_username": None,
             }
         else:
             raise HTTPException(
@@ -176,6 +179,9 @@ class ProgressService:
                         "word": vocab.word,
                         "readings": vocab.readings,
                         "meanings": vocab.meanings,
+                        "tags": [],
+                        "creator_comment": None,
+                        "creator_username": None,
                     }
                 else:
                     # Item was deleted, mark for cleanup

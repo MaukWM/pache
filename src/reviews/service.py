@@ -5,6 +5,7 @@ from datetime import UTC, datetime, timedelta
 from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from src.core.constants import ItemType
 from src.kanji.models import Kanji
@@ -127,7 +128,10 @@ class ReviewService:
             vocab_map: dict[int, Vocab] = {}
             if vocab_ids:
                 try:
-                    vocab_query = select(Vocab).where(Vocab.id.in_(vocab_ids))
+                    vocab_query = select(Vocab).where(Vocab.id.in_(vocab_ids)).options(
+                        selectinload(Vocab.tags),
+                        selectinload(Vocab.creator),
+                    )
                     vocab_result = await self.db.execute(vocab_query)
                     vocab_map = {v.id: v for v in vocab_result.scalars().all()}
                     # Log warning for missing vocab IDs
@@ -173,6 +177,9 @@ class ReviewService:
                         word=vocab.word,
                         readings=vocab.readings,
                         meanings=vocab.meanings,
+                        tags=[t.name for t in vocab.tags],
+                        creator_comment=vocab.creator_comment,
+                        creator_username=vocab.creator.username if vocab.creator else None,
                     )
                 else:
                     # Unknown item type, skip

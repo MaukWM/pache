@@ -23,6 +23,9 @@ class VocabItemDetails(TypedDict):
     word: str
     readings: list[str]
     meanings: list[str]
+    tags: list[str]
+    creator_comment: str | None
+    creator_username: str | None
 
 
 class QueueItemRequest(BaseModel):
