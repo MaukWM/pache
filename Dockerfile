@@ -24,6 +24,8 @@ RUN uv venv /venv \
 # Copy application code
 COPY src ./src
 COPY scripts ./scripts
+COPY alembic ./alembic
+COPY alembic.ini ./alembic.ini
 
 # Use venv by default
 ENV PATH="/venv/bin:$PATH"

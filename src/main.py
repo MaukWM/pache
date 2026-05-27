@@ -3,8 +3,10 @@
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import func, select
 
+from src.auth.router import router as auth_router
 from src.database import async_session_maker
 from src.kanji.models import Kanji
 from src.kanji.router import router as kanji_router
@@ -44,10 +46,20 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+# CORS - allow frontend dev server
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 # Initialize logging
 logger.info("app_started", version=settings.api_version)
 
 # Mount routers
+app.include_router(auth_router, prefix=settings.api_prefix)
 app.include_router(kanji_router, prefix=settings.api_prefix)
 app.include_router(vocab_router, prefix=settings.api_prefix)
 app.include_router(progress_router, prefix=settings.api_prefix)

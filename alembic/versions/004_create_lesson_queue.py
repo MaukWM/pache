@@ -47,5 +47,3 @@ def downgrade() -> None:
     op.drop_index("ix_lesson_queue_user_item", table_name="lesson_queue")
     op.drop_index("ix_lesson_queue_user_id", table_name="lesson_queue")
     op.drop_table("lesson_queue")
-    # Drop the enum type
-    op.execute("DROP TYPE IF EXISTS itemtype")

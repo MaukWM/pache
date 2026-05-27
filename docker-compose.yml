@@ -8,10 +8,11 @@ services:
     environment:
       - DATABASE_URL=mysql+asyncmy://kanji_user:kanji_password@db/kanji_srs
     depends_on:
-      - db
+      db:
+        condition: service_healthy
     volumes:
       - ./src:/app/src
-    command: uvicorn src.main:app --host 0.0.0.0 --port 8000 --reload
+    command: bash -c "alembic upgrade head && uvicorn src.main:app --host 0.0.0.0 --port 8000 --reload"
 
   db:
     image: mysql:8.0
@@ -24,6 +25,12 @@ services:
       - "3306:3306"
     volumes:
       - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "kanji_user", "-pkanji_password"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
 
 volumes:
   mysql_data:

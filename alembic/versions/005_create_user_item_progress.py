@@ -21,9 +21,6 @@ depends_on: str | Sequence[str] | None = None
 
 def upgrade() -> None:
     """Create user_item_progress table."""
-    # Create progresssource enum type
-    op.execute("CREATE TYPE progresssource AS ENUM ('manual', 'wanikani')")
-
     op.create_table(
         "user_item_progress",
         sa.Column("id", sa.Integer(), autoincrement=True, nullable=False),
@@ -40,7 +37,7 @@ def upgrade() -> None:
             "source",
             sa.Enum("manual", "wanikani", name="progresssource"),
             nullable=False,
-            server_default="'manual'",
+            server_default="manual",
         ),
         sa.ForeignKeyConstraint(["user_id"], ["users.id"]),
         sa.PrimaryKeyConstraint("id"),
@@ -63,5 +60,3 @@ def downgrade() -> None:
     op.drop_index("ix_user_item_progress_user_item", table_name="user_item_progress")
     op.drop_index("ix_user_item_progress_user_id", table_name="user_item_progress")
     op.drop_table("user_item_progress")
-    # Drop the enum types
-    op.execute("DROP TYPE IF EXISTS progresssource")
