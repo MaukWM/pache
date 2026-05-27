@@ -23,3 +23,15 @@ class LoginResponse(BaseModel):
 
     token: str
     user: UserResponse
+
+
+class SettingsUpdateRequest(BaseModel):
+    """Request schema for updating user settings."""
+
+    wk_api_key: str | None = Field(None, min_length=1, max_length=255)
+
+
+class SettingsResponse(BaseModel):
+    """Response schema for user settings."""
+
+    wk_api_key_configured: bool

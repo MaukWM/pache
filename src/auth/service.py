@@ -6,7 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.auth.models import Session, User
-from src.auth.schemas import LoginResponse, UserResponse
+from src.auth.schemas import LoginResponse, SettingsResponse, UserResponse
 from src.logging import logger
 
 
@@ -38,3 +38,14 @@ class AuthService:
             token=token,
             user=UserResponse.model_validate(user),
         )
+
+    async def get_settings(self, user: User) -> SettingsResponse:
+        """Get user settings."""
+        return SettingsResponse(wk_api_key_configured=user.wk_api_key is not None)
+
+    async def update_settings(self, user: User, wk_api_key: str | None) -> SettingsResponse:
+        """Update user settings (WK API key)."""
+        user.wk_api_key = wk_api_key
+        await self.db.commit()
+        logger.info("settings_updated", user_id=user.id, wk_key_set=wk_api_key is not None)
+        return SettingsResponse(wk_api_key_configured=wk_api_key is not None)
