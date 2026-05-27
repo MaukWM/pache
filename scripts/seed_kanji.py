@@ -42,6 +42,7 @@ def load_kanji_from_jamdict() -> list[dict]:
             "grade": char_row.grade,
             "jlpt_level": char_row.jlpt,
             "stroke_count": char_row.stroke_count or 0,
+            "frequency": char_row.freq,
         }
 
         # Extract meanings and readings from rm_groups
@@ -89,6 +90,7 @@ async def seed_kanji(db: AsyncSession, kanji_data_list: list[dict]) -> tuple[int
             grade=kanji_data["grade"],
             jlpt_level=kanji_data["jlpt_level"],
             stroke_count=kanji_data["stroke_count"],
+            frequency=kanji_data["frequency"],
             active=False,  # All kanji start dormant
         )
         db.add(kanji)

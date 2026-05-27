@@ -18,5 +18,6 @@ class KanjiResponse(BaseModel):
     grade: int | None
     jlpt_level: int | None
     stroke_count: int
+    frequency: int | None
     active: bool
     created_at: datetime
