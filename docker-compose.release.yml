@@ -1,0 +1,38 @@
+# Release / self-host compose: pulls the published app image + MySQL.
+# Usage:
+#   docker compose -f docker-compose.release.yml up -d
+#   open http://localhost:8000
+#
+# Pin a version by setting APP_TAG (defaults to latest):
+#   APP_TAG=v1.0.0 docker compose -f docker-compose.release.yml up -d
+services:
+  app:
+    image: ghcr.io/maukwm/iwkisgwitnwk2:${APP_TAG:-latest}
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=mysql+asyncmy://kanji_user:kanji_password@db/kanji_srs
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  db:
+    image: mysql:8.0
+    environment:
+      - MYSQL_ROOT_PASSWORD=root_password
+      - MYSQL_DATABASE=kanji_srs
+      - MYSQL_USER=kanji_user
+      - MYSQL_PASSWORD=kanji_password
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "kanji_user", "-pkanji_password"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    restart: unless-stopped
+
+volumes:
+  mysql_data:

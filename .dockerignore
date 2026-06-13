@@ -1,0 +1,26 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+
+# Frontend — node_modules and prior builds are rebuilt inside the image
+frontend/node_modules/
+frontend/dist/
+frontend/dist-ssr/
+*.local
+
+# VCS / tooling
+.git/
+.github/
+.gitignore
+
+# Local dev / docs / artifacts
+_bmad-output/
+*.md
+.env
+.env.*
+docker-compose*.yml
