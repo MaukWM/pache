@@ -103,3 +103,7 @@ git push origin v0.1.0
 
 ## AI Development Disclosure,
 Yes, AI was heavily employed in the creation of this project. When I started, I used this as a bit of a learning project to see how development with the BMAD method would go (see the `_bmad_output/` folder).
+
+## License
+
+Licensed under the **GNU Affero General Public License v3.0** — see [`LICENSE`](LICENSE).
