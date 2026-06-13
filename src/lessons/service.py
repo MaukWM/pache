@@ -5,6 +5,7 @@ from datetime import UTC, datetime
 from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from src.core.constants import SRS_INTERVALS, ItemType, ProgressSource
 from src.kanji.models import Kanji
@@ -92,7 +93,12 @@ class LessonService:
                 "readings_kun": item.readings_kun,
             }
         elif item_type == ItemType.VOCAB:
-            item = await self.db.get(Vocab, item_id)
+            result = await self.db.execute(
+                select(Vocab)
+                .where(Vocab.id == item_id)
+                .options(selectinload(Vocab.tags), selectinload(Vocab.creator))
+            )
+            item = result.scalar_one_or_none()
             if item is None:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
@@ -102,6 +108,9 @@ class LessonService:
                 "word": item.word,
                 "readings": item.readings,
                 "meanings": item.meanings,
+                "tags": [t.name for t in item.tags],
+                "creator_comment": item.creator_comment,
+                "creator_username": item.creator.username if item.creator else None,
             }
         else:
             raise HTTPException(
