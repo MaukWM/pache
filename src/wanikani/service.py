@@ -1,6 +1,6 @@
 """WaniKani import service."""
 
-from datetime import UTC, datetime, timezone
+from datetime import UTC, datetime
 
 import httpx
 from fastapi import HTTPException, status
@@ -129,18 +129,15 @@ class WaniKaniService:
             wk_stage = assignment["srs_stage"]
             is_burned = wk_stage == 9
 
-            # Parse WK's available_at for review scheduling
-            available_at = assignment.get("available_at")
-            next_review: datetime | None = None
-            if available_at and not is_burned:
-                next_review = datetime.fromisoformat(available_at.replace("Z", "+00:00"))
-
+            # WaniKani-imported items are reviewed on WaniKani, not here, so they
+            # never schedule a local review. next_review_at stays null; their live
+            # due count is fetched from WK via get_review_status().
             progress = UserItemProgress(
                 user_id=user_id,
                 item_type=ItemType.KANJI,
                 item_id=kanji.id,
                 srs_stage=wk_stage,
-                next_review_at=next_review,
+                next_review_at=None,
                 unlocked_at=now,
                 burned_at=now if is_burned else None,
                 source=ProgressSource.WANIKANI,
@@ -170,6 +167,38 @@ class WaniKaniService:
             already_existed=already_existed,
             total_fetched=total_fetched,
         )
+
+    async def get_review_status(self) -> int:
+        """Return how many reviews are available right now on WaniKani (live).
+
+        Uses the assignments endpoint filtered to items immediately available for
+        review; WK returns the count in ``total_count`` so no pagination is needed.
+        """
+        url = (
+            f"{WK_API_BASE}/assignments"
+            "?immediately_available_for_review=true"
+        )
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            try:
+                resp = await client.get(url, headers=self.headers)
+            except httpx.RequestError as e:
+                raise HTTPException(
+                    status_code=status.HTTP_502_BAD_GATEWAY,
+                    detail=f"WaniKani API unavailable: {e}",
+                )
+
+        if resp.status_code == 401:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid WaniKani API key",
+            )
+        if resp.status_code != 200:
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail=f"WaniKani API error: {resp.status_code}",
+            )
+
+        return int(resp.json().get("total_count", 0))
 
     async def _fetch_subject_characters(
         self, client: httpx.AsyncClient, subject_ids: list[int]

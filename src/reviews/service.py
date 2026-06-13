@@ -7,7 +7,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from src.core.constants import ItemType
+from src.core.constants import ItemType, ProgressSource
 from src.kanji.models import Kanji
 from src.logging import logger
 from src.progress.models import UserItemProgress
@@ -64,6 +64,10 @@ class ReviewService:
                 select(UserItemProgress)
                 .where(
                     UserItemProgress.user_id == user_id,
+                    # Only review items native to this site. WaniKani-imported
+                    # items are reviewed on WaniKani; we surface their due count
+                    # separately (live) via the WaniKani status endpoint.
+                    UserItemProgress.source == ProgressSource.MANUAL,
                     UserItemProgress.srs_stage < 9,  # Not burned
                     UserItemProgress.next_review_at.isnot(None),
                     UserItemProgress.next_review_at < next_hour,

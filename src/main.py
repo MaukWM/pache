@@ -21,6 +21,7 @@ from src.reviews.router import router as reviews_router
 from src.settings import settings
 from src.vocab.router import router as vocab_router
 from src.wanikani.router import router as wanikani_router
+from src.wanikani.router import status_router as wanikani_status_router
 
 
 @asynccontextmanager
@@ -71,6 +72,7 @@ app.include_router(progress_actions_router, prefix=settings.api_prefix)
 app.include_router(lessons_router, prefix=settings.api_prefix)
 app.include_router(reviews_router, prefix=settings.api_prefix)
 app.include_router(wanikani_router, prefix=settings.api_prefix)
+app.include_router(wanikani_status_router, prefix=settings.api_prefix)
 
 
 @app.get("/health")
