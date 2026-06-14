@@ -1,14 +1,17 @@
 """Vocabulary service layer."""
 
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from src.auth.models import User
+from src.core.constants import ItemType
 from src.kanji.models import Kanji
+from src.progress.models import LessonQueue, UserItemProgress
+from src.reviews.models import ReviewLog
 from src.vocab.dictionary import search_jmdict_async
 from src.vocab.models import Tag, Vocab, VocabSentence
-from src.vocab.schemas import VocabCreateRequest, VocabSearchResult
+from src.vocab.schemas import VocabCreateRequest, VocabSearchResult, VocabUpdateRequest
 
 
 class VocabService:
@@ -38,14 +41,7 @@ class VocabService:
             kanji_list.append(kanji)
 
         # Get or create tags
-        tags = []
-        for tag_name in request.tags:
-            result = await self.db.execute(select(Tag).where(Tag.name == tag_name))
-            tag = result.scalar_one_or_none()
-            if tag is None:
-                tag = Tag(name=tag_name)
-                self.db.add(tag)
-            tags.append(tag)
+        tags = await self._resolve_tags(request.tags)
 
         # Create vocab
         vocab = Vocab(
@@ -70,6 +66,80 @@ class VocabService:
         await self.db.refresh(vocab, ["kanji", "tags", "creator", "sentences"])
 
         return vocab
+
+    async def _resolve_tags(self, tag_names: list[str]) -> list[Tag]:
+        """Get existing tags or create missing ones."""
+        tags = []
+        for tag_name in tag_names:
+            result = await self.db.execute(select(Tag).where(Tag.name == tag_name))
+            tag = result.scalar_one_or_none()
+            if tag is None:
+                tag = Tag(name=tag_name)
+                self.db.add(tag)
+            tags.append(tag)
+        return tags
+
+    async def update_vocab(self, vocab_id: int, request: VocabUpdateRequest) -> Vocab:
+        """Update a vocab item's fields, tags, and kanji links."""
+        vocab = await self.get_by_id(vocab_id)
+        if vocab is None:
+            raise ValueError(f"Vocabulary with id {vocab_id} not found")
+
+        # If the word changed, ensure no other vocab already uses it
+        if request.word != vocab.word:
+            existing = await self.db.execute(
+                select(Vocab).where(Vocab.word == request.word, Vocab.id != vocab_id)
+            )
+            if existing.scalar_one_or_none():
+                raise ValueError(f"Vocabulary '{request.word}' already exists")
+
+        # Validate kanji ids
+        kanji_list = []
+        for kanji_id in request.kanji_ids:
+            kanji = await self.db.get(Kanji, kanji_id)
+            if kanji is None:
+                raise ValueError(f"Kanji with id {kanji_id} not found")
+            kanji_list.append(kanji)
+
+        tags = await self._resolve_tags(request.tags)
+
+        vocab.word = request.word
+        vocab.readings = request.readings
+        vocab.meanings = request.meanings
+        vocab.creator_comment = request.creator_comment
+        vocab.kanji = kanji_list
+        vocab.tags = tags
+
+        # Activate any newly linked kanji (FR6)
+        for kanji in kanji_list:
+            if not kanji.active:
+                kanji.active = True
+
+        await self.db.commit()
+        await self.db.refresh(vocab, ["kanji", "tags", "creator", "sentences"])
+        return vocab
+
+    async def delete_vocab(self, vocab_id: int) -> None:
+        """Delete a vocab item and clean up references to it.
+
+        SQLAlchemy removes the tag/kanji/sentence-link association rows when the
+        Vocab is deleted (the linked sentences themselves are shared and kept).
+        Progress, queue, and review rows use a polymorphic (non-FK) reference,
+        so they are removed explicitly to avoid orphaned entries.
+        """
+        vocab = await self.get_by_id(vocab_id)
+        if vocab is None:
+            raise ValueError(f"Vocabulary with id {vocab_id} not found")
+
+        for model in (LessonQueue, UserItemProgress, ReviewLog):
+            await self.db.execute(
+                delete(model).where(
+                    model.item_type == ItemType.VOCAB, model.item_id == vocab_id
+                )
+            )
+
+        await self.db.delete(vocab)
+        await self.db.commit()
 
     async def search_dictionary(self, query: str, limit: int = 20) -> list[VocabSearchResult]:
         """Search the bundled JMdict for import candidates.
@@ -155,6 +225,17 @@ class VocabService:
 
         vocab.sentences.append(sentence)
         await self.db.commit()
+        return sentence
+
+    async def update_sentence(self, sentence_id: int, ja: str, en: str) -> VocabSentence:
+        """Edit an existing sentence's text (shared across all vocab it links to)."""
+        sentence = await self.db.get(VocabSentence, sentence_id)
+        if sentence is None:
+            raise ValueError(f"Sentence with id {sentence_id} not found")
+        sentence.ja = ja
+        sentence.en = en
+        await self.db.commit()
+        await self.db.refresh(sentence)
         return sentence
 
     async def link_sentence(self, vocab_id: int, sentence_id: int) -> None:

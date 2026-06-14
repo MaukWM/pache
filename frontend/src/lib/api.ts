@@ -156,6 +156,31 @@ export const api = {
       `/vocab/search?q=${encodeURIComponent(q)}&limit=${limit}`,
     ),
 
+  updateVocab: (
+    id: number,
+    data: {
+      word: string;
+      readings: string[];
+      meanings: string[];
+      kanji_ids?: number[];
+      tags?: string[];
+      creator_comment?: string | null;
+    },
+  ) =>
+    request<VocabItem>(`/vocab/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+
+  deleteVocab: (id: number) =>
+    requestNoBody(`/vocab/${id}`, { method: 'DELETE' }),
+
+  updateSentence: (vocabId: number, sentenceId: number, ja: string, en: string) =>
+    request<Sentence>(`/vocab/${vocabId}/sentences/${sentenceId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ ja, en }),
+    }),
+
   createSentence: (vocabId: number, ja: string, en: string) =>
     request<Sentence>(`/vocab/${vocabId}/sentences`, {
       method: 'POST',

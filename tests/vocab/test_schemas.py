@@ -3,7 +3,7 @@
 import pytest
 from pydantic import ValidationError
 
-from src.vocab.schemas import VocabCreateRequest
+from src.vocab.schemas import VocabCreateRequest, VocabUpdateRequest
 
 
 def test_vocab_create_request_valid() -> None:
@@ -143,5 +143,41 @@ def test_vocab_create_request_tag_invalid_chars_rejected() -> None:
             readings=["test"],
             meanings=["test"],
             tags=["invalid tag!"],  # spaces and special chars not allowed
+        )
+    assert "must contain only letters, numbers, hyphens, underscores" in str(exc_info.value)
+
+
+def test_vocab_create_request_dedupes_tags() -> None:
+    """Test that duplicate tags are removed while preserving order."""
+    request = VocabCreateRequest(
+        word="日本",
+        readings=["にほん"],
+        meanings=["Japan"],
+        tags=["N5", "common", "N5", "common"],
+    )
+    assert request.tags == ["N5", "common"]
+
+
+def test_vocab_update_request_valid() -> None:
+    """Test creating a valid VocabUpdateRequest with tag validation applied."""
+    request = VocabUpdateRequest(
+        word="日本",
+        readings=["にほん"],
+        meanings=["Japan"],
+        tags=["N5", "N5", "geo"],
+    )
+    assert request.word == "日本"
+    assert request.readings == ["にほん"]
+    assert request.tags == ["N5", "geo"]  # deduped, same validator as create
+
+
+def test_vocab_update_request_invalid_tag_rejected() -> None:
+    """Test that VocabUpdateRequest rejects invalid tags like the create request."""
+    with pytest.raises(ValidationError) as exc_info:
+        VocabUpdateRequest(
+            word="test",
+            readings=["test"],
+            meanings=["test"],
+            tags=["bad tag!"],
         )
     assert "must contain only letters, numbers, hyphens, underscores" in str(exc_info.value)

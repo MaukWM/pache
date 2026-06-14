@@ -7,6 +7,26 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 from src.kanji.schemas import KanjiResponse
 
 
+def validate_tag_names(tags: list[str]) -> list[str]:
+    """Validate tag names and remove duplicates (preserving order).
+
+    Each tag must be 1-50 characters of letters, numbers, hyphens, or
+    underscores. Deduplicating here also prevents a duplicate
+    ``(vocab_id, tag_id)`` row when the tags are persisted.
+    """
+    seen: list[str] = []
+    for tag in tags:
+        if not tag or len(tag) > 50:
+            raise ValueError(f"Tag '{tag}' must be 1-50 characters")
+        if not tag.replace("-", "").replace("_", "").isalnum():
+            raise ValueError(
+                f"Tag '{tag}' must contain only letters, numbers, hyphens, underscores"
+            )
+        if tag not in seen:
+            seen.append(tag)
+    return seen
+
+
 class TagResponse(BaseModel):
     """Response schema for a tag."""
 
@@ -41,16 +61,24 @@ class VocabCreateRequest(BaseModel):
 
     @field_validator("tags")
     @classmethod
-    def validate_tags(cls, v: list[str]) -> list[str]:
-        """Validate each tag name."""
-        for tag in v:
-            if not tag or len(tag) > 50:
-                raise ValueError(f"Tag '{tag}' must be 1-50 characters")
-            if not tag.replace("-", "").replace("_", "").isalnum():
-                raise ValueError(
-                    f"Tag '{tag}' must contain only letters, numbers, hyphens, underscores"
-                )
-        return v
+    def _validate_tags(cls, v: list[str]) -> list[str]:
+        return validate_tag_names(v)
+
+
+class VocabUpdateRequest(BaseModel):
+    """Request schema for updating vocabulary (full replacement of fields)."""
+
+    word: str = Field(..., min_length=1, max_length=100)
+    readings: list[str] = Field(..., min_length=1)
+    meanings: list[str] = Field(..., min_length=1)
+    kanji_ids: list[int] = Field(default_factory=list)
+    tags: list[str] = Field(default_factory=list)
+    creator_comment: str | None = None
+
+    @field_validator("tags")
+    @classmethod
+    def _validate_tags(cls, v: list[str]) -> list[str]:
+        return validate_tag_names(v)
 
 
 class VocabResponse(BaseModel):
@@ -93,3 +121,9 @@ class SentenceCreateRequest(BaseModel):
 class SentenceLinkRequest(BaseModel):
     """Request for linking an existing sentence to a vocab."""
     sentence_id: int
+
+
+class SentenceUpdateRequest(BaseModel):
+    """Request for editing an existing sentence's text."""
+    ja: str = Field(..., min_length=1)
+    en: str = Field(..., min_length=1)

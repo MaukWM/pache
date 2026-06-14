@@ -8,6 +8,28 @@ function extractKanji(text: string): string[] {
   return [...text].filter((ch) => ch.charCodeAt(0) >= 0x4e00 && ch.charCodeAt(0) <= 0x9faf);
 }
 
+// Resolve the kanji items contained in a word, deduped, for auto-linking.
+function useDetectedKanji(word: string): KanjiItem[] {
+  const allKanji = useQuery({
+    queryKey: ['kanji', 'all'],
+    queryFn: () => api.getKanji({ include_inactive: 'true' }),
+  });
+  return useMemo(() => {
+    if (!word || !allKanji.data) return [];
+    const map = new Map(allKanji.data.map((k) => [k.character, k]));
+    const found: KanjiItem[] = [];
+    const seen = new Set<string>();
+    for (const ch of extractKanji(word)) {
+      if (!seen.has(ch)) {
+        seen.add(ch);
+        const k = map.get(ch);
+        if (k) found.push(k);
+      }
+    }
+    return found;
+  }, [word, allKanji.data]);
+}
+
 export function VocabPage() {
   const queryClient = useQueryClient();
   const [showCreate, setShowCreate] = useState(false);
@@ -166,6 +188,10 @@ function VocabDetail({
   const [showSuggest, setShowSuggest] = useState(false);
   const [newJa, setNewJa] = useState('');
   const [newEn, setNewEn] = useState('');
+  const [editing, setEditing] = useState(false);
+  const [editingSentenceId, setEditingSentenceId] = useState<number | null>(null);
+  const [editJa, setEditJa] = useState('');
+  const [editEn, setEditEn] = useState('');
 
   // Reset state when item changes
   const prevItemId = useRef(item.id);
@@ -176,7 +202,48 @@ function VocabDetail({
     setNewJa('');
     setNewEn('');
     setActionMsg('');
+    setEditing(false);
+    setEditingSentenceId(null);
   }
+
+  const deleteMut = useMutation({
+    mutationFn: () => api.deleteVocab(item.id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['vocab'] });
+      queryClient.invalidateQueries({ queryKey: ['queue'] });
+      queryClient.invalidateQueries({ queryKey: ['progressMap'] });
+      onClose();
+    },
+    onError: (err: Error) => setActionMsg(err.message),
+  });
+
+  const updateSentenceMut = useMutation({
+    mutationFn: ({ id, ja, en }: { id: number; ja: string; en: string }) =>
+      api.updateSentence(item.id, id, ja, en),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['vocab'] });
+      setEditingSentenceId(null);
+    },
+    onError: (err: Error) => setActionMsg(err.message),
+  });
+
+  const handleDelete = () => {
+    if (
+      window.confirm(
+        `Delete "${item.word}" permanently?\n\nThis removes it from the shared pool for everyone, ` +
+          `along with its lesson-queue entries and all users' review progress for it. ` +
+          `Linked example sentences are kept. This cannot be undone.`,
+      )
+    ) {
+      deleteMut.mutate();
+    }
+  };
+
+  const startEditSentence = (id: number, ja: string, en: string) => {
+    setEditingSentenceId(id);
+    setEditJa(ja);
+    setEditEn(en);
+  };
 
   const createSentenceMut = useMutation({
     mutationFn: () => api.createSentence(item.id, newJa.trim(), newEn.trim()),
@@ -264,6 +331,13 @@ function VocabDetail({
       </div>
 
       {/* Body */}
+      {editing ? (
+        <EditVocabForm
+          item={item}
+          queryClient={queryClient}
+          onDone={() => setEditing(false)}
+        />
+      ) : (
       <div className="px-5 py-3 space-y-3">
         {/* Meta row — tags, creator, comment */}
         <div className="flex items-center gap-2 flex-wrap text-xs">
@@ -283,18 +357,51 @@ function VocabDetail({
         {/* Sentences */}
         {(item.sentences.length > 0 || showAddSentence || showSuggest) && (
           <div className="space-y-1.5">
-            {item.sentences.map((s) => (
-              <div key={s.id} className="bg-surface-alt rounded-lg px-3 py-2 text-sm group relative">
-                <p lang="ja">{s.ja}</p>
-                <p className="text-text-muted text-xs">{s.en}</p>
-                <button
-                  onClick={() => unlinkMut.mutate(s.id)}
-                  className="absolute top-1 right-2 text-text-muted hover:text-error text-xs opacity-0 group-hover:opacity-100 transition-opacity"
-                >
-                  &times;
-                </button>
-              </div>
-            ))}
+            {item.sentences.map((s) =>
+              editingSentenceId === s.id ? (
+                <div key={s.id} className="flex gap-2">
+                  <div className="flex-1 space-y-1">
+                    <input type="text" value={editJa} onChange={(e) => setEditJa(e.target.value)} lang="ja"
+                      className="w-full px-2.5 py-1.5 rounded border border-border bg-surface-alt text-sm focus:outline-none focus:ring-1 focus:ring-wk-vocab" />
+                    <input type="text" value={editEn} onChange={(e) => setEditEn(e.target.value)}
+                      className="w-full px-2.5 py-1.5 rounded border border-border bg-surface-alt text-sm focus:outline-none focus:ring-1 focus:ring-wk-vocab" />
+                  </div>
+                  <div className="flex flex-col gap-1 self-end">
+                    <button
+                      onClick={() => updateSentenceMut.mutate({ id: s.id, ja: editJa.trim(), en: editEn.trim() })}
+                      disabled={!editJa.trim() || !editEn.trim() || updateSentenceMut.isPending}
+                      className="px-3 rounded bg-wk-vocab text-white text-xs font-bold py-1.5 disabled:opacity-50">
+                      Save
+                    </button>
+                    <button onClick={() => setEditingSentenceId(null)}
+                      className="px-3 rounded border border-border text-xs font-bold py-1 hover:bg-border">
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div key={s.id} className="bg-surface-alt rounded-lg px-3 py-2 text-sm group relative">
+                  <p lang="ja">{s.ja}</p>
+                  <p className="text-text-muted text-xs">{s.en}</p>
+                  <div className="absolute top-1 right-2 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button
+                      onClick={() => startEditSentence(s.id, s.ja, s.en)}
+                      className="text-text-muted hover:text-wk-vocab text-xs"
+                      title="Edit sentence"
+                    >
+                      &#9998;
+                    </button>
+                    <button
+                      onClick={() => unlinkMut.mutate(s.id)}
+                      className="text-text-muted hover:text-error text-xs"
+                      title="Unlink sentence"
+                    >
+                      &times;
+                    </button>
+                  </div>
+                </div>
+              ),
+            )}
 
             {showAddSentence && (
               <div className="flex gap-2">
@@ -351,11 +458,129 @@ function VocabDetail({
             className="px-3 py-1.5 rounded-lg bg-surface border border-border text-xs font-bold hover:bg-border">
             {showSuggest ? 'Cancel' : 'Find Links'}
           </button>
+          <div className="ml-auto flex items-center gap-2">
+            <button onClick={() => setEditing(true)}
+              className="px-3 py-1.5 rounded-lg bg-surface border border-border text-xs font-bold hover:bg-border">
+              Edit
+            </button>
+            <button onClick={handleDelete} disabled={deleteMut.isPending}
+              className="px-3 py-1.5 rounded-lg border border-error/40 text-error text-xs font-bold hover:bg-error/10 disabled:opacity-50">
+              {deleteMut.isPending ? 'Deleting...' : 'Delete'}
+            </button>
+          </div>
         </div>
 
         {actionMsg && (
           <p className={`text-xs ${actionMsg.includes('!') ? 'text-success' : 'text-error'}`}>{actionMsg}</p>
         )}
+      </div>
+      )}
+    </div>
+  );
+}
+
+function EditVocabForm({
+  item,
+  queryClient,
+  onDone,
+}: {
+  item: VocabItem;
+  queryClient: ReturnType<typeof useQueryClient>;
+  onDone: () => void;
+}) {
+  const [word, setWord] = useState(item.word);
+  const [readings, setReadings] = useState(item.readings.join(', '));
+  const [meanings, setMeanings] = useState(item.meanings.join(', '));
+  const [tags, setTags] = useState((item.tags ?? []).map((t) => t.name).join(', '));
+  const [comment, setComment] = useState(item.creator_comment ?? '');
+  const [error, setError] = useState('');
+
+  const detectedKanji = useDetectedKanji(word);
+
+  const mutation = useMutation({
+    mutationFn: () =>
+      api.updateVocab(item.id, {
+        word: word.trim(),
+        readings: readings.split(',').map((r) => r.trim()).filter(Boolean),
+        meanings: meanings.split(',').map((m) => m.trim()).filter(Boolean),
+        kanji_ids: detectedKanji.map((k) => k.id),
+        tags: tags ? tags.split(',').map((t) => t.trim()).filter(Boolean) : [],
+        creator_comment: comment.trim() || null,
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['vocab'] });
+      queryClient.invalidateQueries({ queryKey: ['progressMap'] });
+      onDone();
+    },
+    onError: (err: Error) => setError(err.message),
+  });
+
+  const canSave = !!(word.trim() && readings.trim() && meanings.trim());
+
+  return (
+    <div className="px-5 py-4 space-y-3">
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className="text-xs text-text-muted block mb-1">Word</label>
+          <input type="text" value={word} onChange={(e) => setWord(e.target.value)}
+            className="w-full px-3 py-2 rounded-lg border border-border bg-surface-alt text-lg focus:outline-none focus:ring-2 focus:ring-wk-vocab" />
+        </div>
+        <div>
+          <label className="text-xs text-text-muted block mb-1">Reading(s) — comma-separated</label>
+          <input type="text" value={readings} onChange={(e) => setReadings(e.target.value)}
+            className="w-full px-3 py-2 rounded-lg border border-border bg-surface-alt focus:outline-none focus:ring-2 focus:ring-wk-vocab" />
+        </div>
+      </div>
+
+      <div>
+        <label className="text-xs text-text-muted block mb-1">Meanings — comma-separated</label>
+        <input type="text" value={meanings} onChange={(e) => setMeanings(e.target.value)}
+          className="w-full px-3 py-2 rounded-lg border border-border bg-surface-alt focus:outline-none focus:ring-2 focus:ring-wk-vocab" />
+      </div>
+
+      {detectedKanji.length > 0 && (
+        <div>
+          <label className="text-xs text-text-muted block mb-1">Linked Kanji (auto-detected)</label>
+          <div className="flex gap-1.5">
+            {detectedKanji.map((k) => (
+              <div key={k.id} className="bg-wk-kanji w-9 h-9 rounded-lg flex items-center justify-center text-white font-bold"
+                title={k.meanings.join(', ')}>
+                {k.character}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className="text-xs text-text-muted block mb-1">Tags — comma-separated</label>
+          <input type="text" value={tags} onChange={(e) => setTags(e.target.value)}
+            className="w-full px-3 py-2 rounded-lg border border-border bg-surface-alt text-sm focus:outline-none focus:ring-2 focus:ring-wk-vocab" />
+        </div>
+        <div>
+          <label className="text-xs text-text-muted block mb-1">Comment</label>
+          <input type="text" value={comment} onChange={(e) => setComment(e.target.value)}
+            className="w-full px-3 py-2 rounded-lg border border-border bg-surface-alt text-sm focus:outline-none focus:ring-2 focus:ring-wk-vocab" />
+        </div>
+      </div>
+
+      {error && <p className="text-error text-sm">{error}</p>}
+
+      <div className="flex gap-2">
+        <button
+          onClick={() => { if (canSave) { setError(''); mutation.mutate(); } }}
+          disabled={!canSave || mutation.isPending}
+          className="px-5 py-2 rounded-lg bg-wk-vocab text-white font-bold hover:opacity-90 transition-opacity disabled:opacity-50"
+        >
+          {mutation.isPending ? 'Saving...' : 'Save Changes'}
+        </button>
+        <button
+          onClick={onDone}
+          className="px-5 py-2 rounded-lg bg-surface border border-border font-bold hover:bg-border transition-colors"
+        >
+          Cancel
+        </button>
       </div>
     </div>
   );
@@ -472,31 +697,8 @@ function CreateVocabForm({ onCreated }: { onCreated: () => void }) {
     setDebouncedQuery('');
   };
 
-  // Load all kanji so we can auto-detect IDs
-  const allKanji = useQuery({
-    queryKey: ['kanji', 'all'],
-    queryFn: () => api.getKanji({ include_inactive: 'true' }),
-  });
-
   // Auto-detect kanji from word
-  const detectedKanji = useMemo(() => {
-    if (!word || !allKanji.data) return [];
-    const chars = extractKanji(word);
-    const kanjiMap = new Map<string, KanjiItem>();
-    for (const k of allKanji.data) {
-      kanjiMap.set(k.character, k);
-    }
-    const found: KanjiItem[] = [];
-    const seen = new Set<string>();
-    for (const ch of chars) {
-      if (!seen.has(ch)) {
-        seen.add(ch);
-        const k = kanjiMap.get(ch);
-        if (k) found.push(k);
-      }
-    }
-    return found;
-  }, [word, allKanji.data]);
+  const detectedKanji = useDetectedKanji(word);
 
   // Existing pool sentences containing the word — for linking during creation.
   const linkSuggestions = useQuery({

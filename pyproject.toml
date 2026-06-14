@@ -41,3 +41,12 @@ target-version = "py312"
 [tool.ruff.lint]
 select = ["E", "F", "I", "N", "W", "UP"]
 ignore = []
+
+[tool.mypy]
+python_version = "3.12"
+
+[[tool.mypy.overrides]]
+# jamdict ships no type stubs / py.typed marker
+module = ["jamdict", "jamdict.*"]
+ignore_missing_imports = true
+follow_untyped_imports = true

@@ -1,12 +1,16 @@
 """Tests for vocabulary service."""
 
 import pytest
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.auth.models import User
+from src.core.constants import ItemType
 from src.kanji.models import Kanji
-from src.vocab.models import Tag
-from src.vocab.schemas import VocabCreateRequest
+from src.progress.models import LessonQueue, UserItemProgress
+from src.reviews.models import ReviewLog
+from src.vocab.models import Tag, VocabSentence
+from src.vocab.schemas import VocabCreateRequest, VocabUpdateRequest
 from src.vocab.service import VocabService
 
 
@@ -613,3 +617,215 @@ async def test_get_all_filters_by_multiple_filters_including_kanji(
     assert "slang" in tag_names
     kanji_ids_in_vocab = {k.id for k in filtered[0].kanji}
     assert kanji1.id in kanji_ids_in_vocab
+
+
+@pytest.mark.asyncio
+async def test_update_vocab_changes_fields(db_session: AsyncSession) -> None:
+    """Test that update_vocab replaces word, readings, meanings, and tags."""
+    user = User(username="testuser")
+    db_session.add(user)
+    await db_session.flush()
+
+    service = VocabService(db_session)
+    vocab = await service.create_vocab(
+        VocabCreateRequest(
+            word="日本",
+            readings=["にほん"],
+            meanings=["Japan"],
+            tags=["old"],
+        ),
+        creator_id=user.id,
+    )
+
+    updated = await service.update_vocab(
+        vocab.id,
+        VocabUpdateRequest(
+            word="日本国",
+            readings=["にほんこく"],
+            meanings=["Japan", "the nation of Japan"],
+            tags=["geo", "country"],
+            creator_comment="updated",
+        ),
+    )
+
+    assert updated.id == vocab.id
+    assert updated.word == "日本国"
+    assert updated.readings == ["にほんこく"]
+    assert set(updated.meanings) == {"Japan", "the nation of Japan"}
+    assert {t.name for t in updated.tags} == {"geo", "country"}
+    assert updated.creator_comment == "updated"
+    # Creator is unchanged by an update
+    assert updated.creator_id == user.id
+
+
+@pytest.mark.asyncio
+async def test_update_vocab_not_found(db_session: AsyncSession) -> None:
+    """Test that updating a missing vocab raises ValueError."""
+    service = VocabService(db_session)
+    with pytest.raises(ValueError, match="not found"):
+        await service.update_vocab(
+            9999,
+            VocabUpdateRequest(word="x", readings=["x"], meanings=["x"]),
+        )
+
+
+@pytest.mark.asyncio
+async def test_update_vocab_duplicate_word_rejected(db_session: AsyncSession) -> None:
+    """Test that renaming a vocab to an existing word raises ValueError."""
+    user = User(username="testuser")
+    db_session.add(user)
+    await db_session.flush()
+
+    service = VocabService(db_session)
+    await service.create_vocab(
+        VocabCreateRequest(word="日本", readings=["にほん"], meanings=["Japan"]),
+        creator_id=user.id,
+    )
+    other = await service.create_vocab(
+        VocabCreateRequest(word="本", readings=["ほん"], meanings=["book"]),
+        creator_id=user.id,
+    )
+
+    with pytest.raises(ValueError, match="already exists"):
+        await service.update_vocab(
+            other.id,
+            VocabUpdateRequest(word="日本", readings=["ほん"], meanings=["book"]),
+        )
+
+
+@pytest.mark.asyncio
+async def test_update_vocab_keeping_same_word_is_allowed(db_session: AsyncSession) -> None:
+    """Test that updating without changing the word does not trip the duplicate check."""
+    user = User(username="testuser")
+    db_session.add(user)
+    await db_session.flush()
+
+    service = VocabService(db_session)
+    vocab = await service.create_vocab(
+        VocabCreateRequest(word="日本", readings=["にほん"], meanings=["Japan"]),
+        creator_id=user.id,
+    )
+
+    updated = await service.update_vocab(
+        vocab.id,
+        VocabUpdateRequest(word="日本", readings=["にっぽん"], meanings=["Japan"]),
+    )
+    assert updated.readings == ["にっぽん"]
+
+
+@pytest.mark.asyncio
+async def test_update_vocab_activates_linked_kanji(db_session: AsyncSession) -> None:
+    """Test that update_vocab activates newly linked dormant kanji (FR6)."""
+    user = User(username="testuser")
+    db_session.add(user)
+    await db_session.flush()
+    kanji = Kanji(
+        character="本",
+        meanings=["book"],
+        readings_on=["ホン"],
+        readings_kun=["もと"],
+        stroke_count=5,
+        active=False,
+    )
+    db_session.add(kanji)
+    await db_session.flush()
+
+    service = VocabService(db_session)
+    vocab = await service.create_vocab(
+        VocabCreateRequest(word="ほん", readings=["ほん"], meanings=["book"]),
+        creator_id=user.id,
+    )
+    await service.update_vocab(
+        vocab.id,
+        VocabUpdateRequest(
+            word="本", readings=["ほん"], meanings=["book"], kanji_ids=[kanji.id]
+        ),
+    )
+    await db_session.refresh(kanji)
+    assert kanji.active is True
+
+
+@pytest.mark.asyncio
+async def test_delete_vocab_removes_vocab_and_references(db_session: AsyncSession) -> None:
+    """Test that delete_vocab removes the vocab and its progress/queue/review rows."""
+    user = User(username="testuser")
+    db_session.add(user)
+    await db_session.flush()
+
+    service = VocabService(db_session)
+    vocab = await service.create_vocab(
+        VocabCreateRequest(word="日本", readings=["にほん"], meanings=["Japan"], tags=["geo"]),
+        creator_id=user.id,
+    )
+    sentence = await service.create_sentence(vocab.id, "日本に住む", "I live in Japan", user.id)
+
+    # Polymorphic (non-FK) references that should be cleaned up
+    db_session.add_all(
+        [
+            LessonQueue(user_id=user.id, item_type=ItemType.VOCAB, item_id=vocab.id),
+            UserItemProgress(
+                user_id=user.id, item_type=ItemType.VOCAB, item_id=vocab.id, srs_stage=1
+            ),
+            ReviewLog(
+                user_id=user.id,
+                item_type=ItemType.VOCAB,
+                item_id=vocab.id,
+                reading_correct=True,
+                meaning_correct=True,
+                srs_stage_before=1,
+                srs_stage_after=2,
+            ),
+        ]
+    )
+    await db_session.commit()
+
+    await service.delete_vocab(vocab.id)
+
+    # Vocab is gone
+    assert await service.get_by_id(vocab.id) is None
+
+    # Polymorphic references are removed
+    for model in (LessonQueue, UserItemProgress, ReviewLog):
+        result = await db_session.execute(
+            select(model).where(model.item_type == ItemType.VOCAB, model.item_id == vocab.id)
+        )
+        assert result.first() is None
+
+    # Shared sentence is kept (only the link is removed)
+    assert await db_session.get(VocabSentence, sentence.id) is not None
+
+
+@pytest.mark.asyncio
+async def test_delete_vocab_not_found(db_session: AsyncSession) -> None:
+    """Test that deleting a missing vocab raises ValueError."""
+    service = VocabService(db_session)
+    with pytest.raises(ValueError, match="not found"):
+        await service.delete_vocab(9999)
+
+
+@pytest.mark.asyncio
+async def test_update_sentence_edits_text(db_session: AsyncSession) -> None:
+    """Test that update_sentence edits a sentence's text in place."""
+    user = User(username="testuser")
+    db_session.add(user)
+    await db_session.flush()
+
+    service = VocabService(db_session)
+    vocab = await service.create_vocab(
+        VocabCreateRequest(word="日本", readings=["にほん"], meanings=["Japan"]),
+        creator_id=user.id,
+    )
+    sentence = await service.create_sentence(vocab.id, "old ja", "old en", user.id)
+
+    updated = await service.update_sentence(sentence.id, "new ja", "new en")
+    assert updated.id == sentence.id
+    assert updated.ja == "new ja"
+    assert updated.en == "new en"
+
+
+@pytest.mark.asyncio
+async def test_update_sentence_not_found(db_session: AsyncSession) -> None:
+    """Test that editing a missing sentence raises ValueError."""
+    service = VocabService(db_session)
+    with pytest.raises(ValueError, match="not found"):
+        await service.update_sentence(9999, "x", "y")

@@ -12,10 +12,12 @@ from src.vocab.schemas import (
     SentenceCreateRequest,
     SentenceLinkRequest,
     SentenceResponse,
+    SentenceUpdateRequest,
     TagResponse,
     VocabCreateRequest,
     VocabResponse,
     VocabSearchResult,
+    VocabUpdateRequest,
 )
 from src.vocab.service import VocabService
 
@@ -76,7 +78,6 @@ async def list_vocab(
 async def search_vocab(
     q: str = Query(..., min_length=1, description="Japanese or English search term"),
     limit: int = Query(default=20, ge=1, le=50),
-    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> list[VocabSearchResult]:
     """Search the bundled JMdict dictionary for vocab to import."""
@@ -108,10 +109,48 @@ async def get_vocab(
     return _vocab_to_response(vocab)
 
 
+@router.put("/{vocab_id}", response_model=VocabResponse)
+async def update_vocab(
+    vocab_id: int,
+    request: VocabUpdateRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> VocabResponse:
+    """Update a vocabulary item's fields, tags, and kanji links."""
+    service = VocabService(db)
+    try:
+        vocab = await service.update_vocab(vocab_id, request)
+    except ValueError as e:
+        detail = str(e)
+        status_code = (
+            status.HTTP_404_NOT_FOUND if "not found" in detail else status.HTTP_400_BAD_REQUEST
+        )
+        raise HTTPException(status_code=status_code, detail=detail) from e
+    return _vocab_to_response(vocab)
+
+
+@router.delete("/{vocab_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_vocab(
+    vocab_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> None:
+    """Delete a vocabulary item and remove its progress/queue/review references."""
+    service = VocabService(db)
+    try:
+        await service.delete_vocab(vocab_id)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e)) from e
+
+
 # --- Sentence endpoints ---
 
 
-@router.post("/{vocab_id}/sentences", response_model=SentenceResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/{vocab_id}/sentences",
+    response_model=SentenceResponse,
+    status_code=status.HTTP_201_CREATED,
+)
 async def create_sentence(
     vocab_id: int,
     request: SentenceCreateRequest,
@@ -122,6 +161,23 @@ async def create_sentence(
     service = VocabService(db)
     try:
         sentence = await service.create_sentence(vocab_id, request.ja, request.en, current_user.id)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e)) from e
+    return SentenceResponse.model_validate(sentence)
+
+
+@router.patch("/{vocab_id}/sentences/{sentence_id}", response_model=SentenceResponse)
+async def update_sentence(
+    vocab_id: int,
+    sentence_id: int,
+    request: SentenceUpdateRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> SentenceResponse:
+    """Edit a sentence's text (shared across every vocab it is linked to)."""
+    service = VocabService(db)
+    try:
+        sentence = await service.update_sentence(sentence_id, request.ja, request.en)
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e)) from e
     return SentenceResponse.model_validate(sentence)

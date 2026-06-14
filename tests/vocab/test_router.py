@@ -581,3 +581,120 @@ async def test_list_vocab_filters_by_kanji_id(async_client: AsyncClient, db_sess
     for vocab_data in data:
         kanji_ids_in_vocab = {k["id"] for k in vocab_data["kanji"]}
         assert kanji1.id in kanji_ids_in_vocab
+
+
+async def _make_user_with_token(db_session, token: str = "test-token-123") -> "User":
+    """Create a user and an auth session token for router tests."""
+    user = User(username="testuser")
+    db_session.add(user)
+    await db_session.flush()
+    db_session.add(Session(user_id=user.id, token=token))
+    await db_session.commit()
+    return user
+
+
+async def _create_vocab(async_client: AsyncClient, headers: dict) -> dict:
+    resp = await async_client.post(
+        "/api/v1/vocab",
+        json={"word": "日本", "readings": ["にほん"], "meanings": ["Japan"], "tags": ["geo"]},
+        headers=headers,
+    )
+    assert resp.status_code == status.HTTP_201_CREATED
+    return resp.json()
+
+
+@pytest.mark.asyncio
+async def test_update_vocab_success(async_client: AsyncClient, db_session) -> None:
+    """Test updating a vocab item via PUT."""
+    await _make_user_with_token(db_session)
+    headers = {"Authorization": "Bearer test-token-123"}
+    created = await _create_vocab(async_client, headers)
+
+    resp = await async_client.put(
+        f"/api/v1/vocab/{created['id']}",
+        json={
+            "word": "日本国",
+            "readings": ["にほんこく"],
+            "meanings": ["Japan", "the nation"],
+            "tags": ["geo", "country"],
+        },
+        headers=headers,
+    )
+
+    assert resp.status_code == status.HTTP_200_OK
+    data = resp.json()
+    assert data["word"] == "日本国"
+    assert data["readings"] == ["にほんこく"]
+    assert {t["name"] for t in data["tags"]} == {"geo", "country"}
+
+
+@pytest.mark.asyncio
+async def test_update_vocab_not_found(async_client: AsyncClient, db_session) -> None:
+    """Test that updating a missing vocab returns 404."""
+    await _make_user_with_token(db_session)
+    resp = await async_client.put(
+        "/api/v1/vocab/9999",
+        json={"word": "x", "readings": ["x"], "meanings": ["x"]},
+        headers={"Authorization": "Bearer test-token-123"},
+    )
+    assert resp.status_code == status.HTTP_404_NOT_FOUND
+
+
+@pytest.mark.asyncio
+async def test_update_vocab_requires_auth(async_client: AsyncClient, db_session) -> None:
+    """Test that updating a vocab without a token is rejected."""
+    resp = await async_client.put(
+        "/api/v1/vocab/1",
+        json={"word": "x", "readings": ["x"], "meanings": ["x"]},
+    )
+    assert resp.status_code in (status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN)
+
+
+@pytest.mark.asyncio
+async def test_delete_vocab_success(async_client: AsyncClient, db_session) -> None:
+    """Test deleting a vocab via DELETE returns 204 and removes it."""
+    await _make_user_with_token(db_session)
+    headers = {"Authorization": "Bearer test-token-123"}
+    created = await _create_vocab(async_client, headers)
+
+    resp = await async_client.delete(f"/api/v1/vocab/{created['id']}", headers=headers)
+    assert resp.status_code == status.HTTP_204_NO_CONTENT
+
+    follow_up = await async_client.get(f"/api/v1/vocab/{created['id']}")
+    assert follow_up.status_code == status.HTTP_404_NOT_FOUND
+
+
+@pytest.mark.asyncio
+async def test_delete_vocab_not_found(async_client: AsyncClient, db_session) -> None:
+    """Test that deleting a missing vocab returns 404."""
+    await _make_user_with_token(db_session)
+    resp = await async_client.delete(
+        "/api/v1/vocab/9999", headers={"Authorization": "Bearer test-token-123"}
+    )
+    assert resp.status_code == status.HTTP_404_NOT_FOUND
+
+
+@pytest.mark.asyncio
+async def test_update_sentence_success(async_client: AsyncClient, db_session) -> None:
+    """Test editing a sentence's text via PATCH."""
+    await _make_user_with_token(db_session)
+    headers = {"Authorization": "Bearer test-token-123"}
+    created = await _create_vocab(async_client, headers)
+
+    sentence_resp = await async_client.post(
+        f"/api/v1/vocab/{created['id']}/sentences",
+        json={"ja": "古い文", "en": "old sentence"},
+        headers=headers,
+    )
+    assert sentence_resp.status_code == status.HTTP_201_CREATED
+    sentence_id = sentence_resp.json()["id"]
+
+    resp = await async_client.patch(
+        f"/api/v1/vocab/{created['id']}/sentences/{sentence_id}",
+        json={"ja": "新しい文", "en": "new sentence"},
+        headers=headers,
+    )
+    assert resp.status_code == status.HTTP_200_OK
+    data = resp.json()
+    assert data["ja"] == "新しい文"
+    assert data["en"] == "new sentence"
