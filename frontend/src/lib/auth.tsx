@@ -4,7 +4,7 @@ import { api, type User } from './api';
 interface AuthState {
   user: User | null;
   token: string | null;
-  login: (username: string) => Promise<void>;
+  login: (username: string, password: string) => Promise<void>;
   logout: () => void;
   isAuthenticated: boolean;
 }
@@ -20,8 +20,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.getItem('token'),
   );
 
-  const login = useCallback(async (username: string) => {
-    const res = await api.login(username);
+  const login = useCallback(async (username: string, password: string) => {
+    const res = await api.login(username, password);
     localStorage.setItem('token', res.token);
     localStorage.setItem('user', JSON.stringify(res.user));
     setToken(res.token);

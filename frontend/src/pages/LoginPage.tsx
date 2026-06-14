@@ -4,18 +4,24 @@ import { useAuth } from '../lib/auth';
 export function LoginPage() {
   const { login } = useAuth();
   const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!username.trim()) return;
+    if (!username.trim() || !password) return;
     setLoading(true);
     setError('');
     try {
-      await login(username.trim());
-    } catch {
-      setError('Failed to log in. Is the API running?');
+      await login(username.trim(), password);
+    } catch (err) {
+      const status = (err as { status?: number }).status;
+      setError(
+        status === 401
+          ? 'Incorrect password for this account.'
+          : 'Failed to log in. Is the API running?',
+      );
     } finally {
       setLoading(false);
     }
@@ -43,9 +49,16 @@ export function LoginPage() {
             autoFocus
             className="w-full px-4 py-3 rounded-lg border border-border bg-surface-alt text-text text-center text-lg focus:outline-none focus:ring-2 focus:ring-wk-kanji focus:border-transparent placeholder:text-text-muted/50"
           />
+          <input
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder="Password"
+            className="w-full px-4 py-3 rounded-lg border border-border bg-surface-alt text-text text-center text-lg focus:outline-none focus:ring-2 focus:ring-wk-kanji focus:border-transparent placeholder:text-text-muted/50"
+          />
           <button
             type="submit"
-            disabled={loading || !username.trim()}
+            disabled={loading || !username.trim() || !password}
             className="w-full py-3 rounded-lg bg-wk-kanji text-white font-bold text-lg hover:bg-accent-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {loading ? 'Logging in...' : 'Log In'}
@@ -56,7 +69,7 @@ export function LoginPage() {
         </form>
 
         <p className="text-text-muted text-xs mt-6">
-          No account? Just type a username and one will be created.
+          No account? Ask an admin to create one for you.
         </p>
       </div>
     </div>

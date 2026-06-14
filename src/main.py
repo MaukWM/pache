@@ -41,6 +41,11 @@ async def lifespan(app: FastAPI):
         else:
             logger.info("kanji_table_populated", count=count)
 
+        # Ensure an admin account exists and existing users have a password.
+        from src.auth.service import AuthService
+
+        await AuthService(db).ensure_admin_and_backfill()
+
     yield
 
 

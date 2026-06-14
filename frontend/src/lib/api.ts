@@ -50,6 +50,11 @@ async function requestNoBody(path: string, options?: RequestInit): Promise<void>
 export interface User {
   id: number;
   username: string;
+  is_admin?: boolean;
+}
+
+export interface CreatedUser extends User {
+  password: string;
 }
 
 export interface LoginResponse {
@@ -59,6 +64,7 @@ export interface LoginResponse {
 
 export interface SettingsResponse {
   wk_api_key_configured: boolean;
+  password_set: boolean;
 }
 
 export interface ImportResponse {
@@ -74,10 +80,31 @@ export interface WanikaniStatus {
 }
 
 export const api = {
-  login: (username: string) =>
+  login: (username: string, password: string) =>
     request<LoginResponse>('/auth/login', {
       method: 'POST',
-      body: JSON.stringify({ username }),
+      body: JSON.stringify({ username, password }),
+    }),
+
+  setPassword: (new_password: string) =>
+    request<SettingsResponse>('/auth/password', {
+      method: 'POST',
+      body: JSON.stringify({ new_password }),
+    }),
+
+  // Admin user management
+  listUsers: () => request<User[]>('/auth/users'),
+
+  createUser: (username: string, password?: string, is_admin = false) =>
+    request<CreatedUser>('/auth/users', {
+      method: 'POST',
+      body: JSON.stringify({ username, password: password || null, is_admin }),
+    }),
+
+  resetUserPassword: (userId: number, new_password?: string) =>
+    request<CreatedUser>(`/auth/users/${userId}/password`, {
+      method: 'POST',
+      body: JSON.stringify({ new_password: new_password || null }),
     }),
 
   // Settings

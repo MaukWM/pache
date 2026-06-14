@@ -45,6 +45,13 @@ class ProgressSource(str, Enum):
     WANIKANI = "wanikani"
 
 
+# Auth bootstrap defaults (trusted, self-hosted). The admin account is seeded on
+# first startup; new/backfilled users get the default password and change it.
+DEFAULT_ADMIN_USERNAME = "admin"
+DEFAULT_ADMIN_PASSWORD = "admin"
+DEFAULT_USER_PASSWORD = "changeme"
+
+
 # WaniKani SRS intervals - DO NOT MODIFY
 # Maps current stage to time until next review
 SRS_INTERVALS: dict[int, timedelta] = {
