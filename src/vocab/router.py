@@ -84,6 +84,17 @@ async def search_vocab(
     return await service.search_dictionary(q, limit=limit)
 
 
+@router.get("/sentences/search", response_model=list[SentenceResponse])
+async def search_sentences(
+    q: str = Query(..., min_length=1, description="Substring to find in sentence Japanese text"),
+    db: AsyncSession = Depends(get_db),
+) -> list[SentenceResponse]:
+    """Find existing sentences containing a word, for linking during vocab creation."""
+    service = VocabService(db)
+    sentences = await service.find_sentences_containing(q)
+    return [SentenceResponse.model_validate(s) for s in sentences]
+
+
 @router.get("/{vocab_id}", response_model=VocabResponse)
 async def get_vocab(
     vocab_id: int,

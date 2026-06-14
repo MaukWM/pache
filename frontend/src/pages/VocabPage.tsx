@@ -1,6 +1,6 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { api, type KanjiItem, type VocabItem, type VocabSearchResult } from '../lib/api';
+import { api, type KanjiItem, type VocabItem, type VocabSearchResult, type Sentence } from '../lib/api';
 import { SRS_STAGE_COLORS, SRS_STAGE_NAMES } from '../lib/srs';
 
 // Extract kanji characters from a string
@@ -425,12 +425,30 @@ function FilterDropdown({
 }
 
 function CreateVocabForm({ onCreated }: { onCreated: () => void }) {
+  const queryClient = useQueryClient();
   const [word, setWord] = useState('');
   const [readings, setReadings] = useState('');
   const [meanings, setMeanings] = useState('');
   const [tags, setTags] = useState('');
   const [comment, setComment] = useState('');
+  const [sentences, setSentences] = useState<{ ja: string; en: string }[]>([]);
+  const [showLinks, setShowLinks] = useState(false);
+  const [linkIds, setLinkIds] = useState<Set<number>>(new Set());
   const [error, setError] = useState('');
+
+  const toggleLink = (id: number) =>
+    setLinkIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+
+  const addSentence = () => setSentences((prev) => [...prev, { ja: '', en: '' }]);
+  const removeSentence = (i: number) =>
+    setSentences((prev) => prev.filter((_, idx) => idx !== i));
+  const updateSentence = (i: number, field: 'ja' | 'en', value: string) =>
+    setSentences((prev) => prev.map((s, idx) => (idx === i ? { ...s, [field]: value } : s)));
 
   // Dictionary search (offline JMdict via backend) — prefills the fields below.
   const [dictQuery, setDictQuery] = useState('');
@@ -480,24 +498,50 @@ function CreateVocabForm({ onCreated }: { onCreated: () => void }) {
     return found;
   }, [word, allKanji.data]);
 
+  // Existing pool sentences containing the word — for linking during creation.
+  const linkSuggestions = useQuery({
+    queryKey: ['sentenceSearch', word.trim()],
+    queryFn: () => api.searchSentences(word.trim()),
+    enabled: showLinks && word.trim().length > 0,
+  });
+
   const mutation = useMutation({
-    mutationFn: api.createVocab,
-    onSuccess: onCreated,
+    mutationFn: async ({ queue }: { queue: boolean }) => {
+      const vocab = await api.createVocab({
+        word: word.trim(),
+        readings: readings.split(',').map((r) => r.trim()).filter(Boolean),
+        meanings: meanings.split(',').map((m) => m.trim()).filter(Boolean),
+        kanji_ids: detectedKanji.map((k) => k.id),
+        tags: tags ? tags.split(',').map((t) => t.trim()).filter(Boolean) : undefined,
+        creator_comment: comment.trim() || undefined,
+      });
+      for (const s of sentences) {
+        if (s.ja.trim() && s.en.trim()) {
+          await api.createSentence(vocab.id, s.ja.trim(), s.en.trim());
+        }
+      }
+      for (const id of linkIds) {
+        await api.linkSentence(vocab.id, id);
+      }
+      if (queue) await api.addToQueue('vocab', vocab.id);
+      return vocab;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['queue'] });
+      onCreated();
+    },
     onError: (err: Error) => setError(err.message),
   });
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
+  const submit = (queue: boolean) => {
     if (!word.trim() || !readings.trim() || !meanings.trim()) return;
     setError('');
-    mutation.mutate({
-      word: word.trim(),
-      readings: readings.split(',').map((r) => r.trim()).filter(Boolean),
-      meanings: meanings.split(',').map((m) => m.trim()).filter(Boolean),
-      kanji_ids: detectedKanji.map((k) => k.id),
-      tags: tags ? tags.split(',').map((t) => t.trim()).filter(Boolean) : undefined,
-      creator_comment: comment.trim() || undefined,
-    });
+    mutation.mutate({ queue });
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    submit(true);
   };
 
   return (
@@ -629,15 +673,118 @@ function CreateVocabForm({ onCreated }: { onCreated: () => void }) {
         </div>
       </div>
 
+      {/* Example sentences (optional) */}
+      <div>
+        <label className="text-xs text-text-muted block mb-1">Example sentences (optional)</label>
+        <div className="space-y-2">
+          {sentences.map((s, i) => (
+            <div key={i} className="flex gap-2">
+              <div className="flex-1 space-y-1">
+                <input
+                  type="text"
+                  value={s.ja}
+                  onChange={(e) => updateSentence(i, 'ja', e.target.value)}
+                  placeholder="Japanese..."
+                  lang="ja"
+                  className="w-full px-2.5 py-1.5 rounded border border-border bg-surface-alt text-sm focus:outline-none focus:ring-1 focus:ring-wk-vocab"
+                />
+                <input
+                  type="text"
+                  value={s.en}
+                  onChange={(e) => updateSentence(i, 'en', e.target.value)}
+                  placeholder="English..."
+                  className="w-full px-2.5 py-1.5 rounded border border-border bg-surface-alt text-sm focus:outline-none focus:ring-1 focus:ring-wk-vocab"
+                />
+              </div>
+              <button
+                type="button"
+                onClick={() => removeSentence(i)}
+                className="self-start text-text-muted hover:text-error text-lg leading-none px-1"
+                title="Remove sentence"
+              >
+                &times;
+              </button>
+            </div>
+          ))}
+          <button
+            type="button"
+            onClick={addSentence}
+            className="text-sm text-wk-vocab font-bold hover:underline"
+          >
+            + Add sentence
+          </button>
+        </div>
+      </div>
+
+      {/* Find & link existing pool sentences containing this word */}
+      <div>
+        <div className="flex items-center gap-3 mb-1">
+          <label className="text-xs text-text-muted">Link existing sentences (optional)</label>
+          <button
+            type="button"
+            onClick={() => setShowLinks((v) => !v)}
+            disabled={!word.trim()}
+            className="text-sm text-wk-vocab font-bold hover:underline disabled:opacity-40 disabled:no-underline"
+          >
+            {showLinks ? 'Hide' : 'Find links'}
+          </button>
+          {linkIds.size > 0 && (
+            <span className="text-xs text-text-muted">{linkIds.size} selected</span>
+          )}
+        </div>
+
+        {showLinks && word.trim() && (
+          <div className="space-y-1">
+            {linkSuggestions.isLoading && (
+              <p className="text-xs text-text-muted animate-pulse">Searching…</p>
+            )}
+            {linkSuggestions.data?.length === 0 && (
+              <p className="text-xs text-text-muted">No existing sentences contain "{word.trim()}".</p>
+            )}
+            {linkSuggestions.data?.map((s: Sentence) => {
+              const selected = linkIds.has(s.id);
+              return (
+                <button
+                  key={s.id}
+                  type="button"
+                  onClick={() => toggleLink(s.id)}
+                  className={`w-full text-left rounded-lg px-3 py-1.5 text-sm flex items-center gap-2 transition-colors ${
+                    selected ? 'bg-wk-vocab/15 ring-1 ring-wk-vocab' : 'bg-surface-alt hover:bg-border/50'
+                  }`}
+                >
+                  <span className={`shrink-0 ${selected ? 'text-wk-vocab' : 'text-text-muted'}`}>
+                    {selected ? '☑' : '☐'}
+                  </span>
+                  <span className="flex-1 min-w-0">
+                    <span lang="ja">{s.ja}</span>
+                    <span className="text-text-muted text-xs ml-2">{s.en}</span>
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
       {error && <p className="text-error text-sm">{error}</p>}
 
-      <button
-        type="submit"
-        disabled={mutation.isPending || !word.trim() || !readings.trim() || !meanings.trim()}
-        className="px-5 py-2 rounded-lg bg-wk-vocab text-white font-bold hover:opacity-90 transition-opacity disabled:opacity-50"
-      >
-        {mutation.isPending ? 'Creating...' : 'Create'}
-      </button>
+      <div className="flex gap-2">
+        <button
+          type="submit"
+          disabled={mutation.isPending || !word.trim() || !readings.trim() || !meanings.trim()}
+          className="px-5 py-2 rounded-lg bg-wk-vocab text-white font-bold hover:opacity-90 transition-opacity disabled:opacity-50"
+        >
+          {mutation.isPending ? 'Saving...' : 'Create & Add to Queue'}
+        </button>
+        <button
+          type="button"
+          onClick={() => submit(false)}
+          disabled={mutation.isPending || !word.trim() || !readings.trim() || !meanings.trim()}
+          className="px-5 py-2 rounded-lg bg-surface border border-border font-bold hover:bg-border transition-colors disabled:opacity-50"
+        >
+          Create only
+        </button>
+      </div>
     </form>
   );
 }

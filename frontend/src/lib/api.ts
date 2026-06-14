@@ -176,6 +176,9 @@ export const api = {
   suggestSentences: (vocabId: number) =>
     request<Sentence[]>(`/vocab/${vocabId}/sentences/suggest`),
 
+  searchSentences: (q: string) =>
+    request<Sentence[]>(`/vocab/sentences/search?q=${encodeURIComponent(q)}`),
+
   // Kanji
   getKanji: (params?: Record<string, string>) => {
     const qs = params ? '?' + new URLSearchParams(params).toString() : '';
