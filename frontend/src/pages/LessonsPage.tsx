@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api, type QueueItem } from '../lib/api';
+import { RadicalList } from '../components/RadicalList';
 
 type Tab = 'meaning' | 'reading' | 'info';
 
@@ -206,6 +207,7 @@ export function LessonsPage() {
   const readingsOn = (item.item_details as Record<string, unknown>)?.readings_on as string[] | undefined;
   const readingsKun = (item.item_details as Record<string, unknown>)?.readings_kun as string[] | undefined;
   const readings = (item.item_details as Record<string, unknown>)?.readings as string[] | undefined;
+  const components = item.item_details?.components ?? [];
   const bgColor = isKanji ? 'bg-wk-kanji' : 'bg-wk-vocab';
 
   const goNext = () => {
@@ -268,9 +270,17 @@ export function LessonsPage() {
       {/* Tab content */}
       <div className="bg-surface rounded-b-2xl p-6 shadow-sm min-h-[200px]">
         {activeTab === 'meaning' && (
-          <div>
-            <h3 className="text-text-muted text-xs uppercase tracking-wide mb-2">Meanings</h3>
-            <p className="text-lg">{meanings.join(', ')}</p>
+          <div className="space-y-4">
+            <div>
+              <h3 className="text-text-muted text-xs uppercase tracking-wide mb-2">Meanings</h3>
+              <p className="text-lg">{meanings.join(', ')}</p>
+            </div>
+            {isKanji && components.length > 0 && (
+              <div>
+                <h3 className="text-text-muted text-xs uppercase tracking-wide mb-2">Radicals</h3>
+                <RadicalList components={components} />
+              </div>
+            )}
           </div>
         )}
 

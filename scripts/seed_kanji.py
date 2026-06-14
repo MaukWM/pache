@@ -28,6 +28,13 @@ def load_kanji_from_jamdict() -> list[dict]:
     # Get all character literals from jamdict's char table
     all_char_rows = jam.kd2.char.select()
 
+    def get_components(literal: str) -> list[str]:
+        """Visual radical decomposition from jamdict's bundled KRADFILE."""
+        try:
+            return list(jam.krad.get(literal) or [])
+        except Exception:
+            return []
+
     for char_row in tqdm(all_char_rows, desc="Loading from jamdict", unit="kanji"):
         # Get full character data (includes rm_groups with meanings/readings)
         char = jam.kd2.get_char(char_row.literal)
@@ -39,6 +46,7 @@ def load_kanji_from_jamdict() -> list[dict]:
             "meanings": [],
             "readings_on": [],
             "readings_kun": [],
+            "components": get_components(char.literal),
             "grade": char_row.grade,
             "jlpt_level": char_row.jlpt,
             "stroke_count": char_row.stroke_count or 0,
@@ -78,6 +86,9 @@ async def seed_kanji(db: AsyncSession, kanji_data_list: list[dict]) -> tuple[int
         existing = result.scalar_one_or_none()
 
         if existing is not None:
+            # Backfill components on existing rows that predate this column.
+            if not existing.components and kanji_data["components"]:
+                existing.components = kanji_data["components"]
             skipped_count += 1
             continue
 
@@ -87,6 +98,7 @@ async def seed_kanji(db: AsyncSession, kanji_data_list: list[dict]) -> tuple[int
             meanings=kanji_data["meanings"] or [],
             readings_on=kanji_data["readings_on"] or [],
             readings_kun=kanji_data["readings_kun"] or [],
+            components=kanji_data["components"] or [],
             grade=kanji_data["grade"],
             jlpt_level=kanji_data["jlpt_level"],
             stroke_count=kanji_data["stroke_count"],

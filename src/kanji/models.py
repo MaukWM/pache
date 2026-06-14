@@ -18,6 +18,7 @@ class Kanji(Base):
     meanings: Mapped[list[str]] = mapped_column(JSON, nullable=False)
     readings_on: Mapped[list[str]] = mapped_column(JSON, nullable=False)
     readings_kun: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    components: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
     grade: Mapped[int | None] = mapped_column(Integer, nullable=True)
     jlpt_level: Mapped[int | None] = mapped_column(Integer, nullable=True)
     stroke_count: Mapped[int] = mapped_column(Integer, nullable=False)

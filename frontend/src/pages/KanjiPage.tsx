@@ -1,6 +1,7 @@
 import { useState, useMemo, useRef, useCallback, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api, type KanjiItem } from '../lib/api';
+import { RadicalList } from '../components/RadicalList';
 import { romajiToKana } from '../lib/romaji';
 import { SRS_STAGE_COLORS, SRS_STAGE_NAMES, getSrsGroup } from '../lib/srs';
 
@@ -352,6 +353,12 @@ function KanjiDetail({
           <div>
             <p className="text-text-muted text-sm">{kanji.meanings.join(', ')}</p>
           </div>
+          {kanji.components && kanji.components.length > 0 && (
+            <div>
+              <span className="text-text-muted text-xs block mb-1.5">Radicals</span>
+              <RadicalList components={kanji.components} size="sm" />
+            </div>
+          )}
           <div className="grid grid-cols-2 gap-3 text-sm">
             <div>
               <span className="text-text-muted text-xs block">On'yomi</span>

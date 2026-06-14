@@ -15,6 +15,7 @@ class KanjiItemDetails(TypedDict):
     meanings: list[str]
     readings_on: list[str]
     readings_kun: list[str]
+    components: list[str]
 
 
 class VocabItemDetails(TypedDict):

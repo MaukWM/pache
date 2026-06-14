@@ -171,6 +171,7 @@ class ReviewService:
                         meanings=kanji.meanings,
                         readings_on=kanji.readings_on,
                         readings_kun=kanji.readings_kun,
+                        components=kanji.components or [],
                     )
                 elif progress.item_type == ItemType.VOCAB:
                     vocab = vocab_map.get(progress.item_id)

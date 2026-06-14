@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api, type ReviewItem } from '../lib/api';
+import { RadicalList } from '../components/RadicalList';
 import { romajiToHiraganaLive } from '../lib/romaji';
 
 function levenshtein(a: string, b: string): number {
@@ -238,6 +239,7 @@ export function ReviewPage() {
   const meanings = item.item_details.meanings || [];
   const readingsOn = item.item_details.readings_on || [];
   const readingsKun = item.item_details.readings_kun || [];
+  const components = item.item_details.components || [];
   const vocabReadings = (item.item_details as { readings?: string[] }).readings || [];
   const vocabTags = (item.item_details as { tags?: string[] }).tags || [];
   const vocabComment = (item.item_details as { creator_comment?: string | null }).creator_comment;
@@ -465,6 +467,18 @@ export function ReviewPage() {
                     )}
                   </div>
                 </details>
+
+                {/* Radicals — kanji composition for reference */}
+                {isKanji && components.length > 0 && (
+                  <details className="bg-surface-alt rounded-lg overflow-hidden">
+                    <summary className="px-4 py-2 text-xs font-bold uppercase tracking-wide text-text-muted cursor-pointer hover:bg-border/50">
+                      Radicals
+                    </summary>
+                    <div className="px-4 pb-3 pt-1">
+                      <RadicalList components={components} size="sm" />
+                    </div>
+                  </details>
+                )}
               </div>
             )}
 

@@ -15,6 +15,7 @@ class KanjiResponse(BaseModel):
     meanings: list[str]
     readings_on: list[str]
     readings_kun: list[str]
+    components: list[str]
     grade: int | None
     jlpt_level: int | None
     stroke_count: int

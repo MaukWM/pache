@@ -56,6 +56,7 @@ class ProgressService:
                 "meanings": item.meanings,
                 "readings_on": item.readings_on,
                 "readings_kun": item.readings_kun,
+                "components": item.components or [],
             }
         elif item_type == ItemType.VOCAB:
             item = await self.db.get(Vocab, item_id)
@@ -167,6 +168,7 @@ class ProgressService:
                         "meanings": kanji.meanings,
                         "readings_on": kanji.readings_on,
                         "readings_kun": kanji.readings_kun,
+                        "components": kanji.components or [],
                     }
                 else:
                     # Item was deleted, mark for cleanup

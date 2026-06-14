@@ -224,6 +224,7 @@ export interface ReviewItem {
     meanings: string[];
     readings_on?: string[];
     readings_kun?: string[];
+    components?: string[];
   };
 }
 
@@ -253,6 +254,7 @@ export interface KanjiItem {
   meanings: string[];
   readings_on: string[];
   readings_kun: string[];
+  components: string[];
   grade?: number;
   jlpt_level?: number;
   stroke_count?: number;
@@ -288,5 +290,8 @@ export interface QueueItem {
     word?: string;
     reading?: string;
     meanings?: string[];
+    readings_on?: string[];
+    readings_kun?: string[];
+    components?: string[];
   };
 }

@@ -91,6 +91,7 @@ class LessonService:
                 "meanings": item.meanings,
                 "readings_on": item.readings_on,
                 "readings_kun": item.readings_kun,
+                "components": item.components or [],
             }
         elif item_type == ItemType.VOCAB:
             result = await self.db.execute(
