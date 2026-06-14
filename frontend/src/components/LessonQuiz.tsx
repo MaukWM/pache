@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { type QueueItem } from '../lib/api';
-import { romajiToHiraganaLive } from '../lib/romaji';
+import { romajiToHiraganaLive, finalizeRomaji } from '../lib/romaji';
 import { isKana, matchesMeaning, matchesReading } from '../lib/quiz';
 
 type CardType = 'reading' | 'meaning';
@@ -150,19 +150,23 @@ export function LessonQuiz({
   const labelBg = cardType === 'reading' ? 'bg-[#303030] text-white' : 'bg-white text-text';
 
   const checkAnswer = () => {
-    const trimmed = input.trim().toLowerCase();
-    if (!trimmed) return;
+    let value = input.trim();
+    if (!value) return;
     setInputError('');
 
     let isCorrect: boolean;
     if (cardType === 'reading') {
+      // Convert a trailing lone "n" to ん before checking (WaniKani-style).
+      value = finalizeRomaji(value);
+      setInput(value);
+      const trimmed = value.toLowerCase();
       if (!isKana(trimmed)) {
         setInputError('Please enter your answer in kana');
         return;
       }
       isCorrect = matchesReading(trimmed, acceptableReadings(item));
     } else {
-      isCorrect = matchesMeaning(trimmed, meanings);
+      isCorrect = matchesMeaning(value.toLowerCase(), meanings);
     }
     setCorrect(isCorrect);
     setAnswered(true);

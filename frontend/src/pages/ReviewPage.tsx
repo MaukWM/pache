@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api, type ReviewItem } from '../lib/api';
 import { RadicalList } from '../components/RadicalList';
-import { romajiToHiraganaLive } from '../lib/romaji';
+import { romajiToHiraganaLive, finalizeRomaji } from '../lib/romaji';
 import { matchesMeaning, matchesReading } from '../lib/quiz';
 
 function isKana(str: string): boolean {
@@ -233,19 +233,23 @@ export function ReviewPage() {
   };
 
   const checkAnswer = () => {
-    const trimmed = input.trim().toLowerCase();
-    if (!trimmed) return;
+    let value = input.trim();
+    if (!value) return;
     setInputError('');
 
     let isCorrect: boolean;
     if (cardType === 'reading') {
+      // Convert a trailing lone "n" to ん before checking (WaniKani-style).
+      value = finalizeRomaji(value);
+      setInput(value);
+      const trimmed = value.toLowerCase();
       if (!isKana(trimmed)) {
         setInputError('Please enter your answer in kana');
         return;
       }
       isCorrect = matchesReading(trimmed, isKanji ? [...readingsOn, ...readingsKun] : vocabReadings);
     } else {
-      isCorrect = matchesMeaning(trimmed, meanings);
+      isCorrect = matchesMeaning(value.toLowerCase(), meanings);
     }
 
     setCorrect(isCorrect);

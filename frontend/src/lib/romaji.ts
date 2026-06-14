@@ -105,3 +105,12 @@ export function romajiToHiraganaLive(input: string): string {
 
   return kanaPrefix + converted + trailing;
 }
+
+/**
+ * Finalize a reading for submission: the live converter leaves a trailing lone
+ * "n" as romaji (it might become "na", "ni", …), so on submit convert it to ん,
+ * matching WaniKani's behavior.
+ */
+export function finalizeRomaji(input: string): string {
+  return romajiToHiraganaLive(input).replace(/n$/i, 'ん');
+}
