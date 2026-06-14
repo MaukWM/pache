@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api, type QueueItem } from '../lib/api';
 import { RadicalList } from '../components/RadicalList';
+import { LessonQuiz } from '../components/LessonQuiz';
 
 type Tab = 'meaning' | 'reading' | 'info';
 
@@ -13,7 +14,6 @@ export function LessonsPage() {
   const [sessionActive, setSessionActive] = useState(false);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [activeTab, setActiveTab] = useState<Tab>('meaning');
-  const [completed, setCompleted] = useState<QueueItem[]>([]);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [sessionItems, setSessionItems] = useState<QueueItem[]>([]);
 
@@ -44,22 +44,18 @@ export function LessonsPage() {
       queryClient.invalidateQueries({ queryKey: ['progressMap'] });
       queryClient.invalidateQueries({ queryKey: ['reviews'] });
       setSessionActive(false);
-      setCompleted([]);
       setCurrentIndex(0);
       setSelectedIds(new Set());
     },
   });
 
-  // Step forward: meaning -> reading -> info -> next card. Pushing the card to
-  // `completed` happens when we leave its last tab (matches the old goNext).
+  // Step forward: meaning -> reading -> info -> next card.
   const goForward = () => {
     if (!sessionActive || currentIndex >= sessionItems.length) return;
     const tabIdx = TAB_ORDER.indexOf(activeTab);
     if (tabIdx < TAB_ORDER.length - 1) {
       setActiveTab(TAB_ORDER[tabIdx + 1]);
     } else {
-      const cur = sessionItems[currentIndex];
-      if (cur) setCompleted((prev) => [...prev, cur]);
       setCurrentIndex((i) => i + 1);
       setActiveTab('meaning');
     }
@@ -73,7 +69,6 @@ export function LessonsPage() {
     if (tabIdx > 0) {
       setActiveTab(TAB_ORDER[tabIdx - 1]);
     } else if (currentIndex > 0) {
-      setCompleted((prev) => prev.slice(0, -1));
       setCurrentIndex((i) => i - 1);
       setActiveTab('info');
     }
@@ -121,7 +116,6 @@ export function LessonsPage() {
     setSessionActive(true);
     setCurrentIndex(0);
     setActiveTab('meaning');
-    setCompleted([]);
   };
 
   // Queue overview
@@ -219,29 +213,21 @@ export function LessonsPage() {
   // Lesson session
   const item = sessionItems[currentIndex];
   if (!item) {
+    // All cards viewed — gate official learning behind a scrambled quiz.
     return (
-      <div className="flex flex-col items-center justify-center py-20 space-y-6">
-        <div className="text-5xl">&#127891;</div>
-        <h2 className="text-2xl font-bold">Lesson Complete!</h2>
-        <p className="text-text-muted text-center">
-          You studied {completed.length} item{completed.length !== 1 ? 's' : ''}.<br />
-          They'll enter your review queue in 4 hours.
-        </p>
-        <button
-          onClick={() =>
-            completeMutation.mutate({
-              item_ids: completed.map((c) => ({
-                item_type: c.item_type,
-                item_id: c.item_id,
-              })),
-            })
-          }
-          disabled={completeMutation.isPending}
-          className="px-6 py-3 rounded-lg bg-wk-radical text-white font-bold text-lg hover:opacity-90 transition-opacity disabled:opacity-50"
-        >
-          {completeMutation.isPending ? 'Saving...' : 'Complete Lessons'}
-        </button>
-      </div>
+      <LessonQuiz
+        items={sessionItems}
+        submitting={completeMutation.isPending}
+        onPassed={() =>
+          completeMutation.mutate({
+            item_ids: sessionItems.map((c) => ({
+              item_type: c.item_type,
+              item_id: c.item_id,
+            })),
+          })
+        }
+        onExit={() => setSessionActive(false)}
+      />
     );
   }
 
@@ -268,7 +254,7 @@ export function LessonsPage() {
       {/* Progress */}
       <div className="flex items-center justify-between text-sm text-text-muted mb-4">
         <button
-          onClick={() => { setSessionActive(false); setCompleted([]); }}
+          onClick={() => setSessionActive(false)}
           className="hover:text-text transition-colors"
         >
           &larr; Back to queue

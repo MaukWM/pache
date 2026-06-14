@@ -304,6 +304,7 @@ export interface QueueItem {
     word?: string;
     reading?: string;
     meanings?: string[];
+    readings?: string[];
     readings_on?: string[];
     readings_kun?: string[];
     components?: string[];

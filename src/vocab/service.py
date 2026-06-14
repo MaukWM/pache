@@ -1,14 +1,12 @@
 """Vocabulary service layer."""
 
-import asyncio
-
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from src.auth.models import User
 from src.kanji.models import Kanji
-from src.vocab.dictionary import search_jmdict
+from src.vocab.dictionary import search_jmdict_async
 from src.vocab.models import Tag, Vocab, VocabSentence
 from src.vocab.schemas import VocabCreateRequest, VocabSearchResult
 
@@ -79,7 +77,7 @@ class VocabService:
         The jamdict lookup is blocking (SQLite), so it runs in a worker thread.
         Each result is flagged if the word is already in the shared pool.
         """
-        entries = await asyncio.to_thread(search_jmdict, query, limit)
+        entries = await search_jmdict_async(query, limit)
         if not entries:
             return []
 

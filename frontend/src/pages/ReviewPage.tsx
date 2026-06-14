@@ -3,28 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api, type ReviewItem } from '../lib/api';
 import { RadicalList } from '../components/RadicalList';
 import { romajiToHiraganaLive } from '../lib/romaji';
-
-function levenshtein(a: string, b: string): number {
-  const m = a.length, n = b.length;
-  const dp: number[][] = Array.from({ length: m + 1 }, () => Array(n + 1).fill(0));
-  for (let i = 0; i <= m; i++) dp[i][0] = i;
-  for (let j = 0; j <= n; j++) dp[0][j] = j;
-  for (let i = 1; i <= m; i++) {
-    for (let j = 1; j <= n; j++) {
-      dp[i][j] = a[i - 1] === b[j - 1]
-        ? dp[i - 1][j - 1]
-        : 1 + Math.min(dp[i - 1][j], dp[i][j - 1], dp[i - 1][j - 1]);
-    }
-  }
-  return dp[m][n];
-}
-
-function allowedDistance(len: number): number {
-  if (len <= 3) return 0;
-  if (len <= 5) return 1;
-  if (len <= 7) return 2;
-  return Math.min(3, Math.floor(len * 0.3));
-}
+import { matchesMeaning, matchesReading } from '../lib/quiz';
 
 function isKana(str: string): boolean {
   return /^[\u3040-\u309F\u30A0-\u30FF\u3000-\u303Fー]+$/.test(str);
@@ -248,19 +227,6 @@ export function ReviewPage() {
   const headerBg = isKanji ? 'bg-wk-kanji' : 'bg-wk-vocab';
   const labelBg = cardType === 'reading' ? 'bg-[#303030] text-white' : 'bg-white text-text';
 
-  const katakanaToHiragana = (str: string): string =>
-    str.replace(/[\u30A0-\u30FF]/g, (ch) =>
-      String.fromCharCode(ch.charCodeAt(0) - 0x60)
-    );
-
-  const getAcceptableReadings = (): string[] => {
-    if (isKanji) {
-      return [...readingsOn, ...readingsKun]
-        .map((r) => katakanaToHiragana(r.replace(/[.\-]/g, '')));
-    }
-    return vocabReadings.map((r) => katakanaToHiragana(r.replace(/[.\-]/g, '')));
-  };
-
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value;
     setInput(cardType === 'reading' ? romajiToHiraganaLive(val) : val);
@@ -277,15 +243,9 @@ export function ReviewPage() {
         setInputError('Please enter your answer in kana');
         return;
       }
-      const acceptable = getAcceptableReadings();
-      isCorrect = acceptable.some((r) => r === katakanaToHiragana(trimmed));
+      isCorrect = matchesReading(trimmed, isKanji ? [...readingsOn, ...readingsKun] : vocabReadings);
     } else {
-      isCorrect = meanings.some((m) => {
-        const lower = m.toLowerCase();
-        if (lower === trimmed) return true;
-        const dist = levenshtein(lower, trimmed);
-        return dist <= allowedDistance(lower.length);
-      });
+      isCorrect = matchesMeaning(trimmed, meanings);
     }
 
     setCorrect(isCorrect);
