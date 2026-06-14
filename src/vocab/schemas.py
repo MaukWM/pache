@@ -71,6 +71,19 @@ class VocabResponse(BaseModel):
     kanji: list[KanjiResponse]
 
 
+class VocabSearchResult(BaseModel):
+    """A dictionary lookup candidate for importing as vocabulary."""
+
+    word: str
+    readings: list[str]
+    meanings: list[str]
+    pos: list[str]
+    is_common: bool
+    already_exists: bool = Field(
+        default=False, description="True if this word is already in the shared pool"
+    )
+
+
 class SentenceCreateRequest(BaseModel):
     """Request for creating a new sentence and linking to a vocab."""
     ja: str = Field(..., min_length=1)

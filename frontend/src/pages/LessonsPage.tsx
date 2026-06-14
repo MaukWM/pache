@@ -1,9 +1,12 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api, type QueueItem } from '../lib/api';
 import { RadicalList } from '../components/RadicalList';
 
 type Tab = 'meaning' | 'reading' | 'info';
+
+// Order the lesson session steps through: tabs of a card, then the next card.
+const TAB_ORDER: Tab[] = ['meaning', 'reading', 'info'];
 
 export function LessonsPage() {
   const queryClient = useQueryClient();
@@ -45,6 +48,47 @@ export function LessonsPage() {
       setCurrentIndex(0);
       setSelectedIds(new Set());
     },
+  });
+
+  // Step forward: meaning -> reading -> info -> next card. Pushing the card to
+  // `completed` happens when we leave its last tab (matches the old goNext).
+  const goForward = () => {
+    if (!sessionActive || currentIndex >= sessionItems.length) return;
+    const tabIdx = TAB_ORDER.indexOf(activeTab);
+    if (tabIdx < TAB_ORDER.length - 1) {
+      setActiveTab(TAB_ORDER[tabIdx + 1]);
+    } else {
+      const cur = sessionItems[currentIndex];
+      if (cur) setCompleted((prev) => [...prev, cur]);
+      setCurrentIndex((i) => i + 1);
+      setActiveTab('meaning');
+    }
+  };
+
+  // Step back: info -> reading -> meaning -> previous card (landing on its info
+  // tab so the flow is reversible).
+  const goBack = () => {
+    if (!sessionActive || currentIndex >= sessionItems.length) return;
+    const tabIdx = TAB_ORDER.indexOf(activeTab);
+    if (tabIdx > 0) {
+      setActiveTab(TAB_ORDER[tabIdx - 1]);
+    } else if (currentIndex > 0) {
+      setCompleted((prev) => prev.slice(0, -1));
+      setCurrentIndex((i) => i - 1);
+      setActiveTab('info');
+    }
+  };
+
+  // Arrow keys drive the same progression as the on-screen buttons.
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA')) return;
+      if (e.key === 'ArrowRight') { e.preventDefault(); goForward(); }
+      else if (e.key === 'ArrowLeft') { e.preventDefault(); goBack(); }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
   });
 
   const items = queue.data ?? [];
@@ -210,19 +254,8 @@ export function LessonsPage() {
   const components = item.item_details?.components ?? [];
   const bgColor = isKanji ? 'bg-wk-kanji' : 'bg-wk-vocab';
 
-  const goNext = () => {
-    setCompleted((prev) => [...prev, item]);
-    setCurrentIndex((i) => i + 1);
-    setActiveTab('meaning');
-  };
-
-  const goPrev = () => {
-    if (currentIndex > 0) {
-      setCompleted((prev) => prev.slice(0, -1));
-      setCurrentIndex((i) => i - 1);
-      setActiveTab('meaning');
-    }
-  };
+  const isLastStep = currentIndex === sessionItems.length - 1 && activeTab === 'info';
+  const atStart = currentIndex === 0 && activeTab === 'meaning';
 
   const tabs: { id: Tab; label: string }[] = [
     { id: 'meaning', label: 'Meaning' },
@@ -327,17 +360,19 @@ export function LessonsPage() {
       {/* Navigation */}
       <div className="flex items-center justify-between pt-4">
         <button
-          onClick={goPrev}
-          disabled={currentIndex === 0}
+          onClick={goBack}
+          disabled={atStart}
           className="px-5 py-2.5 rounded-lg bg-surface border border-border font-bold text-sm disabled:opacity-30 hover:bg-border transition-colors"
         >
-          &larr; Previous
+          <kbd className="mr-1.5 px-1.5 py-0.5 rounded bg-border text-text text-[10px] font-mono">&larr;</kbd>
+          Back
         </button>
         <button
-          onClick={goNext}
+          onClick={goForward}
           className="px-5 py-2.5 rounded-lg bg-wk-radical text-white font-bold text-sm hover:opacity-90 transition-opacity"
         >
-          {currentIndex === sessionItems.length - 1 ? 'Finish' : 'Next \u2192'}
+          {isLastStep ? 'Finish' : 'Next'}
+          <kbd className="ml-1.5 px-1.5 py-0.5 rounded bg-white/25 text-white text-[10px] font-mono">&rarr;</kbd>
         </button>
       </div>
     </div>

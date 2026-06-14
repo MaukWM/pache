@@ -151,6 +151,11 @@ export const api = {
       body: JSON.stringify(data),
     }),
 
+  searchVocab: (q: string, limit = 20) =>
+    request<VocabSearchResult[]>(
+      `/vocab/search?q=${encodeURIComponent(q)}&limit=${limit}`,
+    ),
+
   createSentence: (vocabId: number, ja: string, en: string) =>
     request<Sentence>(`/vocab/${vocabId}/sentences`, {
       method: 'POST',
@@ -234,6 +239,15 @@ export interface Sentence {
   en: string;
   added_by: number;
   created_at: string;
+}
+
+export interface VocabSearchResult {
+  word: string;
+  readings: string[];
+  meanings: string[];
+  pos: string[];
+  is_common: boolean;
+  already_exists: boolean;
 }
 
 export interface VocabItem {

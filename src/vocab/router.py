@@ -15,6 +15,7 @@ from src.vocab.schemas import (
     TagResponse,
     VocabCreateRequest,
     VocabResponse,
+    VocabSearchResult,
 )
 from src.vocab.service import VocabService
 
@@ -69,6 +70,18 @@ async def list_vocab(
     service = VocabService(db)
     vocab_list = await service.get_all(tag=tag, creator=creator, kanji_id=kanji_id)
     return [_vocab_to_response(vocab) for vocab in vocab_list]
+
+
+@router.get("/search", response_model=list[VocabSearchResult])
+async def search_vocab(
+    q: str = Query(..., min_length=1, description="Japanese or English search term"),
+    limit: int = Query(default=20, ge=1, le=50),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> list[VocabSearchResult]:
+    """Search the bundled JMdict dictionary for vocab to import."""
+    service = VocabService(db)
+    return await service.search_dictionary(q, limit=limit)
 
 
 @router.get("/{vocab_id}", response_model=VocabResponse)

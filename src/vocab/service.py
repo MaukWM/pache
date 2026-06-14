@@ -1,13 +1,16 @@
 """Vocabulary service layer."""
 
+import asyncio
+
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from src.auth.models import User
 from src.kanji.models import Kanji
+from src.vocab.dictionary import search_jmdict
 from src.vocab.models import Tag, Vocab, VocabSentence
-from src.vocab.schemas import VocabCreateRequest
+from src.vocab.schemas import VocabCreateRequest, VocabSearchResult
 
 
 class VocabService:
@@ -69,6 +72,32 @@ class VocabService:
         await self.db.refresh(vocab, ["kanji", "tags", "creator", "sentences"])
 
         return vocab
+
+    async def search_dictionary(self, query: str, limit: int = 20) -> list[VocabSearchResult]:
+        """Search the bundled JMdict for import candidates.
+
+        The jamdict lookup is blocking (SQLite), so it runs in a worker thread.
+        Each result is flagged if the word is already in the shared pool.
+        """
+        entries = await asyncio.to_thread(search_jmdict, query, limit)
+        if not entries:
+            return []
+
+        words = [e["word"] for e in entries]
+        result = await self.db.execute(select(Vocab.word).where(Vocab.word.in_(words)))
+        existing_words = set(result.scalars().all())
+
+        return [
+            VocabSearchResult(
+                word=e["word"],
+                readings=e["readings"],
+                meanings=e["meanings"],
+                pos=e["pos"],
+                is_common=e["is_common"],
+                already_exists=e["word"] in existing_words,
+            )
+            for e in entries
+        ]
 
     async def get_all(
         self,

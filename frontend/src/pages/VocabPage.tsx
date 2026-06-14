@@ -1,6 +1,6 @@
-import { useState, useMemo, useRef } from 'react';
+import { useState, useMemo, useRef, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { api, type KanjiItem, type VocabItem } from '../lib/api';
+import { api, type KanjiItem, type VocabItem, type VocabSearchResult } from '../lib/api';
 import { SRS_STAGE_COLORS, SRS_STAGE_NAMES } from '../lib/srs';
 
 // Extract kanji characters from a string
@@ -432,6 +432,28 @@ function CreateVocabForm({ onCreated }: { onCreated: () => void }) {
   const [comment, setComment] = useState('');
   const [error, setError] = useState('');
 
+  // Dictionary search (offline JMdict via backend) — prefills the fields below.
+  const [dictQuery, setDictQuery] = useState('');
+  const [debouncedQuery, setDebouncedQuery] = useState('');
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedQuery(dictQuery.trim()), 300);
+    return () => clearTimeout(t);
+  }, [dictQuery]);
+
+  const dictResults = useQuery({
+    queryKey: ['vocabSearch', debouncedQuery],
+    queryFn: () => api.searchVocab(debouncedQuery),
+    enabled: debouncedQuery.length > 0,
+  });
+
+  const applyResult = (r: VocabSearchResult) => {
+    setWord(r.word);
+    setReadings(r.readings.join(', '));
+    setMeanings(r.meanings.join(', '));
+    setDictQuery('');
+    setDebouncedQuery('');
+  };
+
   // Load all kanji so we can auto-detect IDs
   const allKanji = useQuery({
     queryKey: ['kanji', 'all'],
@@ -481,6 +503,53 @@ function CreateVocabForm({ onCreated }: { onCreated: () => void }) {
   return (
     <form onSubmit={handleSubmit} className="bg-surface rounded-xl p-5 shadow-sm space-y-3">
       <h2 className="font-bold text-lg">Add Vocabulary</h2>
+
+      {/* Dictionary search — pick a result to prefill the fields below */}
+      <div>
+        <label className="text-xs text-text-muted block mb-1">Search dictionary (Japanese or English)</label>
+        <div className="relative">
+          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted">🔍</span>
+          <input
+            type="text"
+            placeholder="e.g. 食べ, たべる, or eat"
+            value={dictQuery}
+            onChange={(e) => setDictQuery(e.target.value)}
+            className="w-full pl-9 pr-3 py-2 rounded-lg border border-border bg-surface-alt focus:outline-none focus:ring-2 focus:ring-wk-vocab"
+          />
+        </div>
+
+        {debouncedQuery.length > 0 && (
+          <div className="mt-1 border border-border rounded-lg bg-surface max-h-64 overflow-y-auto divide-y divide-border">
+            {dictResults.isLoading && (
+              <p className="px-3 py-2 text-sm text-text-muted animate-pulse">Searching...</p>
+            )}
+            {dictResults.data?.length === 0 && (
+              <p className="px-3 py-2 text-sm text-text-muted">No dictionary matches.</p>
+            )}
+            {dictResults.data?.map((r, i) => (
+              <button
+                key={`${r.word}-${i}`}
+                type="button"
+                disabled={r.already_exists}
+                onClick={() => applyResult(r)}
+                className={`w-full text-left px-3 py-2 flex items-center gap-3 transition-colors ${
+                  r.already_exists ? 'opacity-50 cursor-not-allowed' : 'hover:bg-border/50 cursor-pointer'
+                }`}
+              >
+                <span className="text-lg font-bold shrink-0" lang="ja">{r.word}</span>
+                <span className="text-sm text-text-muted shrink-0" lang="ja">{r.readings.slice(0, 2).join('、')}</span>
+                <span className="text-sm flex-1 min-w-0 truncate">{r.meanings.slice(0, 4).join(', ')}</span>
+                {r.is_common && !r.already_exists && (
+                  <span className="text-[10px] font-bold text-success shrink-0">● common</span>
+                )}
+                {r.already_exists && (
+                  <span className="text-[10px] font-bold text-text-muted shrink-0">✓ in pool</span>
+                )}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
 
       <div className="grid grid-cols-2 gap-3">
         <div>
