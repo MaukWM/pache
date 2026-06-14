@@ -31,6 +31,12 @@ class AdminPasswordResetRequest(BaseModel):
     new_password: str | None = Field(default=None, min_length=4, max_length=255)
 
 
+class AdminStatusRequest(BaseModel):
+    """Request schema for granting/revoking admin on another user."""
+
+    is_admin: bool
+
+
 class UserResponse(BaseModel):
     """Response schema for user data."""
 

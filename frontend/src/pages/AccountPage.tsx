@@ -32,6 +32,7 @@ export function AccountPage() {
 }
 
 function AdminUsers({ queryClient }: { queryClient: ReturnType<typeof useQueryClient> }) {
+  const { user: currentUser } = useAuth();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [makeAdmin, setMakeAdmin] = useState(false);
@@ -48,7 +49,7 @@ function AdminUsers({ queryClient }: { queryClient: ReturnType<typeof useQueryCl
       setMakeAdmin(false);
       queryClient.invalidateQueries({ queryKey: ['users'] });
     },
-    onError: (err: Error) => setMsg(err.message),
+    onError: (err: Error) => setMsg(`⚠ ${err.message}`),
   });
 
   const resetMutation = useMutation({
@@ -56,8 +57,42 @@ function AdminUsers({ queryClient }: { queryClient: ReturnType<typeof useQueryCl
     onSuccess: (updated) => {
       setMsg(`Reset "${updated.username}" — new password: ${updated.password}`);
     },
-    onError: (err: Error) => setMsg(err.message),
+    onError: (err: Error) => setMsg(`⚠ ${err.message}`),
   });
+
+  const adminMutation = useMutation({
+    mutationFn: ({ userId, isAdmin }: { userId: number; isAdmin: boolean }) =>
+      api.setUserAdmin(userId, isAdmin),
+    onSuccess: (updated) => {
+      setMsg(`"${updated.username}" is now ${updated.is_admin ? 'an admin' : 'a regular user'}.`);
+      queryClient.invalidateQueries({ queryKey: ['users'] });
+    },
+    onError: (err: Error) => setMsg(`⚠ ${err.message}`),
+  });
+
+  const adminCount = (users.data ?? []).filter((u) => u.is_admin).length;
+  const isOnlyAdmin = (u: { id: number; is_admin?: boolean }) =>
+    u.id === currentUser?.id && !!u.is_admin && adminCount <= 1;
+
+  const handleToggleAdmin = (u: { id: number; username: string; is_admin?: boolean }) => {
+    const revokingSelf = u.id === currentUser?.id && u.is_admin;
+    if (revokingSelf) {
+      if (adminCount <= 1) {
+        setMsg('⚠ You are the only admin — promote someone else before revoking your own access.');
+        return;
+      }
+      if (
+        !window.confirm(
+          'Revoke your OWN admin access? You will immediately lose user management ' +
+            'and cannot restore it yourself — another admin would have to.',
+        )
+      ) {
+        return;
+      }
+    }
+    setMsg('');
+    adminMutation.mutate({ userId: u.id, isAdmin: !u.is_admin });
+  };
 
   return (
     <div className="bg-surface rounded-xl p-5 shadow-sm space-y-4">
@@ -108,9 +143,17 @@ function AdminUsers({ queryClient }: { queryClient: ReturnType<typeof useQueryCl
                 </span>
               )}
               <button
+                onClick={() => handleToggleAdmin(u)}
+                disabled={adminMutation.isPending || isOnlyAdmin(u)}
+                title={isOnlyAdmin(u) ? 'You are the only admin — promote someone else first' : undefined}
+                className="ml-auto text-xs text-text-muted hover:text-wk-kanji font-bold disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {u.is_admin ? 'Revoke admin' : 'Make admin'}
+              </button>
+              <button
                 onClick={() => { setMsg(''); resetMutation.mutate(u.id); }}
                 disabled={resetMutation.isPending}
-                className="ml-auto text-xs text-text-muted hover:text-error font-bold disabled:opacity-50"
+                className="text-xs text-text-muted hover:text-error font-bold disabled:opacity-50"
               >
                 Reset password
               </button>
@@ -120,7 +163,7 @@ function AdminUsers({ queryClient }: { queryClient: ReturnType<typeof useQueryCl
       </div>
 
       {msg && (
-        <p className={`text-sm ${msg.includes('password') ? 'text-success' : 'text-error'}`}>{msg}</p>
+        <p className={`text-sm ${msg.startsWith('⚠') ? 'text-error' : 'text-success'}`}>{msg}</p>
       )}
     </div>
   );
@@ -142,7 +185,7 @@ function PasswordSettings({ queryClient }: { queryClient: ReturnType<typeof useQ
       setConfirm('');
       queryClient.invalidateQueries({ queryKey: ['settings'] });
     },
-    onError: (err: Error) => setMsg(err.message),
+    onError: (err: Error) => setMsg(`⚠ ${err.message}`),
   });
 
   const canSave = password.length >= 4 && password === confirm;
@@ -212,7 +255,7 @@ function WaniKaniSettings({ queryClient }: { queryClient: ReturnType<typeof useQ
       setApiKey('');
       queryClient.invalidateQueries({ queryKey: ['settings'] });
     },
-    onError: (err: Error) => setMsg(err.message),
+    onError: (err: Error) => setMsg(`⚠ ${err.message}`),
   });
 
   const removeMutation = useMutation({
@@ -221,7 +264,7 @@ function WaniKaniSettings({ queryClient }: { queryClient: ReturnType<typeof useQ
       setMsg('API key removed.');
       queryClient.invalidateQueries({ queryKey: ['settings'] });
     },
-    onError: (err: Error) => setMsg(err.message),
+    onError: (err: Error) => setMsg(`⚠ ${err.message}`),
   });
 
   const importMutation = useMutation({
@@ -231,7 +274,7 @@ function WaniKaniSettings({ queryClient }: { queryClient: ReturnType<typeof useQ
       queryClient.invalidateQueries({ queryKey: ['kanji'] });
       queryClient.invalidateQueries({ queryKey: ['progress'] });
     },
-    onError: (err: Error) => setMsg(err.message),
+    onError: (err: Error) => setMsg(`⚠ ${err.message}`),
   });
 
   const hasKey = settings.data?.wk_api_key_configured ?? false;

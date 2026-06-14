@@ -2,7 +2,7 @@
 
 import secrets
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.auth.models import Session, User
@@ -26,6 +26,10 @@ class UsernameTakenError(Exception):
 
 class UserNotFoundError(Exception):
     """Raised when an admin targets a user id that does not exist."""
+
+
+class LastAdminError(Exception):
+    """Raised when demoting a user would leave the system with no admins."""
 
 
 class AuthService:
@@ -109,6 +113,29 @@ class AuthService:
         await self.db.refresh(user)
         logger.info("user_created", username=username, user_id=user.id, is_admin=is_admin)
         return user, effective_password
+
+    async def set_admin(self, user_id: int, is_admin: bool) -> User:
+        """Grant or revoke admin on another user (admin).
+
+        Refuses to revoke the last remaining admin so the system can't be locked
+        out of user management.
+        """
+        user = await self.db.get(User, user_id)
+        if user is None:
+            raise UserNotFoundError(f"User with id {user_id} not found")
+
+        if user.is_admin and not is_admin:
+            result = await self.db.execute(
+                select(func.count()).select_from(User).where(User.is_admin.is_(True))
+            )
+            if (result.scalar() or 0) <= 1:
+                raise LastAdminError("Cannot revoke the last admin")
+
+        user.is_admin = is_admin
+        await self.db.commit()
+        await self.db.refresh(user)
+        logger.info("admin_status_changed", user_id=user_id, is_admin=is_admin)
+        return user
 
     async def reset_user_password(self, user_id: int, new_password: str | None) -> str:
         """Reset another user's password (admin). Returns the effective password."""

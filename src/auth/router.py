@@ -7,6 +7,7 @@ from src.auth.dependencies import get_current_admin, get_current_user
 from src.auth.models import User
 from src.auth.schemas import (
     AdminPasswordResetRequest,
+    AdminStatusRequest,
     CreatedUserResponse,
     LoginRequest,
     LoginResponse,
@@ -19,6 +20,7 @@ from src.auth.schemas import (
 from src.auth.service import (
     AuthService,
     InvalidCredentialsError,
+    LastAdminError,
     UsernameTakenError,
     UserNotFoundError,
 )
@@ -68,6 +70,24 @@ async def create_user(
     return CreatedUserResponse(
         id=user.id, username=user.username, is_admin=user.is_admin, password=password
     )
+
+
+@router.post("/users/{user_id}/admin", response_model=UserResponse)
+async def set_user_admin(
+    user_id: int,
+    request: AdminStatusRequest,
+    _admin: User = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db),
+) -> UserResponse:
+    """Grant or revoke admin privileges on another user (admin only)."""
+    service = AuthService(db)
+    try:
+        user = await service.set_admin(user_id, request.is_admin)
+    except UserNotFoundError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e)) from e
+    except LastAdminError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
+    return UserResponse.model_validate(user)
 
 
 @router.post("/users/{user_id}/password", response_model=CreatedUserResponse)

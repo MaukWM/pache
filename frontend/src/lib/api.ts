@@ -107,6 +107,12 @@ export const api = {
       body: JSON.stringify({ new_password: new_password || null }),
     }),
 
+  setUserAdmin: (userId: number, is_admin: boolean) =>
+    request<User>(`/auth/users/${userId}/admin`, {
+      method: 'POST',
+      body: JSON.stringify({ is_admin }),
+    }),
+
   // Settings
   getSettings: () =>
     request<SettingsResponse>('/auth/settings'),

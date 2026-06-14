@@ -142,3 +142,55 @@ async def test_self_password_change(async_client: AsyncClient, db_session) -> No
         "/api/v1/auth/login", json={"username": "selfuser", "password": "newpass1"}
     )
     assert login.status_code == status.HTTP_200_OK
+
+
+@pytest.mark.asyncio
+async def test_admin_promotes_user(async_client: AsyncClient, db_session) -> None:
+    """An admin can elevate another user, who then gains admin access."""
+    admin_token = await _seed_user(db_session, "admin", "admin", is_admin=True)
+    user_token = await _seed_user(db_session, "regular", "pw1234")
+    admin_headers = {"Authorization": f"Bearer {admin_token}"}
+
+    users = await async_client.get("/api/v1/auth/users", headers=admin_headers)
+    uid = next(u["id"] for u in users.json() if u["username"] == "regular")
+
+    promote = await async_client.post(
+        f"/api/v1/auth/users/{uid}/admin", json={"is_admin": True}, headers=admin_headers
+    )
+    assert promote.status_code == status.HTTP_200_OK
+    assert promote.json()["is_admin"] is True
+
+    # The newly-promoted user can now use an admin-only endpoint with their token.
+    as_new_admin = await async_client.get(
+        "/api/v1/auth/users", headers={"Authorization": f"Bearer {user_token}"}
+    )
+    assert as_new_admin.status_code == status.HTTP_200_OK
+
+
+@pytest.mark.asyncio
+async def test_set_admin_requires_admin(async_client: AsyncClient, db_session) -> None:
+    """A non-admin cannot change admin status (403)."""
+    token = await _seed_user(db_session, "plain", "pw1234")
+    other_token = await _seed_user(db_session, "other", "pw1234", token="other-tok")
+    # discover the other user's id is not possible without admin; use a likely id
+    resp = await async_client.post(
+        "/api/v1/auth/users/1/admin",
+        json={"is_admin": True},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == status.HTTP_403_FORBIDDEN
+    assert other_token  # (created to ensure multiple users exist)
+
+
+@pytest.mark.asyncio
+async def test_cannot_demote_last_admin(async_client: AsyncClient, db_session) -> None:
+    """Revoking the only admin returns 400."""
+    admin_token = await _seed_user(db_session, "admin", "admin", is_admin=True)
+    headers = {"Authorization": f"Bearer {admin_token}"}
+    users = await async_client.get("/api/v1/auth/users", headers=headers)
+    admin_id = next(u["id"] for u in users.json() if u["username"] == "admin")
+
+    resp = await async_client.post(
+        f"/api/v1/auth/users/{admin_id}/admin", json={"is_admin": False}, headers=headers
+    )
+    assert resp.status_code == status.HTTP_400_BAD_REQUEST

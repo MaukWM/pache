@@ -8,6 +8,7 @@ from src.auth.models import User
 from src.auth.service import (
     AuthService,
     InvalidCredentialsError,
+    LastAdminError,
     UsernameTakenError,
     UserNotFoundError,
 )
@@ -149,3 +150,46 @@ async def test_get_settings_reports_password_set(db_session: AsyncSession) -> No
     service = AuthService(db_session)
     user, _ = await service.create_user("hank", None, False)
     assert (await service.get_settings(user)).password_set is True
+
+
+@pytest.mark.asyncio
+async def test_set_admin_promotes_user(db_session: AsyncSession) -> None:
+    """An admin can elevate a regular user to admin."""
+    service = AuthService(db_session)
+    user, _ = await service.create_user("ivy", None, False)
+    assert user.is_admin is False
+
+    updated = await service.set_admin(user.id, True)
+    assert updated.is_admin is True
+
+
+@pytest.mark.asyncio
+async def test_set_admin_demotes_when_another_admin_exists(db_session: AsyncSession) -> None:
+    """Demotion is allowed as long as another admin remains."""
+    service = AuthService(db_session)
+    a1, _ = await service.create_user("admin1", None, True)
+    a2, _ = await service.create_user("admin2", None, True)
+
+    updated = await service.set_admin(a2.id, False)
+    assert updated.is_admin is False
+    # a1 is still an admin
+    assert (await db_session.get(User, a1.id)).is_admin is True
+
+
+@pytest.mark.asyncio
+async def test_set_admin_cannot_demote_last_admin(db_session: AsyncSession) -> None:
+    """Revoking the only admin is refused."""
+    service = AuthService(db_session)
+    admin, _ = await service.create_user("solo", None, True)
+    with pytest.raises(LastAdminError):
+        await service.set_admin(admin.id, False)
+    # still admin
+    assert (await db_session.get(User, admin.id)).is_admin is True
+
+
+@pytest.mark.asyncio
+async def test_set_admin_user_not_found(db_session: AsyncSession) -> None:
+    """Elevating a missing user raises UserNotFoundError."""
+    service = AuthService(db_session)
+    with pytest.raises(UserNotFoundError):
+        await service.set_admin(9999, True)
