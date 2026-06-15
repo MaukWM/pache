@@ -35,7 +35,7 @@ export function DashboardPage() {
         <Link
           to="/reviews"
           className={`rounded-xl p-8 text-white text-center shadow-md hover:shadow-lg transition-all hover:scale-[1.02] ${
-            reviewCount > 0 ? 'bg-wk-kanji' : 'bg-text-muted'
+            reviewCount > 0 ? 'bg-wk-radical' : 'bg-text-muted'
           }`}
         >
           <div className="text-5xl font-black">{reviewCount}</div>
@@ -45,7 +45,7 @@ export function DashboardPage() {
         <Link
           to="/lessons"
           className={`rounded-xl p-8 text-white text-center shadow-md hover:shadow-lg transition-all hover:scale-[1.02] ${
-            lessonCount > 0 ? 'bg-wk-radical' : 'bg-text-muted'
+            lessonCount > 0 ? 'bg-wk-kanji' : 'bg-text-muted'
           }`}
         >
           <div className="text-5xl font-black">{lessonCount}</div>
