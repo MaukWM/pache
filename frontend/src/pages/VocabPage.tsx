@@ -30,6 +30,88 @@ function useDetectedKanji(word: string): KanjiItem[] {
   }, [word, allKanji.data]);
 }
 
+// Add a vocab to the queue along with any constituent kanji the user isn't already
+// learning (so the kanji get studied first — vocab stays locked until they're Guru).
+// Returns how many kanji were newly queued. "Already queued" (409) is ignored.
+async function queueVocabAndKanji(
+  vocabId: number,
+  kanji: { id: number }[],
+  progressMap: Record<string, number> | undefined,
+): Promise<number> {
+  const ignore409 = (e: unknown) => {
+    if ((e as { status?: number })?.status !== 409) throw e;
+  };
+  await api.addToQueue('vocab', vocabId).catch(ignore409);
+  let added = 0;
+  for (const k of kanji) {
+    if (progressMap?.[`kanji-${k.id}`] != null) continue; // already learning this kanji
+    try {
+      await api.addToQueue('kanji', k.id);
+      added++;
+    } catch (e) {
+      ignore409(e);
+    }
+  }
+  return added;
+}
+
+// Shows a word's auto-detected kanji with each one's SRS stage (or "New" if not yet
+// started), plus any kanji that aren't in the pool at all.
+function LinkedKanji({ word, kanji }: { word: string; kanji: KanjiItem[] }) {
+  const progressMap = useQuery({ queryKey: ['progressMap'], queryFn: api.getProgressMap });
+  const detectedChars = new Set(kanji.map((k) => k.character));
+  const missing = [...new Set(extractKanji(word))].filter((ch) => !detectedChars.has(ch));
+
+  if (kanji.length === 0 && missing.length === 0) return null;
+
+  const hasNew = kanji.some((k) => progressMap.data?.[`kanji-${k.id}`] == null);
+
+  return (
+    <div>
+      <label className="text-xs text-text-muted block mb-1">Linked Kanji (auto-detected)</label>
+      <div className="flex gap-2 flex-wrap">
+        {kanji.map((k) => {
+          const stage = progressMap.data?.[`kanji-${k.id}`];
+          return (
+            <div key={k.id} className="flex flex-col items-center gap-1" title={k.meanings.join(', ')}>
+              <div className="bg-wk-kanji w-9 h-9 rounded-lg flex items-center justify-center text-white font-bold">
+                {k.character}
+              </div>
+              {stage != null ? (
+                <span
+                  className="text-[9px] font-bold px-1.5 py-0.5 rounded-full text-white whitespace-nowrap"
+                  style={{ backgroundColor: SRS_STAGE_COLORS[stage] }}
+                >
+                  {SRS_STAGE_NAMES[stage]}
+                </span>
+              ) : (
+                <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-border text-text-muted whitespace-nowrap">
+                  New
+                </span>
+              )}
+            </div>
+          );
+        })}
+        {missing.map((ch) => (
+          <div key={ch} className="flex flex-col items-center gap-1" title="Not in the kanji pool">
+            <div className="w-9 h-9 rounded-lg flex items-center justify-center font-bold border-2 border-dashed border-border text-text-muted">
+              {ch}
+            </div>
+            <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-border text-text-muted whitespace-nowrap">
+              Not in pool
+            </span>
+          </div>
+        ))}
+      </div>
+      {hasNew && (
+        <p className="text-[11px] text-text-muted mt-1.5">
+          Adding to queue also queues the “New” kanji above, so you learn them first.
+        </p>
+      )}
+    </div>
+  );
+}
+
 export function VocabPage() {
   const queryClient = useQueryClient();
   const [showCreate, setShowCreate] = useState(false);
@@ -285,9 +367,13 @@ function VocabDetail({
   const [confirmResurrect, setConfirmResurrect] = useState(false);
 
   const queueMutation = useMutation({
-    mutationFn: () => api.addToQueue('vocab', item.id),
-    onSuccess: () => {
-      setActionMsg('Added to lesson queue!');
+    mutationFn: () => queueVocabAndKanji(item.id, item.kanji ?? [], progressMap.data),
+    onSuccess: (addedKanji) => {
+      setActionMsg(
+        addedKanji > 0
+          ? `Added to lesson queue (+${addedKanji} kanji)!`
+          : 'Added to lesson queue!',
+      );
       queryClient.invalidateQueries({ queryKey: ['queue'] });
     },
     onError: (err: Error) => setActionMsg(err.message),
@@ -593,19 +679,7 @@ function EditVocabForm({
           className="w-full px-3 py-2 rounded-lg border border-border bg-surface-alt focus:outline-none focus:ring-2 focus:ring-wk-vocab" />
       </div>
 
-      {detectedKanji.length > 0 && (
-        <div>
-          <label className="text-xs text-text-muted block mb-1">Linked Kanji (auto-detected)</label>
-          <div className="flex gap-1.5">
-            {detectedKanji.map((k) => (
-              <div key={k.id} className="bg-wk-kanji w-9 h-9 rounded-lg flex items-center justify-center text-white font-bold"
-                title={k.meanings.join(', ')}>
-                {k.character}
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
+      <LinkedKanji word={word} kanji={detectedKanji} />
 
       <div className="grid grid-cols-2 gap-3">
         <div>
@@ -855,6 +929,7 @@ function CreateVocabForm({ onCreated }: { onCreated: () => void }) {
 
   // Auto-detect kanji from word
   const detectedKanji = useDetectedKanji(word);
+  const progressMap = useQuery({ queryKey: ['progressMap'], queryFn: api.getProgressMap });
 
   // Existing pool sentences containing the word — for linking during creation.
   const linkSuggestions = useQuery({
@@ -881,7 +956,7 @@ function CreateVocabForm({ onCreated }: { onCreated: () => void }) {
       for (const id of linkIds) {
         await api.linkSentence(vocab.id, id);
       }
-      if (queue) await api.addToQueue('vocab', vocab.id);
+      if (queue) await queueVocabAndKanji(vocab.id, detectedKanji, progressMap.data);
       return vocab;
     },
     onSuccess: () => {
@@ -991,22 +1066,7 @@ function CreateVocabForm({ onCreated }: { onCreated: () => void }) {
       </div>
 
       {/* Auto-detected kanji */}
-      {detectedKanji.length > 0 && (
-        <div>
-          <label className="text-xs text-text-muted block mb-1">Linked Kanji (auto-detected)</label>
-          <div className="flex gap-1.5">
-            {detectedKanji.map((k) => (
-              <div
-                key={k.id}
-                className="bg-wk-kanji w-9 h-9 rounded-lg flex items-center justify-center text-white font-bold"
-                title={k.meanings.join(', ')}
-              >
-                {k.character}
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
+      <LinkedKanji word={word} kanji={detectedKanji} />
 
       <div className="grid grid-cols-2 gap-3">
         <div>
