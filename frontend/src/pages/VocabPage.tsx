@@ -491,10 +491,11 @@ function EditVocabForm({
   const [word, setWord] = useState(item.word);
   const [readings, setReadings] = useState(item.readings.join(', '));
   const [meanings, setMeanings] = useState(item.meanings.join(', '));
-  const [tags, setTags] = useState((item.tags ?? []).map((t) => t.name).join(', '));
+  const [tags, setTags] = useState<string[]>((item.tags ?? []).map((t) => t.name));
   const [comment, setComment] = useState(item.creator_comment ?? '');
   const [error, setError] = useState('');
 
+  const allTags = useAllTags();
   const detectedKanji = useDetectedKanji(word);
 
   const mutation = useMutation({
@@ -504,7 +505,7 @@ function EditVocabForm({
         readings: readings.split(',').map((r) => r.trim()).filter(Boolean),
         meanings: meanings.split(',').map((m) => m.trim()).filter(Boolean),
         kanji_ids: detectedKanji.map((k) => k.id),
-        tags: tags ? tags.split(',').map((t) => t.trim()).filter(Boolean) : [],
+        tags: tags,
         creator_comment: comment.trim() || null,
       }),
     onSuccess: () => {
@@ -554,9 +555,8 @@ function EditVocabForm({
 
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className="text-xs text-text-muted block mb-1">Tags — comma-separated</label>
-          <input type="text" value={tags} onChange={(e) => setTags(e.target.value)}
-            className="w-full px-3 py-2 rounded-lg border border-border bg-surface-alt text-sm focus:outline-none focus:ring-2 focus:ring-wk-vocab" />
+          <label className="text-xs text-text-muted block mb-1">Tags</label>
+          <TagInput value={tags} onChange={setTags} options={allTags} />
         </div>
         <div>
           <label className="text-xs text-text-muted block mb-1">Comment</label>
@@ -649,13 +649,115 @@ function FilterDropdown({
   );
 }
 
+// Existing tag names across the vocab pool, for tag suggestions. Reuses the
+// cached ['vocab'] query so it's a cache hit on the Vocab page.
+function useAllTags(): string[] {
+  const allVocab = useQuery({
+    queryKey: ['vocab'],
+    queryFn: () => api.getVocab(),
+  });
+  return useMemo(() => {
+    const tags = new Set<string>();
+    for (const v of allVocab.data || []) {
+      for (const t of v.tags || []) tags.add(t.name);
+    }
+    return [...tags].sort();
+  }, [allVocab.data]);
+}
+
+// Multi-select tag editor: existing tags shown as a filtered dropdown, plus
+// free entry of new tags (Enter / comma). Selected tags render as removable chips.
+function TagInput({
+  value,
+  onChange,
+  options,
+}: {
+  value: string[];
+  onChange: (tags: string[]) => void;
+  options: string[];
+}) {
+  const [input, setInput] = useState('');
+  const [open, setOpen] = useState(false);
+
+  const available = options.filter(
+    (o) => !value.includes(o) && o.toLowerCase().includes(input.toLowerCase()),
+  );
+
+  const addTag = (tag: string) => {
+    const t = tag.trim();
+    if (t && !value.includes(t)) onChange([...value, t]);
+    setInput('');
+  };
+  const removeTag = (tag: string) => onChange(value.filter((t) => t !== tag));
+
+  return (
+    <div className="relative">
+      <div className="flex flex-wrap items-center gap-1.5 px-2 py-1.5 rounded-lg border border-border bg-surface-alt focus-within:ring-2 focus-within:ring-wk-vocab">
+        {value.map((tag) => (
+          <span
+            key={tag}
+            className="flex items-center gap-1 bg-wk-vocab/10 text-wk-vocab px-2 py-0.5 rounded-full text-sm font-medium"
+          >
+            {tag}
+            <button
+              type="button"
+              onClick={() => removeTag(tag)}
+              className="hover:text-wk-vocab/60 leading-none"
+            >
+              &times;
+            </button>
+          </span>
+        ))}
+        <input
+          type="text"
+          value={input}
+          placeholder={value.length ? '' : 'Add tags...'}
+          onChange={(e) => {
+            const v = e.target.value;
+            if (v.endsWith(',')) addTag(v.slice(0, -1));
+            else setInput(v);
+            setOpen(true);
+          }}
+          onFocus={() => setOpen(true)}
+          onBlur={() => setTimeout(() => setOpen(false), 150)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              if (input.trim()) addTag(input);
+            } else if (e.key === 'Backspace' && !input && value.length) {
+              removeTag(value[value.length - 1]);
+            }
+          }}
+          className="flex-1 min-w-[80px] bg-transparent text-sm py-0.5 focus:outline-none"
+        />
+      </div>
+      {open && available.length > 0 && (
+        <div className="absolute top-full left-0 mt-1 w-full bg-surface border border-border rounded-lg shadow-lg z-20 max-h-48 overflow-y-auto">
+          {available.map((opt) => (
+            <button
+              key={opt}
+              type="button"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => addTag(opt)}
+              className="w-full text-left px-3 py-1.5 text-sm hover:bg-border transition-colors"
+            >
+              {opt}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function CreateVocabForm({ onCreated }: { onCreated: () => void }) {
   const queryClient = useQueryClient();
   const [word, setWord] = useState('');
   const [readings, setReadings] = useState('');
   const [meanings, setMeanings] = useState('');
-  const [tags, setTags] = useState('');
+  const [tags, setTags] = useState<string[]>([]);
   const [comment, setComment] = useState('');
+  const allTags = useAllTags();
   const [sentences, setSentences] = useState<{ ja: string; en: string }[]>([]);
   const [showLinks, setShowLinks] = useState(false);
   const [linkIds, setLinkIds] = useState<Set<number>>(new Set());
@@ -714,7 +816,7 @@ function CreateVocabForm({ onCreated }: { onCreated: () => void }) {
         readings: readings.split(',').map((r) => r.trim()).filter(Boolean),
         meanings: meanings.split(',').map((m) => m.trim()).filter(Boolean),
         kanji_ids: detectedKanji.map((k) => k.id),
-        tags: tags ? tags.split(',').map((t) => t.trim()).filter(Boolean) : undefined,
+        tags: tags.length ? tags : undefined,
         creator_comment: comment.trim() || undefined,
       });
       for (const s of sentences) {
@@ -854,14 +956,8 @@ function CreateVocabForm({ onCreated }: { onCreated: () => void }) {
 
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className="text-xs text-text-muted block mb-1">Tags — comma-separated (optional)</label>
-          <input
-            type="text"
-            placeholder="e.g. food, N4"
-            value={tags}
-            onChange={(e) => setTags(e.target.value)}
-            className="w-full px-3 py-2 rounded-lg border border-border bg-surface-alt text-sm focus:outline-none focus:ring-2 focus:ring-wk-vocab"
-          />
+          <label className="text-xs text-text-muted block mb-1">Tags (optional)</label>
+          <TagInput value={tags} onChange={setTags} options={allTags} />
         </div>
         <div>
           <label className="text-xs text-text-muted block mb-1">Comment (optional)</label>
