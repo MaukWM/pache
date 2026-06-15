@@ -368,6 +368,8 @@ export interface QueueItem {
   item_type: string;
   item_id: number;
   added_at: string;
+  locked?: boolean;
+  locked_by?: string[];
   item_details?: {
     character?: string;
     word?: string;

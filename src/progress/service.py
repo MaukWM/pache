@@ -158,8 +158,8 @@ class ProgressService:
             vocab_map = {vocab.id: vocab for vocab in vocab_result.scalars().all()}
 
         # Determine which constituent kanji the user has learned to GURU (srs_stage >= 5).
-        # Vocab whose kanji aren't all at GURU is hidden from the lesson queue (WaniKani-style
-        # locking): it stays queued and reappears automatically once its kanji are learned.
+        # Vocab whose kanji aren't all at GURU is returned but flagged `locked` (WaniKani-style):
+        # shown in the queue for visibility, but not learnable until its kanji reach GURU.
         learned_kanji_ids: set[int] = set()
         required_kanji_ids = {kanji.id for vocab in vocab_map.values() for kanji in vocab.kanji}
         if required_kanji_ids:
@@ -178,6 +178,8 @@ class ProgressService:
 
         for queue_item in queue_items:
             item_details: KanjiItemDetails | VocabItemDetails
+            locked = False
+            locked_by: list[str] = []
             if queue_item.item_type == ItemType.KANJI:
                 kanji = kanji_map.get(queue_item.item_id)
                 if kanji:
@@ -195,10 +197,10 @@ class ProgressService:
             elif queue_item.item_type == ItemType.VOCAB:
                 vocab = vocab_map.get(queue_item.item_id)
                 if vocab:
-                    # Hide vocab whose constituent kanji aren't all at GURU yet. Kept in the
-                    # queue (not orphaned) so it surfaces once the kanji are learned.
-                    if any(kanji.id not in learned_kanji_ids for kanji in vocab.kanji):
-                        continue
+                    # Flag vocab whose constituent kanji aren't all at GURU yet: shown for
+                    # look-ahead, but not learnable. locked_by lists the blocking kanji.
+                    locked_by = [k.character for k in vocab.kanji if k.id not in learned_kanji_ids]
+                    locked = bool(locked_by)
                     item_details = {
                         "word": vocab.word,
                         "readings": vocab.readings,
@@ -221,6 +223,8 @@ class ProgressService:
                     item_id=queue_item.item_id,
                     added_at=queue_item.added_at,
                     item_details=item_details,
+                    locked=locked,
+                    locked_by=locked_by,
                 )
             )
 

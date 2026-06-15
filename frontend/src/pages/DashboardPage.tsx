@@ -23,7 +23,7 @@ export function DashboardPage() {
   });
 
   const reviewCount = reviews.data?.length ?? 0;
-  const lessonCount = queue.data?.length ?? 0;
+  const lessonCount = queue.data?.filter((i) => !i.locked).length ?? 0;
   const wkConfigured = wanikani.data?.configured ?? false;
   const wkDue = wanikani.data?.reviews_due ?? 0;
 

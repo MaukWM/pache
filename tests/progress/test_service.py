@@ -364,8 +364,8 @@ async def test_get_queue_cleans_up_orphaned_entries(db_session: AsyncSession) ->
 
 
 @pytest.mark.asyncio
-async def test_get_queue_hides_vocab_with_unlearned_kanji(db_session: AsyncSession) -> None:
-    """Vocab whose constituent kanji aren't all at GURU is hidden from the lesson queue."""
+async def test_get_queue_locks_vocab_with_unlearned_kanji(db_session: AsyncSession) -> None:
+    """Vocab whose constituent kanji aren't all at GURU is returned but flagged `locked`."""
     user = User(username="testuser")
     db_session.add(user)
     await db_session.flush()
@@ -397,10 +397,14 @@ async def test_get_queue_hides_vocab_with_unlearned_kanji(db_session: AsyncSessi
 
     service = ProgressService(db_session)
 
-    # Kanji not learned at all -> vocab hidden.
-    assert await service.get_queue(user_id=user.id) == []
+    # Kanji not learned at all -> vocab shown but locked, with the blocking kanji listed.
+    items = await service.get_queue(user_id=user.id)
+    assert len(items) == 1
+    assert items[0].item_id == vocab.id
+    assert items[0].locked is True
+    assert items[0].locked_by == ["水"]
 
-    # Kanji learned but below GURU (Apprentice) -> still hidden.
+    # Kanji learned but below GURU (Apprentice) -> still locked.
     progress = UserItemProgress(
         user_id=user.id,
         item_type=ItemType.KANJI,
@@ -410,14 +414,17 @@ async def test_get_queue_hides_vocab_with_unlearned_kanji(db_session: AsyncSessi
     )
     db_session.add(progress)
     await db_session.commit()
-    assert await service.get_queue(user_id=user.id) == []
+    items = await service.get_queue(user_id=user.id)
+    assert items[0].locked is True
 
-    # Kanji reaches GURU (stage 5) -> vocab surfaces, queue row untouched.
+    # Kanji reaches GURU (stage 5) -> vocab unlocks, queue row untouched.
     progress.srs_stage = 5
     await db_session.commit()
     items = await service.get_queue(user_id=user.id)
     assert len(items) == 1
     assert items[0].item_id == vocab.id
+    assert items[0].locked is False
+    assert items[0].locked_by == []
 
     remaining = await db_session.execute(
         select(LessonQueue).where(LessonQueue.user_id == user.id)

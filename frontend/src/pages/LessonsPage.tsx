@@ -87,6 +87,9 @@ export function LessonsPage() {
   });
 
   const items = queue.data ?? [];
+  // Locked vocab (constituent kanji not yet Guru) is shown for look-ahead but can't be studied.
+  const unlocked = items.filter((i) => !i.locked);
+  const lockedItems = items.filter((i) => i.locked);
 
   const itemKey = (item: QueueItem) => `${item.item_type}-${item.item_id}`;
 
@@ -101,17 +104,17 @@ export function LessonsPage() {
   };
 
   const selectAll = () => {
-    if (selectedIds.size === items.length) {
+    if (selectedIds.size === unlocked.length) {
       setSelectedIds(new Set());
     } else {
-      setSelectedIds(new Set(items.map(itemKey)));
+      setSelectedIds(new Set(unlocked.map(itemKey)));
     }
   };
 
   const startSession = () => {
     const toStudy = selectedIds.size > 0
-      ? items.filter((i) => selectedIds.has(itemKey(i)))
-      : items;
+      ? unlocked.filter((i) => selectedIds.has(itemKey(i)))
+      : unlocked;
     setSessionItems(toStudy);
     setSessionActive(true);
     setCurrentIndex(0);
@@ -120,19 +123,19 @@ export function LessonsPage() {
 
   // Queue overview
   if (!sessionActive) {
-    const selectedCount = selectedIds.size || items.length;
+    const selectedCount = selectedIds.size || unlocked.length;
 
     return (
       <div className="space-y-4">
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-bold">Lessons</h1>
-          {items.length > 0 && (
+          {unlocked.length > 0 && (
             <div className="flex items-center gap-2">
               <button
                 onClick={selectAll}
                 className="px-3 py-2 rounded-lg bg-surface border border-border text-sm font-medium hover:bg-border transition-colors"
               >
-                {selectedIds.size === items.length ? 'Deselect All' : 'Select All'}
+                {selectedIds.size === unlocked.length ? 'Deselect All' : 'Select All'}
               </button>
               <button
                 onClick={startSession}
@@ -145,14 +148,14 @@ export function LessonsPage() {
         </div>
 
         {/* Hint */}
-        {items.length > 0 && selectedIds.size === 0 && (
+        {unlocked.length > 0 && selectedIds.size === 0 && (
           <p className="text-sm text-text-muted">
-            Tap items to select a subset, or start all {items.length} at once.
+            Tap items to select a subset, or start all {unlocked.length} at once.
           </p>
         )}
         {selectedIds.size > 0 && (
           <p className="text-sm text-text-muted">
-            {selectedIds.size} of {items.length} selected
+            {selectedIds.size} of {unlocked.length} selected
           </p>
         )}
 
@@ -164,47 +167,91 @@ export function LessonsPage() {
             <p>Add items from the Kanji or Vocab pages to your queue, then come back here to study them.</p>
           </div>
         ) : (
-          <div className="flex flex-wrap gap-2.5">
-            {items.map((item) => {
-              const isKanji = item.item_type === 'kanji';
-              const display = item.item_details?.character || item.item_details?.word || '?';
-              const key = itemKey(item);
-              const isSelected = selectedIds.has(key);
-              const baseBg = isKanji ? 'bg-wk-kanji' : 'bg-wk-vocab';
+          <>
+            {unlocked.length > 0 && (
+              <div className="flex flex-wrap gap-2.5">
+                {unlocked.map((item) => {
+                  const isKanji = item.item_type === 'kanji';
+                  const display = item.item_details?.character || item.item_details?.word || '?';
+                  const key = itemKey(item);
+                  const isSelected = selectedIds.has(key);
+                  const baseBg = isKanji ? 'bg-wk-kanji' : 'bg-wk-vocab';
 
-              return (
-                <div key={key} className="relative group">
-                  <button
-                    onClick={() => toggleSelect(item)}
-                    className={`${baseBg} rounded-lg px-4 py-2.5 text-white font-bold text-xl transition-all hover:brightness-110 ${
-                      isSelected
-                        ? 'scale-95 opacity-100 shadow-lg outline outline-3 outline-offset-2 outline-white'
-                        : selectedIds.size > 0 ? 'opacity-50' : ''
-                    }`}
-                    title={item.item_details?.meanings?.join(', ')}
-                  >
-                    {display}
-                    {isSelected && (
-                      <span className="absolute -top-1 -left-1 w-5 h-5 rounded-full bg-wk-radical text-white text-[10px] flex items-center justify-center font-bold shadow">
-                        &#10003;
-                      </span>
-                    )}
-                  </button>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      removeMutation.mutate({ item_type: item.item_type, item_id: item.item_id });
-                      setSelectedIds((prev) => { const next = new Set(prev); next.delete(key); return next; });
-                    }}
-                    className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-error text-white text-xs flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow z-10"
-                    title="Remove from queue"
-                  >
-                    &times;
-                  </button>
+                  return (
+                    <div key={key} className="relative group">
+                      <button
+                        onClick={() => toggleSelect(item)}
+                        className={`${baseBg} rounded-lg px-4 py-2.5 text-white font-bold text-xl transition-all hover:brightness-110 ${
+                          isSelected
+                            ? 'scale-95 opacity-100 shadow-lg outline outline-3 outline-offset-2 outline-white'
+                            : selectedIds.size > 0 ? 'opacity-50' : ''
+                        }`}
+                        title={item.item_details?.meanings?.join(', ')}
+                      >
+                        {display}
+                        {isSelected && (
+                          <span className="absolute -top-1 -left-1 w-5 h-5 rounded-full bg-wk-radical text-white text-[10px] flex items-center justify-center font-bold shadow">
+                            &#10003;
+                          </span>
+                        )}
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          removeMutation.mutate({ item_type: item.item_type, item_id: item.item_id });
+                          setSelectedIds((prev) => { const next = new Set(prev); next.delete(key); return next; });
+                        }}
+                        className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-error text-white text-xs flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow z-10"
+                        title="Remove from queue"
+                      >
+                        &times;
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* Locked: vocab waiting on its kanji to reach Guru — shown for look-ahead. */}
+            {lockedItems.length > 0 && (
+              <div className="space-y-2 pt-2">
+                <p className="text-xs font-bold uppercase tracking-wide text-text-muted">
+                  Locked — waiting on kanji ({lockedItems.length})
+                </p>
+                <div className="flex flex-wrap gap-2.5">
+                  {lockedItems.map((item) => {
+                    const display = item.item_details?.word || item.item_details?.character || '?';
+                    const key = itemKey(item);
+                    const blockedBy = item.locked_by ?? [];
+                    const tip = blockedBy.length
+                      ? `Locked until these kanji reach Guru: ${blockedBy.join('、')}`
+                      : 'Locked until its kanji reach Guru';
+
+                    return (
+                      <div key={key} className="relative group">
+                        <div
+                          className="bg-wk-vocab/30 text-white/70 rounded-lg px-4 py-2.5 font-bold text-xl cursor-not-allowed select-none"
+                          title={tip}
+                        >
+                          {display}
+                        </div>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            removeMutation.mutate({ item_type: item.item_type, item_id: item.item_id });
+                          }}
+                          className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-error text-white text-xs flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow z-10"
+                          title="Remove from queue"
+                        >
+                          &times;
+                        </button>
+                      </div>
+                    );
+                  })}
                 </div>
-              );
-            })}
-          </div>
+              </div>
+            )}
+          </>
         )}
       </div>
     );

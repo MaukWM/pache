@@ -46,6 +46,9 @@ class QueueItemResponse(BaseModel):
     item_id: int
     added_at: datetime
     item_details: KanjiItemDetails | VocabItemDetails
+    # Vocab is locked while its constituent kanji aren't all at GURU; shown but not learnable.
+    locked: bool = False
+    locked_by: list[str] = Field(default_factory=list)
 
 
 class QueueListResponse(BaseModel):
