@@ -1,19 +1,18 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { type QueueItem } from '../lib/api';
-import { romajiToHiraganaLive, finalizeRomaji } from '../lib/romaji';
+import { finalizeRomaji } from '../lib/romaji';
 import { isKana, matchesMeaning, matchesReading } from '../lib/quiz';
+import { QuizCard, acceptableReadings, type CardType } from './QuizCard';
 
-type CardType = 'reading' | 'meaning';
-
-interface QuizCard {
+interface Card {
   item: QueueItem;
   type: CardType;
   key: string;
 }
 
-function buildQueue(items: QueueItem[]): QuizCard[] {
+function buildQueue(items: QueueItem[]): Card[] {
   let id = 0;
-  const cards: QuizCard[] = [];
+  const cards: Card[] = [];
   for (const item of items) {
     const base = `${item.item_type}-${item.item_id}`;
     cards.push({ item, type: 'meaning', key: `m-${base}-${id++}` });
@@ -25,16 +24,6 @@ function buildQueue(items: QueueItem[]): QuizCard[] {
     [cards[i], cards[j]] = [cards[j], cards[i]];
   }
   return cards;
-}
-
-function acceptableReadings(item: QueueItem): string[] {
-  if (item.item_type === 'kanji') {
-    return [
-      ...(item.item_details?.readings_on || []),
-      ...(item.item_details?.readings_kun || []),
-    ];
-  }
-  return item.item_details?.readings || [];
 }
 
 /**
@@ -55,11 +44,12 @@ export function LessonQuiz({
   submitting: boolean;
   error?: Error | null;
 }) {
-  const [cards, setCards] = useState<QuizCard[]>(() => buildQueue(items));
+  const [cards, setCards] = useState<Card[]>(() => buildQueue(items));
   const [index, setIndex] = useState(0);
   const [input, setInput] = useState('');
   const [answered, setAnswered] = useState(false);
   const [correct, setCorrect] = useState<boolean | null>(null);
+  const [showInfo, setShowInfo] = useState(false);
   const [inputError, setInputError] = useState('');
   const [cleared, setCleared] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -111,10 +101,11 @@ export function LessonQuiz({
     setInput('');
     setAnswered(false);
     setCorrect(null);
+    setShowInfo(false);
     setInputError('');
   }, [correct, index]);
 
-  // Global keys once an answer is shown (Enter = continue, Backspace = retype).
+  // Global keys once an answer is shown (Enter = continue, Backspace = retype, F = item info).
   useEffect(() => {
     if (!answered) return;
     answeredAt.current = Date.now();
@@ -125,6 +116,9 @@ export function LessonQuiz({
       if (e.key === 'Backspace' && !correct) {
         e.preventDefault();
         undoAnswer();
+      }
+      if (e.key === 'f' || e.key === 'F') {
+        setShowInfo((v) => !v);
       }
     };
     window.addEventListener('keydown', handler);
@@ -168,12 +162,8 @@ export function LessonQuiz({
   }
 
   const { item, type: cardType } = card;
-  const isKanji = item.item_type === 'kanji';
-  const display = item.item_details?.character || item.item_details?.word || '?';
-  const meanings = item.item_details?.meanings || [];
-
-  const headerBg = isKanji ? 'bg-wk-kanji' : 'bg-wk-vocab';
-  const labelBg = cardType === 'reading' ? 'bg-[#303030] text-white' : 'bg-white text-text';
+  const details = item.item_details || {};
+  const meanings = details.meanings || [];
 
   const checkAnswer = () => {
     let value = input.trim();
@@ -190,7 +180,7 @@ export function LessonQuiz({
         setInputError('Please enter your answer in kana');
         return;
       }
-      isCorrect = matchesReading(trimmed, acceptableReadings(item));
+      isCorrect = matchesReading(trimmed, acceptableReadings(item.item_type, details));
     } else {
       isCorrect = matchesMeaning(value.toLowerCase(), meanings);
     }
@@ -205,12 +195,6 @@ export function LessonQuiz({
     }
   };
 
-  const inputStyle = !answered
-    ? 'border-transparent bg-white text-text'
-    : correct
-      ? 'border-transparent bg-[#88cc00] text-white'
-      : 'border-transparent bg-[#ff4444] text-white';
-
   const progressPct = total > 0 ? (cleared / total) * 100 : 0;
 
   return (
@@ -223,72 +207,22 @@ export function LessonQuiz({
         <div className="h-full bg-success transition-all" style={{ width: `${progressPct}%` }} />
       </div>
 
-      {/* Character */}
-      <div className={`${headerBg} p-12 text-white text-center`}>
-        <div className="text-9xl font-bold">{display}</div>
-      </div>
-
-      {/* Reading/Meaning bar */}
-      <div className={`${labelBg} py-2 text-center transition-colors duration-200`}>
-        <span className="text-sm tracking-wide capitalize">
-          {item.item_type}{' '}
-          <span className="font-black">{cardType === 'reading' ? 'Reading' : 'Meaning'}</span>
-        </span>
-      </div>
-
-      {/* Input */}
-      <div className="bg-surface">
-        <div className="max-w-2xl mx-auto p-4">
-          <input
-            ref={inputRef}
-            type="text"
-            value={input}
-            onChange={(e) =>
-              setInput(cardType === 'reading' ? romajiToHiraganaLive(e.target.value) : e.target.value)
-            }
-            onKeyDown={handleKeyDown}
-            placeholder={cardType === 'reading' ? '答え' : 'Your Response'}
-            disabled={answered}
-            lang={cardType === 'reading' ? 'ja' : 'en'}
-            className={`w-full px-4 py-3 text-center text-2xl rounded-lg border-2 transition-colors focus:outline-none ${inputStyle}`}
-            autoComplete="off"
-            autoCapitalize="none"
-            autoCorrect="off"
-            spellCheck={false}
-          />
-          {inputError && <p className="text-center text-sm text-error mt-2">{inputError}</p>}
-        </div>
-
-        {answered && (
-          <div className="max-w-2xl mx-auto px-4 pb-5 space-y-3">
-            <div className="text-center">
-              <span className={`font-bold text-lg ${correct ? 'text-success' : 'text-error'}`}>
-                {correct ? 'Correct!' : 'Not quite'}
-              </span>
-            </div>
-            {!correct && (
-              <div className="text-center text-sm">
-                <span className="text-text-muted">Answer: </span>
-                {cardType === 'reading'
-                  ? acceptableReadings(item).join('、')
-                  : meanings.join(', ')}
-              </div>
-            )}
-            <div className="text-center text-xs text-text-muted space-x-3">
-              <span>
-                <kbd className="px-1.5 py-0.5 rounded bg-border text-text text-[10px] font-mono">Enter</kbd>{' '}
-                {correct ? 'continue' : 'try again later'}
-              </span>
-              {!correct && (
-                <span>
-                  <kbd className="px-1.5 py-0.5 rounded bg-border text-text text-[10px] font-mono">Backspace</kbd>{' '}
-                  retype
-                </span>
-              )}
-            </div>
-          </div>
-        )}
-      </div>
+      <QuizCard
+        itemType={item.item_type}
+        details={details}
+        cardType={cardType}
+        input={input}
+        onInput={setInput}
+        onKeyDown={handleKeyDown}
+        inputRef={inputRef}
+        inputError={inputError}
+        answered={answered}
+        correct={correct}
+        showInfo={showInfo}
+        onToggleInfo={() => setShowInfo((v) => !v)}
+        continueLabel="continue"
+        wrongLabel="try again later"
+      />
 
       <div className="max-w-2xl mx-auto px-4 pt-3 flex justify-between text-xs text-text-muted">
         <button onClick={onExit} className="hover:text-text transition-colors">

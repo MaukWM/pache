@@ -1,15 +1,10 @@
 import { useState, useRef, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api, type ReviewItem } from '../lib/api';
-import { RadicalList } from '../components/RadicalList';
-import { romajiToHiraganaLive, finalizeRomaji } from '../lib/romaji';
-import { matchesMeaning, matchesReading } from '../lib/quiz';
+import { QuizCard, acceptableReadings, type CardType } from '../components/QuizCard';
+import { finalizeRomaji } from '../lib/romaji';
+import { isKana, matchesMeaning, matchesReading } from '../lib/quiz';
 
-function isKana(str: string): boolean {
-  return /^[\u3040-\u309F\u30A0-\u30FF\u3000-\u303Fー]+$/.test(str);
-}
-
-type CardType = 'reading' | 'meaning';
 type ReviewMode = 'scrambled' | 'paired';
 
 interface ReviewCard {
@@ -213,24 +208,7 @@ export function ReviewPage() {
 
   const card = cards[currentIndex];
   const { item, type: cardType } = card;
-  const isKanji = item.item_type === 'kanji';
-  const display = item.item_details.character || item.item_details.word || '?';
   const meanings = item.item_details.meanings || [];
-  const readingsOn = item.item_details.readings_on || [];
-  const readingsKun = item.item_details.readings_kun || [];
-  const components = item.item_details.components || [];
-  const vocabReadings = (item.item_details as { readings?: string[] }).readings || [];
-  const vocabTags = (item.item_details as { tags?: string[] }).tags || [];
-  const vocabComment = (item.item_details as { creator_comment?: string | null }).creator_comment;
-  const vocabCreator = (item.item_details as { creator_username?: string | null }).creator_username;
-
-  const headerBg = isKanji ? 'bg-wk-kanji' : 'bg-wk-vocab';
-  const labelBg = cardType === 'reading' ? 'bg-[#303030] text-white' : 'bg-white text-text';
-
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const val = e.target.value;
-    setInput(cardType === 'reading' ? romajiToHiraganaLive(val) : val);
-  };
 
   const checkAnswer = () => {
     let value = input.trim();
@@ -247,7 +225,7 @@ export function ReviewPage() {
         setInputError('Please enter your answer in kana');
         return;
       }
-      isCorrect = matchesReading(trimmed, isKanji ? [...readingsOn, ...readingsKun] : vocabReadings);
+      isCorrect = matchesReading(trimmed, acceptableReadings(item.item_type, item.item_details));
     } else {
       isCorrect = matchesMeaning(value.toLowerCase(), meanings);
     }
@@ -312,12 +290,6 @@ export function ReviewPage() {
     }
   };
 
-  const inputStyle = !answered
-    ? 'border-transparent bg-white text-text'
-    : correct
-      ? 'border-transparent bg-[#88cc00] text-white'
-      : 'border-transparent bg-[#ff4444] text-white';
-
   // Progress bar: per item (not per card)
   const correctPct = totalItems > 0 ? (completedCorrect / totalItems) * 100 : 0;
   const incorrectPct = totalItems > 0 ? (completedIncorrect / totalItems) * 100 : 0;
@@ -344,130 +316,22 @@ export function ReviewPage() {
         )}
       </div>
 
-      {/* Character */}
-      <div className={`${headerBg} p-12 text-white text-center`}>
-        <div className="text-9xl font-bold">{display}</div>
-      </div>
-
-      {/* Reading/Meaning bar */}
-      <div className={`${labelBg} py-2 text-center transition-colors duration-200`}>
-        <span className="text-sm tracking-wide capitalize">
-          {item.item_type} <span className="font-black">{cardType === 'reading' ? 'Reading' : 'Meaning'}</span>
-        </span>
-      </div>
-
-      {/* Input */}
-      <div className="bg-surface">
-        <div className="max-w-2xl mx-auto p-4">
-          <input
-            ref={inputRef}
-            type="text"
-            value={input}
-            onChange={handleInputChange}
-            onKeyDown={handleKeyDown}
-            placeholder={cardType === 'reading' ? '答え' : 'Your Response'}
-            disabled={answered}
-            lang={cardType === 'reading' ? 'ja' : 'en'}
-            className={`w-full px-4 py-3 text-center text-2xl rounded-lg border-2 transition-colors focus:outline-none ${inputStyle}`}
-            autoComplete="off"
-            autoCapitalize="none"
-            autoCorrect="off"
-            spellCheck={false}
-          />
-          {inputError && (
-            <p className="text-center text-sm text-error mt-2">{inputError}</p>
-          )}
-        </div>
-
-        {answered && (
-          <div className="max-w-2xl mx-auto px-4 pb-5 space-y-3">
-            <div className="flex items-center justify-center gap-4">
-              <span className={`font-bold text-lg ${correct ? 'text-success' : 'text-error'}`}>
-                {correct ? 'Correct!' : 'Incorrect'}
-              </span>
-              <button
-                onClick={() => setShowInfo((v) => !v)}
-                className="text-xs text-text-muted hover:text-text px-2 py-1 rounded bg-surface-alt border border-border transition-colors"
-              >
-                {showInfo ? 'Hide Info' : 'Item Info'} <kbd className="ml-1 px-1 py-0.5 rounded bg-border text-[10px] font-mono">F</kbd>
-              </button>
-            </div>
-
-            {showInfo && (
-              <div className="space-y-1">
-                {/* Meaning section — expanded when on meaning card */}
-                <details open={cardType === 'meaning'} className="bg-surface-alt rounded-lg overflow-hidden">
-                  <summary className="px-4 py-2 text-xs font-bold uppercase tracking-wide text-text-muted cursor-pointer hover:bg-border/50">
-                    Meaning
-                  </summary>
-                  <div className="px-4 pb-3 space-y-2 text-sm">
-                    <div>{meanings.join(', ')}</div>
-                  </div>
-                </details>
-
-                {/* Reading section — expanded when on reading card */}
-                <details open={cardType === 'reading'} className="bg-surface-alt rounded-lg overflow-hidden">
-                  <summary className="px-4 py-2 text-xs font-bold uppercase tracking-wide text-text-muted cursor-pointer hover:bg-border/50">
-                    Reading
-                  </summary>
-                  <div className="px-4 pb-3 space-y-2 text-sm">
-                    {isKanji ? (
-                      <div className="grid grid-cols-2 gap-3">
-                        {readingsOn.length > 0 && (
-                          <div>
-                            <span className="text-text-muted text-xs">On'yomi: </span>
-                            {readingsOn.join('、')}
-                          </div>
-                        )}
-                        {readingsKun.length > 0 && (
-                          <div>
-                            <span className="text-text-muted text-xs">Kun'yomi: </span>
-                            {readingsKun.join('、')}
-                          </div>
-                        )}
-                      </div>
-                    ) : (
-                      <div>{vocabReadings.join('、')}</div>
-                    )}
-                  </div>
-                </details>
-
-                {/* Radicals — kanji composition for reference */}
-                {isKanji && components.length > 0 && (
-                  <details className="bg-surface-alt rounded-lg overflow-hidden">
-                    <summary className="px-4 py-2 text-xs font-bold uppercase tracking-wide text-text-muted cursor-pointer hover:bg-border/50">
-                      Radicals
-                    </summary>
-                    <div className="px-4 pb-3 pt-1">
-                      <RadicalList components={components} size="sm" />
-                    </div>
-                  </details>
-                )}
-              </div>
-            )}
-
-            {/* Tags & comment — always shown for vocab */}
-            {!isKanji && (vocabTags.length > 0 || vocabComment || vocabCreator) && (
-              <div className="flex items-center gap-2 flex-wrap text-xs text-text-muted">
-                {vocabTags.map((tag) => (
-                  <span key={tag} className="bg-wk-vocab/10 text-wk-vocab px-2 py-0.5 rounded-full font-medium">
-                    {tag}
-                  </span>
-                ))}
-                {vocabComment && <span className="italic">"{vocabComment}"</span>}
-                {vocabCreator && <span>by {vocabCreator}</span>}
-              </div>
-            )}
-
-            <div className="text-center text-xs text-text-muted space-x-3">
-              <span><kbd className="px-1.5 py-0.5 rounded bg-border text-text text-[10px] font-mono">Enter</kbd> {correct ? 'continue' : 'accept'}</span>
-              {!correct && (
-                <span><kbd className="px-1.5 py-0.5 rounded bg-border text-text text-[10px] font-mono">Backspace</kbd> retype</span>
-              )}
-            </div>
-          </div>
-        )}
-      </div>
+      <QuizCard
+        itemType={item.item_type}
+        details={item.item_details}
+        cardType={cardType}
+        input={input}
+        onInput={setInput}
+        onKeyDown={handleKeyDown}
+        inputRef={inputRef}
+        inputError={inputError}
+        answered={answered}
+        correct={correct}
+        showInfo={showInfo}
+        onToggleInfo={() => setShowInfo((v) => !v)}
+        continueLabel="continue"
+        wrongLabel="accept"
+      />
 
       {/* Stats */}
       <div className="flex justify-between text-xs text-text-muted mt-3 px-4">
