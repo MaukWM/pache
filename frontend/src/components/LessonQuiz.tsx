@@ -47,11 +47,13 @@ export function LessonQuiz({
   onPassed,
   onExit,
   submitting,
+  error,
 }: {
   items: QueueItem[];
   onPassed: () => void;
   onExit: () => void;
   submitting: boolean;
+  error?: Error | null;
 }) {
   const [cards, setCards] = useState<QuizCard[]>(() => buildQueue(items));
   const [index, setIndex] = useState(0);
@@ -130,6 +132,30 @@ export function LessonQuiz({
   }, [answered, correct, commitAndAdvance, undoAnswer]);
 
   if (done) {
+    if (error) {
+      return (
+        <div className="flex flex-col items-center justify-center py-20 space-y-4 text-center">
+          <div className="text-5xl">&#9888;&#65039;</div>
+          <h2 className="text-2xl font-bold">Couldn't save your lessons</h2>
+          <p className="max-w-md text-error">{error.message}</p>
+          <div className="flex gap-3">
+            <button
+              onClick={onPassed}
+              disabled={submitting}
+              className="px-5 py-2 rounded-lg bg-wk-radical text-white font-bold hover:opacity-90 transition-opacity disabled:opacity-50"
+            >
+              {submitting ? 'Retrying…' : 'Try again'}
+            </button>
+            <button
+              onClick={onExit}
+              className="px-5 py-2 rounded-lg bg-surface border border-border font-medium hover:bg-border transition-colors"
+            >
+              Back to lessons
+            </button>
+          </div>
+        </div>
+      );
+    }
     return (
       <div className="flex flex-col items-center justify-center py-20 space-y-4">
         <div className="text-5xl">&#127881;</div>

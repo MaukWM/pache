@@ -364,6 +364,68 @@ async def test_get_queue_cleans_up_orphaned_entries(db_session: AsyncSession) ->
 
 
 @pytest.mark.asyncio
+async def test_get_queue_hides_vocab_with_unlearned_kanji(db_session: AsyncSession) -> None:
+    """Vocab whose constituent kanji aren't all at GURU is hidden from the lesson queue."""
+    user = User(username="testuser")
+    db_session.add(user)
+    await db_session.flush()
+
+    kanji = Kanji(
+        character="水",
+        meanings=["water"],
+        readings_on=["sui"],
+        readings_kun=["mizu"],
+        stroke_count=4,
+    )
+    db_session.add(kanji)
+    await db_session.flush()
+
+    vocab = Vocab(
+        word="水",
+        readings=["みず"],
+        meanings=["water"],
+        creator_id=user.id,
+    )
+    vocab.kanji = [kanji]
+    db_session.add(vocab)
+    await db_session.flush()
+
+    db_session.add(
+        LessonQueue(user_id=user.id, item_type=ItemType.VOCAB, item_id=vocab.id)
+    )
+    await db_session.commit()
+
+    service = ProgressService(db_session)
+
+    # Kanji not learned at all -> vocab hidden.
+    assert await service.get_queue(user_id=user.id) == []
+
+    # Kanji learned but below GURU (Apprentice) -> still hidden.
+    progress = UserItemProgress(
+        user_id=user.id,
+        item_type=ItemType.KANJI,
+        item_id=kanji.id,
+        srs_stage=4,
+        next_review_at=datetime.now(UTC) + timedelta(hours=1),
+    )
+    db_session.add(progress)
+    await db_session.commit()
+    assert await service.get_queue(user_id=user.id) == []
+
+    # Kanji reaches GURU (stage 5) -> vocab surfaces, queue row untouched.
+    progress.srs_stage = 5
+    await db_session.commit()
+    items = await service.get_queue(user_id=user.id)
+    assert len(items) == 1
+    assert items[0].item_id == vocab.id
+
+    remaining = await db_session.execute(
+        select(LessonQueue).where(LessonQueue.user_id == user.id)
+    )
+    assert len(list(remaining.scalars().all())) == 1
+
+
+@pytest.mark.asyncio
 async def test_remove_from_queue_success(db_session: AsyncSession) -> None:
     """Test removing an item from queue successfully."""
     # Create user

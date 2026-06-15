@@ -6,6 +6,7 @@ from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from src.core.constants import SRS_INTERVALS, ItemType
 from src.kanji.models import Kanji
@@ -147,12 +148,29 @@ class ProgressService:
             kanji_result = await self.db.execute(kanji_query)
             kanji_map = {kanji.id: kanji for kanji in kanji_result.scalars().all()}
 
-        # Bulk load vocab items
+        # Bulk load vocab items (with constituent kanji, to gate on prerequisites)
         vocab_map: dict[int, Vocab] = {}
         if vocab_ids:
-            vocab_query = select(Vocab).where(Vocab.id.in_(vocab_ids))
+            vocab_query = (
+                select(Vocab).where(Vocab.id.in_(vocab_ids)).options(selectinload(Vocab.kanji))
+            )
             vocab_result = await self.db.execute(vocab_query)
             vocab_map = {vocab.id: vocab for vocab in vocab_result.scalars().all()}
+
+        # Determine which constituent kanji the user has learned to GURU (srs_stage >= 5).
+        # Vocab whose kanji aren't all at GURU is hidden from the lesson queue (WaniKani-style
+        # locking): it stays queued and reappears automatically once its kanji are learned.
+        learned_kanji_ids: set[int] = set()
+        required_kanji_ids = {kanji.id for vocab in vocab_map.values() for kanji in vocab.kanji}
+        if required_kanji_ids:
+            prereq_query = select(UserItemProgress.item_id).where(
+                UserItemProgress.user_id == user_id,
+                UserItemProgress.item_type == ItemType.KANJI,
+                UserItemProgress.item_id.in_(required_kanji_ids),
+                UserItemProgress.srs_stage >= 5,  # GURU stage (5-6)
+            )
+            prereq_result = await self.db.execute(prereq_query)
+            learned_kanji_ids = set(prereq_result.scalars().all())
 
         # Build responses and clean up orphaned entries
         responses = []
@@ -177,6 +195,10 @@ class ProgressService:
             elif queue_item.item_type == ItemType.VOCAB:
                 vocab = vocab_map.get(queue_item.item_id)
                 if vocab:
+                    # Hide vocab whose constituent kanji aren't all at GURU yet. Kept in the
+                    # queue (not orphaned) so it surfaces once the kanji are learned.
+                    if any(kanji.id not in learned_kanji_ids for kanji in vocab.kanji):
+                        continue
                     item_details = {
                         "word": vocab.word,
                         "readings": vocab.readings,

@@ -218,6 +218,7 @@ export function LessonsPage() {
       <LessonQuiz
         items={sessionItems}
         submitting={completeMutation.isPending}
+        error={completeMutation.error}
         onPassed={() =>
           completeMutation.mutate({
             item_ids: sessionItems.map((c) => ({
