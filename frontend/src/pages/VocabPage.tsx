@@ -281,18 +281,6 @@ function VocabDetail({
   const currentStage = progressMap.data?.[`vocab-${item.id}`];
   const alreadyLearned = currentStage != null;
 
-  const learnMutation = useMutation({
-    mutationFn: () =>
-      api.completeLessons({ item_ids: [{ item_type: 'vocab', item_id: item.id }] }),
-    onSuccess: () => {
-      setActionMsg('Learned! First review in 4 hours.');
-      queryClient.invalidateQueries({ queryKey: ['reviews'] });
-      queryClient.invalidateQueries({ queryKey: ['progress'] });
-      queryClient.invalidateQueries({ queryKey: ['progressMap'] });
-    },
-    onError: (err: Error) => setActionMsg(err.message),
-  });
-
   const queueMutation = useMutation({
     mutationFn: () => api.addToQueue('vocab', item.id),
     onSuccess: () => {
@@ -439,16 +427,10 @@ function VocabDetail({
         {/* Actions */}
         <div className="flex items-center gap-2">
           {!alreadyLearned && (
-            <>
-              <button onClick={() => learnMutation.mutate()} disabled={learnMutation.isPending}
-                className="px-3 py-1.5 rounded-lg bg-wk-vocab text-white font-bold text-xs hover:opacity-90 disabled:opacity-50">
-                {learnMutation.isPending ? 'Learning...' : 'Learn Now'}
-              </button>
-              <button onClick={() => queueMutation.mutate()} disabled={queueMutation.isPending}
-                className="px-3 py-1.5 rounded-lg bg-surface border border-border text-xs font-bold hover:bg-border disabled:opacity-50">
-                {queueMutation.isPending ? 'Adding...' : 'Add to Queue'}
-              </button>
-            </>
+            <button onClick={() => queueMutation.mutate()} disabled={queueMutation.isPending}
+              className="px-3 py-1.5 rounded-lg bg-wk-vocab text-white font-bold text-xs hover:opacity-90 disabled:opacity-50">
+              {queueMutation.isPending ? 'Adding...' : 'Add to Queue'}
+            </button>
           )}
           <button onClick={() => { setShowAddSentence(!showAddSentence); setShowSuggest(false); }}
             className="px-3 py-1.5 rounded-lg bg-surface border border-border text-xs font-bold hover:bg-border">

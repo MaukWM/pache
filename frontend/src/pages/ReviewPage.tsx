@@ -1,9 +1,8 @@
 import { useState, useRef, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api, type ReviewItem } from '../lib/api';
-import { QuizCard, acceptableReadings, type CardType } from '../components/QuizCard';
-import { finalizeRomaji } from '../lib/romaji';
-import { isKana, matchesMeaning, matchesReading } from '../lib/quiz';
+import { QuizCard, type CardType } from '../components/QuizCard';
+import { evaluateAnswer } from '../lib/quiz';
 
 type ReviewMode = 'scrambled' | 'paired';
 
@@ -58,6 +57,8 @@ export function ReviewPage() {
   const [correct, setCorrect] = useState<boolean | null>(null);
   const [showInfo, setShowInfo] = useState(false);
   const [inputError, setInputError] = useState('');
+  const [warning, setWarning] = useState('');
+  const [shakeSignal, setShakeSignal] = useState(0);
   const [results, setResults] = useState<Record<string, ItemResult>>({});
   const [completedCorrect, setCompletedCorrect] = useState(0);
   const [completedIncorrect, setCompletedIncorrect] = useState(0);
@@ -208,39 +209,39 @@ export function ReviewPage() {
 
   const card = cards[currentIndex];
   const { item, type: cardType } = card;
-  const meanings = item.item_details.meanings || [];
 
   const checkAnswer = () => {
-    let value = input.trim();
-    if (!value) return;
-    setInputError('');
+    if (!input.trim()) return;
+    const outcome = evaluateAnswer(item.item_type, item.item_details, cardType, input);
+    setInput(outcome.value);
 
-    let isCorrect: boolean;
-    if (cardType === 'reading') {
-      // Convert a trailing lone "n" to ん before checking (WaniKani-style).
-      value = finalizeRomaji(value);
-      setInput(value);
-      const trimmed = value.toLowerCase();
-      if (!isKana(trimmed)) {
-        setInputError('Please enter your answer in kana');
-        return;
-      }
-      isCorrect = matchesReading(trimmed, acceptableReadings(item.item_type, item.item_details));
-    } else {
-      isCorrect = matchesMeaning(value.toLowerCase(), meanings);
+    if (outcome.kind === 'invalid') {
+      setWarning('');
+      setInputError(outcome.message);
+      return;
+    }
+    if (outcome.kind === 'wrong-type') {
+      // Valid reading, but not the one we teach — warn, shake, let them retype.
+      setInputError('');
+      setWarning(outcome.message);
+      setShakeSignal((s) => s + 1);
+      return;
     }
 
-    setCorrect(isCorrect);
+    setInputError('');
+    setWarning('');
+    setCorrect(outcome.kind === 'correct');
     setAnswered(true);
     // Don't commit yet — wait for Enter (accept) or Backspace (redo)
   };
 
-  // Undo: backspace when showing wrong answer → retype
+  // Undo: backspace when showing an answer → retype
   const undoAnswer = () => {
     setInput('');
     setAnswered(false);
     setCorrect(null);
     setInputError('');
+    setWarning('');
   };
 
   // Commit: lock in the answer and move on
@@ -281,6 +282,7 @@ export function ReviewPage() {
     setCorrect(null);
     setShowInfo(false);
     setInputError('');
+    setWarning('');
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -325,6 +327,8 @@ export function ReviewPage() {
         onKeyDown={handleKeyDown}
         inputRef={inputRef}
         inputError={inputError}
+        warning={warning}
+        shakeSignal={shakeSignal}
         answered={answered}
         correct={correct}
         showInfo={showInfo}

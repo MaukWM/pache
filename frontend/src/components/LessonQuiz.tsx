@@ -1,8 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { type QueueItem } from '../lib/api';
-import { finalizeRomaji } from '../lib/romaji';
-import { isKana, matchesMeaning, matchesReading } from '../lib/quiz';
-import { QuizCard, acceptableReadings, type CardType } from './QuizCard';
+import { evaluateAnswer } from '../lib/quiz';
+import { QuizCard, type CardType } from './QuizCard';
 
 interface Card {
   item: QueueItem;
@@ -51,6 +50,8 @@ export function LessonQuiz({
   const [correct, setCorrect] = useState<boolean | null>(null);
   const [showInfo, setShowInfo] = useState(false);
   const [inputError, setInputError] = useState('');
+  const [warning, setWarning] = useState('');
+  const [shakeSignal, setShakeSignal] = useState(0);
   const [cleared, setCleared] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
   const answeredAt = useRef(0);
@@ -81,6 +82,7 @@ export function LessonQuiz({
     setAnswered(false);
     setCorrect(null);
     setInputError('');
+    setWarning('');
   }, []);
 
   const commitAndAdvance = useCallback(() => {
@@ -103,6 +105,7 @@ export function LessonQuiz({
     setCorrect(null);
     setShowInfo(false);
     setInputError('');
+    setWarning('');
   }, [correct, index]);
 
   // Global keys once an answer is shown (Enter = continue, Backspace = retype, F = item info).
@@ -164,28 +167,28 @@ export function LessonQuiz({
 
   const { item, type: cardType } = card;
   const details = item.item_details || {};
-  const meanings = details.meanings || [];
 
   const checkAnswer = () => {
-    let value = input.trim();
-    if (!value) return;
-    setInputError('');
+    if (!input.trim()) return;
+    const outcome = evaluateAnswer(item.item_type, details, cardType, input);
+    setInput(outcome.value);
 
-    let isCorrect: boolean;
-    if (cardType === 'reading') {
-      // Convert a trailing lone "n" to ん before checking (WaniKani-style).
-      value = finalizeRomaji(value);
-      setInput(value);
-      const trimmed = value.toLowerCase();
-      if (!isKana(trimmed)) {
-        setInputError('Please enter your answer in kana');
-        return;
-      }
-      isCorrect = matchesReading(trimmed, acceptableReadings(item.item_type, details));
-    } else {
-      isCorrect = matchesMeaning(value.toLowerCase(), meanings);
+    if (outcome.kind === 'invalid') {
+      setWarning('');
+      setInputError(outcome.message);
+      return;
     }
-    setCorrect(isCorrect);
+    if (outcome.kind === 'wrong-type') {
+      // Valid reading, but not the one we teach — warn, shake, let them retype.
+      setInputError('');
+      setWarning(outcome.message);
+      setShakeSignal((s) => s + 1);
+      return;
+    }
+
+    setInputError('');
+    setWarning('');
+    setCorrect(outcome.kind === 'correct');
     setAnswered(true);
   };
 
@@ -217,6 +220,8 @@ export function LessonQuiz({
         onKeyDown={handleKeyDown}
         inputRef={inputRef}
         inputError={inputError}
+        warning={warning}
+        shakeSignal={shakeSignal}
         answered={answered}
         correct={correct}
         showInfo={showInfo}

@@ -315,18 +315,6 @@ function KanjiDetail({
   const currentStage = progressMap.data?.[`kanji-${kanji.id}`];
   const alreadyLearned = currentStage != null;
 
-  const learnMutation = useMutation({
-    mutationFn: () =>
-      api.completeLessons({ item_ids: [{ item_type: 'kanji', item_id: kanji.id }] }),
-    onSuccess: () => {
-      setActionMsg('Learned! First review in 4 hours.');
-      queryClient.invalidateQueries({ queryKey: ['reviews'] });
-      queryClient.invalidateQueries({ queryKey: ['queue'] });
-      queryClient.invalidateQueries({ queryKey: ['progress'] });
-    },
-    onError: (err: Error) => setActionMsg(err.message),
-  });
-
   const queueMutation = useMutation({
     mutationFn: () => api.addToQueue('kanji', kanji.id),
     onSuccess: () => {
@@ -397,16 +385,9 @@ function KanjiDetail({
           ) : (
             <div className="flex gap-2 pt-1">
               <button
-                onClick={() => learnMutation.mutate()}
-                disabled={learnMutation.isPending}
-                className="px-4 py-2 rounded-lg bg-wk-kanji text-white font-bold text-sm hover:bg-accent-hover transition-colors disabled:opacity-50"
-              >
-                {learnMutation.isPending ? 'Learning...' : 'Learn Now'}
-              </button>
-              <button
                 onClick={() => queueMutation.mutate()}
                 disabled={queueMutation.isPending}
-                className="px-4 py-2 rounded-lg bg-surface border border-border text-sm font-bold hover:bg-border transition-colors disabled:opacity-50"
+                className="px-4 py-2 rounded-lg bg-wk-kanji text-white font-bold text-sm hover:bg-accent-hover transition-colors disabled:opacity-50"
               >
                 {queueMutation.isPending ? 'Adding...' : 'Add to Queue'}
               </button>

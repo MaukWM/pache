@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { RadicalList } from './RadicalList';
 import { romajiToHiraganaLive } from '../lib/romaji';
 
@@ -39,6 +40,8 @@ export function QuizCard({
   onKeyDown,
   inputRef,
   inputError,
+  warning,
+  shakeSignal = 0,
   answered,
   correct,
   showInfo,
@@ -54,6 +57,8 @@ export function QuizCard({
   onKeyDown: (e: React.KeyboardEvent) => void;
   inputRef: React.RefObject<HTMLInputElement | null>;
   inputError: string;
+  warning?: string;
+  shakeSignal?: number;
   answered: boolean;
   correct: boolean | null;
   showInfo: boolean;
@@ -61,6 +66,11 @@ export function QuizCard({
   continueLabel?: string;
   wrongLabel?: string;
 }) {
+  // Re-trigger the shake animation each time shakeSignal increments.
+  const [shaking, setShaking] = useState(false);
+  useEffect(() => {
+    if (shakeSignal > 0) setShaking(true);
+  }, [shakeSignal]);
   const isKanji = itemType === 'kanji';
   const display = details.character || details.word || '?';
   const meanings = details.meanings || [];
@@ -106,16 +116,20 @@ export function QuizCard({
               onInput(cardType === 'reading' ? romajiToHiraganaLive(e.target.value) : e.target.value)
             }
             onKeyDown={onKeyDown}
+            onAnimationEnd={() => setShaking(false)}
             placeholder={cardType === 'reading' ? '答え' : 'Your Response'}
             disabled={answered}
             lang={cardType === 'reading' ? 'ja' : 'en'}
-            className={`w-full px-4 py-3 text-center text-2xl rounded-lg border-2 transition-colors focus:outline-none ${inputStyle}`}
+            className={`w-full px-4 py-3 text-center text-2xl rounded-lg border-2 transition-colors focus:outline-none ${inputStyle} ${shaking ? 'animate-shake' : ''}`}
             autoComplete="off"
             autoCapitalize="none"
             autoCorrect="off"
             spellCheck={false}
           />
           {inputError && <p className="text-center text-sm text-error mt-2">{inputError}</p>}
+          {warning && !inputError && (
+            <p className="text-center text-sm text-[#c08400] mt-2 font-medium">{warning}</p>
+          )}
         </div>
 
         {answered && (
