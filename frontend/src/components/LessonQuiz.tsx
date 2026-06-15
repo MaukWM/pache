@@ -113,7 +113,8 @@ export function LessonQuiz({
       if (e.key === 'Enter' && Date.now() - answeredAt.current > 150) {
         commitAndAdvance();
       }
-      if (e.key === 'Backspace' && !correct) {
+      if (e.key === 'Backspace') {
+        // Undo the answer — retype (works even when correct, to deliberately fail it).
         e.preventDefault();
         undoAnswer();
       }

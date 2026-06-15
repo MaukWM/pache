@@ -204,12 +204,10 @@ export function QuizCard({
                 <kbd className="px-1.5 py-0.5 rounded bg-border text-text text-[10px] font-mono">Enter</kbd>{' '}
                 {correct ? continueLabel : wrongLabel}
               </span>
-              {!correct && (
-                <span>
-                  <kbd className="px-1.5 py-0.5 rounded bg-border text-text text-[10px] font-mono">Backspace</kbd>{' '}
-                  retype
-                </span>
-              )}
+              <span>
+                <kbd className="px-1.5 py-0.5 rounded bg-border text-text text-[10px] font-mono">Backspace</kbd>{' '}
+                {correct ? 'undo' : 'retype'}
+              </span>
             </div>
           </div>
         )}
