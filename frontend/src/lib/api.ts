@@ -275,6 +275,14 @@ export const api = {
 
   removeFromQueue: (item_type: string, item_id: number) =>
     requestNoBody(`/me/queue/${item_type}/${item_id}`, { method: 'DELETE' }),
+
+  // Unlearn: delete progress (removes upcoming reviews); item is no longer learned or queued.
+  unlearnItem: (item_type: string, item_id: number) =>
+    requestNoBody(`/me/progress/${item_type}/${item_id}`, { method: 'DELETE' }),
+
+  // Resurrect a burned item back to Apprentice 1.
+  resurrectItem: (item_type: string, item_id: number) =>
+    request<ProgressItem>(`/me/progress/${item_type}/${item_id}/resurrect`, { method: 'POST' }),
 };
 
 // Types

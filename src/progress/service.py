@@ -266,6 +266,49 @@ class ProgressService:
         await self.db.delete(queue_item)
         await self.db.commit()
 
+    async def unlearn_item(
+        self,
+        user_id: int,
+        item_type: ItemType,
+        item_id: int,
+    ) -> None:
+        """Unlearn an item: delete its progress so it has no upcoming reviews.
+
+        Also clears any lesson-queue entry for the item, so afterwards the item is
+        neither learned nor queued (the user can re-add it from scratch).
+
+        Raises:
+            HTTPException 404: the item is not in the user's progress.
+        """
+        progress_query = select(UserItemProgress).where(
+            UserItemProgress.user_id == user_id,
+            UserItemProgress.item_type == item_type,
+            UserItemProgress.item_id == item_id,
+        )
+        result = await self.db.execute(progress_query)
+        progress = result.scalar_one_or_none()
+
+        if progress is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Item not found in your progress",
+            )
+
+        await self.db.delete(progress)
+
+        # Defensive: drop any stale queue entry so the item isn't left queued.
+        queue_query = select(LessonQueue).where(
+            LessonQueue.user_id == user_id,
+            LessonQueue.item_type == item_type,
+            LessonQueue.item_id == item_id,
+        )
+        queue_result = await self.db.execute(queue_query)
+        queue_item = queue_result.scalar_one_or_none()
+        if queue_item:
+            await self.db.delete(queue_item)
+
+        await self.db.commit()
+
     async def resurrect_item(
         self,
         user_id: int,

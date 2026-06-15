@@ -95,6 +95,22 @@ async def remove_from_queue(
     )
 
 
+@progress_router.delete("/{item_type}/{item_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def unlearn_item(
+    item_type: ItemType = Path(..., description="Type of item to unlearn (kanji or vocab)"),
+    item_id: int = Path(..., gt=0, description="Positive item ID"),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> None:
+    """Unlearn an item, deleting its progress and any upcoming reviews."""
+    service = ProgressService(db)
+    await service.unlearn_item(
+        user_id=current_user.id,
+        item_type=item_type,
+        item_id=item_id,
+    )
+
+
 @progress_router.post(
     "/{item_type}/{item_id}/resurrect",
     response_model=ResurrectResponse,

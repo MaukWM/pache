@@ -306,6 +306,8 @@ function KanjiDetail({
   queryClient: ReturnType<typeof useQueryClient>;
 }) {
   const [actionMsg, setActionMsg] = useState('');
+  const [confirmUnlearn, setConfirmUnlearn] = useState(false);
+  const [confirmResurrect, setConfirmResurrect] = useState(false);
 
   // Check if already in progress
   const progressMap = useQuery({
@@ -314,12 +316,38 @@ function KanjiDetail({
   });
   const currentStage = progressMap.data?.[`kanji-${kanji.id}`];
   const alreadyLearned = currentStage != null;
+  const isBurned = currentStage === 9;
 
   const queueMutation = useMutation({
     mutationFn: () => api.addToQueue('kanji', kanji.id),
     onSuccess: () => {
       setActionMsg('Added to lesson queue!');
       queryClient.invalidateQueries({ queryKey: ['queue'] });
+    },
+    onError: (err: Error) => setActionMsg(err.message),
+  });
+
+  const unlearnMutation = useMutation({
+    mutationFn: () => api.unlearnItem('kanji', kanji.id),
+    onSuccess: () => {
+      setActionMsg('Unlearned! Removed from your reviews.');
+      setConfirmUnlearn(false);
+      queryClient.invalidateQueries({ queryKey: ['progressMap'] });
+      queryClient.invalidateQueries({ queryKey: ['progress'] });
+      queryClient.invalidateQueries({ queryKey: ['reviews'] });
+      queryClient.invalidateQueries({ queryKey: ['queue'] });
+    },
+    onError: (err: Error) => setActionMsg(err.message),
+  });
+
+  const resurrectMutation = useMutation({
+    mutationFn: () => api.resurrectItem('kanji', kanji.id),
+    onSuccess: () => {
+      setActionMsg('Resurrected to Apprentice I! First review in 4 hours.');
+      setConfirmResurrect(false);
+      queryClient.invalidateQueries({ queryKey: ['progressMap'] });
+      queryClient.invalidateQueries({ queryKey: ['progress'] });
+      queryClient.invalidateQueries({ queryKey: ['reviews'] });
     },
     onError: (err: Error) => setActionMsg(err.message),
   });
@@ -374,13 +402,71 @@ function KanjiDetail({
 
           {/* Actions */}
           {alreadyLearned ? (
-            <div className="pt-1">
-              <span
-                className="inline-block text-xs font-bold px-3 py-1.5 rounded-full text-white"
-                style={{ backgroundColor: SRS_STAGE_COLORS[currentStage] }}
-              >
-                {SRS_STAGE_NAMES[currentStage]}
-              </span>
+            <div className="pt-1 space-y-2">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span
+                  className="inline-block text-xs font-bold px-3 py-1.5 rounded-full text-white"
+                  style={{ backgroundColor: SRS_STAGE_COLORS[currentStage] }}
+                >
+                  {SRS_STAGE_NAMES[currentStage]}
+                </span>
+                {isBurned && !confirmResurrect && (
+                  <button
+                    onClick={() => setConfirmResurrect(true)}
+                    className="px-3 py-1.5 rounded-lg bg-wk-radical text-white font-bold text-xs hover:opacity-90 transition-opacity"
+                  >
+                    Resurrect
+                  </button>
+                )}
+                {!confirmUnlearn && (
+                  <button
+                    onClick={() => setConfirmUnlearn(true)}
+                    className="px-3 py-1.5 rounded-lg bg-surface border border-border text-xs font-bold hover:bg-border transition-colors"
+                  >
+                    Unlearn
+                  </button>
+                )}
+              </div>
+              {confirmResurrect && (
+                <div className="flex items-center gap-2 flex-wrap text-xs">
+                  <span className="text-text-muted font-medium">
+                    Resurrect {kanji.character} back to Apprentice I? It re-enters your reviews.
+                  </span>
+                  <button
+                    onClick={() => resurrectMutation.mutate()}
+                    disabled={resurrectMutation.isPending}
+                    className="px-3 py-1.5 rounded-lg bg-wk-radical text-white font-bold hover:opacity-90 transition-opacity disabled:opacity-50"
+                  >
+                    {resurrectMutation.isPending ? 'Resurrecting…' : 'Yes, resurrect'}
+                  </button>
+                  <button
+                    onClick={() => setConfirmResurrect(false)}
+                    className="px-3 py-1.5 rounded-lg bg-surface border border-border font-bold hover:bg-border transition-colors"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              )}
+              {confirmUnlearn && (
+                <div className="flex items-center gap-2 flex-wrap text-xs">
+                  <span className="text-error font-medium">
+                    Unlearn {kanji.character}? This deletes its progress and upcoming reviews.
+                  </span>
+                  <button
+                    onClick={() => unlearnMutation.mutate()}
+                    disabled={unlearnMutation.isPending}
+                    className="px-3 py-1.5 rounded-lg bg-error text-white font-bold hover:opacity-90 transition-opacity disabled:opacity-50"
+                  >
+                    {unlearnMutation.isPending ? 'Unlearning…' : 'Yes, unlearn'}
+                  </button>
+                  <button
+                    onClick={() => setConfirmUnlearn(false)}
+                    className="px-3 py-1.5 rounded-lg bg-surface border border-border font-bold hover:bg-border transition-colors"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              )}
             </div>
           ) : (
             <div className="flex gap-2 pt-1">

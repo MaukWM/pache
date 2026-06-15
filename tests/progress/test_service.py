@@ -717,3 +717,86 @@ async def test_resurrect_item_other_users_burned_isolated(db_session: AsyncSessi
             user_id=user2.id, item_type=ItemType.KANJI, item_id=kanji.id
         )
     assert exc_info.value.status_code == status.HTTP_404_NOT_FOUND
+
+
+@pytest.mark.asyncio
+async def test_unlearn_item_deletes_progress_and_queue(db_session: AsyncSession) -> None:
+    """Unlearning removes the progress row (and any stale queue entry)."""
+    user = User(username="testuser")
+    db_session.add(user)
+    await db_session.flush()
+
+    kanji = Kanji(character="漢", meanings=["Chinese"], readings_on=["kan"],
+                  readings_kun=[], stroke_count=13)
+    db_session.add(kanji)
+    await db_session.flush()
+
+    progress = UserItemProgress(
+        user_id=user.id, item_type=ItemType.KANJI, item_id=kanji.id,
+        srs_stage=4, next_review_at=datetime.now(UTC) + timedelta(hours=1),
+    )
+    # A stale queue row should also be cleaned up.
+    queue = LessonQueue(user_id=user.id, item_type=ItemType.KANJI, item_id=kanji.id)
+    db_session.add_all([progress, queue])
+    await db_session.commit()
+
+    service = ProgressService(db_session)
+    await service.unlearn_item(user_id=user.id, item_type=ItemType.KANJI, item_id=kanji.id)
+
+    remaining_progress = await db_session.execute(
+        select(UserItemProgress).where(UserItemProgress.user_id == user.id)
+    )
+    assert remaining_progress.scalar_one_or_none() is None
+    remaining_queue = await db_session.execute(
+        select(LessonQueue).where(LessonQueue.user_id == user.id)
+    )
+    assert remaining_queue.scalar_one_or_none() is None
+
+
+@pytest.mark.asyncio
+async def test_unlearn_item_not_found_returns_404(db_session: AsyncSession) -> None:
+    """Unlearning an item with no progress row raises 404."""
+    user = User(username="testuser")
+    db_session.add(user)
+    await db_session.commit()
+
+    service = ProgressService(db_session)
+    with pytest.raises(HTTPException) as exc_info:
+        await service.unlearn_item(
+            user_id=user.id, item_type=ItemType.KANJI, item_id=99999
+        )
+    assert exc_info.value.status_code == status.HTTP_404_NOT_FOUND
+
+
+@pytest.mark.asyncio
+async def test_unlearn_item_other_user_isolated(db_session: AsyncSession) -> None:
+    """A user cannot unlearn another user's progress (404), and it stays intact."""
+    user1 = User(username="user1")
+    user2 = User(username="user2")
+    db_session.add_all([user1, user2])
+    await db_session.flush()
+
+    kanji = Kanji(character="漢", meanings=["Chinese"], readings_on=["kan"],
+                  readings_kun=[], stroke_count=13)
+    db_session.add(kanji)
+    await db_session.flush()
+
+    progress = UserItemProgress(
+        user_id=user1.id, item_type=ItemType.KANJI, item_id=kanji.id,
+        srs_stage=4, next_review_at=datetime.now(UTC) + timedelta(hours=1),
+    )
+    db_session.add(progress)
+    await db_session.commit()
+
+    service = ProgressService(db_session)
+    with pytest.raises(HTTPException) as exc_info:
+        await service.unlearn_item(
+            user_id=user2.id, item_type=ItemType.KANJI, item_id=kanji.id
+        )
+    assert exc_info.value.status_code == status.HTTP_404_NOT_FOUND
+
+    # user1's progress untouched
+    still_there = await db_session.execute(
+        select(UserItemProgress).where(UserItemProgress.user_id == user1.id)
+    )
+    assert still_there.scalar_one_or_none() is not None
