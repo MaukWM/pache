@@ -50,7 +50,7 @@ export function SubjectCard({
       type="button"
       onClick={onClick}
       title={`${character}${meaning ? ` — ${meaning}` : ''}`}
-      className={`inline-flex flex-col items-center gap-1 px-2.5 py-2 rounded-lg border bg-surface transition-all hover:shadow-sm hover:-translate-y-0.5 cursor-pointer ${
+      className={`inline-flex flex-col items-center gap-1.5 px-3.5 py-3 rounded-lg border bg-surface transition-all hover:shadow-sm hover:-translate-y-0.5 cursor-pointer ${
         selected
           ? 'border-2 ' + (isKanji ? 'border-wk-kanji' : 'border-wk-vocab')
           : 'border-border'
@@ -58,17 +58,17 @@ export function SubjectCard({
     >
       <span
         lang="ja"
-        className={`px-2 py-1 rounded-md border-2 text-xl font-bold leading-tight whitespace-nowrap ${boxClass}`}
+        className={`px-3 py-1.5 rounded-md border-2 text-2xl font-bold leading-tight whitespace-nowrap ${boxClass}`}
       >
         {character}
       </span>
       <span className="flex flex-col items-center leading-tight text-center">
         {reading && (
-          <span lang="ja" className="text-xs text-text-muted whitespace-nowrap">
+          <span lang="ja" className="text-sm text-text-muted whitespace-nowrap">
             {reading}
           </span>
         )}
-        {meaning && <span className="text-xs text-text max-w-[11rem] truncate">{meaning}</span>}
+        {meaning && <span className="text-sm text-text max-w-[12rem] truncate">{meaning}</span>}
       </span>
     </button>
   );
