@@ -1,7 +1,31 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
+import { Link } from 'react-router-dom';
 import { RadicalList } from './RadicalList';
-import { romajiToHiraganaLive } from '../lib/romaji';
+import { romajiToHiraganaLive, katakanaToHiragana } from '../lib/romaji';
 import type { KanjiComposition } from '../lib/api';
+
+// A collapsible info section in the F-key inspection panel (WaniKani-style).
+// The relevant section auto-opens; the other (e.g. meaning while quizzing the
+// reading) stays collapsed so it isn't spoiled before its own card comes up.
+function InfoSection({
+  title,
+  open,
+  children,
+}: {
+  title: string;
+  open?: boolean;
+  children: ReactNode;
+}) {
+  return (
+    <details open={open} className="group border-b border-border">
+      <summary className="flex items-center justify-between cursor-pointer list-none select-none py-2 text-sm font-bold uppercase tracking-wide text-text-muted hover:text-text">
+        <span>{title}</span>
+        <span className="text-[10px] transition-transform group-open:rotate-90">▶</span>
+      </summary>
+      <div className="pb-3">{children}</div>
+    </details>
+  );
+}
 
 export type CardType = 'reading' | 'meaning';
 
@@ -151,73 +175,61 @@ export function QuizCard({
             </div>
 
             {showInfo && (
-              <div className="space-y-1">
-                {/* Meaning — expanded when on a meaning card */}
-                <details open={cardType === 'meaning'} className="bg-surface-alt rounded-lg overflow-hidden">
-                  <summary className="px-4 py-2 text-xs font-bold uppercase tracking-wide text-text-muted cursor-pointer hover:bg-border/50">
-                    Meaning
-                  </summary>
-                  <div className="px-4 pb-3 space-y-2 text-sm">
-                    <div>{meanings.join(', ')}</div>
-                  </div>
-                </details>
+              <div className="text-left">
+                {/* Meaning — auto-open only when this is a meaning card */}
+                <InfoSection title="Meaning" open={cardType === 'meaning'}>
+                  <p className="text-xl">{meanings[0]}</p>
+                  {meanings.length > 1 && (
+                    <p className="text-sm text-text-muted mt-0.5">{meanings.slice(1).join(', ')}</p>
+                  )}
+                </InfoSection>
 
-                {/* Reading — expanded when on a reading card */}
-                <details open={cardType === 'reading'} className="bg-surface-alt rounded-lg overflow-hidden">
-                  <summary className="px-4 py-2 text-xs font-bold uppercase tracking-wide text-text-muted cursor-pointer hover:bg-border/50">
-                    Reading
-                  </summary>
-                  <div className="px-4 pb-3 space-y-2 text-sm">
-                    {isKanji ? (
-                      <div className="grid grid-cols-2 gap-3">
-                        {readingsOn.length > 0 && (
-                          <div>
-                            <span className="text-text-muted text-xs">On'yomi: </span>
-                            {readingsOn.join('、')}
-                          </div>
-                        )}
-                        {readingsKun.length > 0 && (
-                          <div>
-                            <span className="text-text-muted text-xs">Kun'yomi: </span>
-                            {readingsKun.join('、')}
-                          </div>
-                        )}
-                      </div>
-                    ) : (
-                      <div>{vocabReadings.join('、')}</div>
-                    )}
-                  </div>
-                </details>
-
-                {/* Radicals — kanji composition for reference */}
-                {isKanji && components.length > 0 && (
-                  <details className="bg-surface-alt rounded-lg overflow-hidden">
-                    <summary className="px-4 py-2 text-xs font-bold uppercase tracking-wide text-text-muted cursor-pointer hover:bg-border/50">
-                      Radicals
-                    </summary>
-                    <div className="px-4 pb-3 pt-1">
-                      <RadicalList components={components} size="sm" />
+                {/* Reading — auto-open only when this is a reading card */}
+                <InfoSection title="Reading" open={cardType === 'reading'}>
+                  {isKanji ? (
+                    <div className="flex gap-8">
+                      {readingsOn.length > 0 && (
+                        <div>
+                          <span className="text-text-muted text-xs block">On'yomi</span>
+                          <span lang="ja" className="text-xl">{readingsOn.map(katakanaToHiragana).join('、')}</span>
+                        </div>
+                      )}
+                      {readingsKun.length > 0 && (
+                        <div>
+                          <span className="text-text-muted text-xs block">Kun'yomi</span>
+                          <span lang="ja" className="text-xl">{readingsKun.join('、')}</span>
+                        </div>
+                      )}
                     </div>
-                  </details>
-                )}
+                  ) : (
+                    <p lang="ja" className="text-xl">{vocabReadings.join('、')}</p>
+                  )}
+                </InfoSection>
 
-                {/* Kanji Composition — constituent kanji for vocab */}
+                {/* Radicals (kanji) / Kanji Composition (vocab) — collapsed by default */}
+                {isKanji && components.length > 0 && (
+                  <InfoSection title="Radicals">
+                    <RadicalList components={components} size="sm" />
+                  </InfoSection>
+                )}
                 {!isKanji && kanjiComposition.length > 0 && (
-                  <details className="bg-surface-alt rounded-lg overflow-hidden">
-                    <summary className="px-4 py-2 text-xs font-bold uppercase tracking-wide text-text-muted cursor-pointer hover:bg-border/50">
-                      Kanji Composition
-                    </summary>
-                    <div className="px-4 pb-3 pt-1 flex gap-4 flex-wrap">
+                  <InfoSection title="Kanji Composition">
+                    <div className="flex gap-4 flex-wrap">
                       {kanjiComposition.map((k) => (
-                        <div key={k.character} className="flex items-center gap-2">
-                          <div className="bg-wk-kanji w-9 h-9 rounded-lg flex items-center justify-center text-white font-bold">
+                        <Link
+                          key={k.character}
+                          to={`/kanji/${encodeURIComponent(k.character)}`}
+                          className="flex items-center gap-2 rounded hover:bg-surface-alt px-1 -mx-1 transition-colors"
+                          title={`View ${k.character}`}
+                        >
+                          <div className="bg-wk-kanji border-2 border-wk-kanji-dark w-9 h-9 rounded-lg flex items-center justify-center text-white font-bold" lang="ja">
                             {k.character}
                           </div>
                           <span className="text-sm">{k.meanings[0]}</span>
-                        </div>
+                        </Link>
                       ))}
                     </div>
-                  </details>
+                  </InfoSection>
                 )}
               </div>
             )}

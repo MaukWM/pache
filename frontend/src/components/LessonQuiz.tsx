@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { type QueueItem } from '../lib/api';
 import { evaluateAnswer } from '../lib/quiz';
 import { QuizCard, type CardType } from './QuizCard';
+import { QuizShell } from './QuizShell';
 
 interface Card {
   item: QueueItem;
@@ -52,12 +53,19 @@ export function LessonQuiz({
   const [inputError, setInputError] = useState('');
   const [warning, setWarning] = useState('');
   const [shakeSignal, setShakeSignal] = useState(0);
-  const [cleared, setCleared] = useState(0);
+  // Card keys (item + type) cleared correctly. An item is "done" once both its
+  // meaning and reading cards are cleared — progress counts items, not cards.
+  const [clearedKeys, setClearedKeys] = useState<Set<string>>(() => new Set());
   const inputRef = useRef<HTMLInputElement>(null);
   const answeredAt = useRef(0);
   const passedFired = useRef(false);
 
-  const total = cards.length; // grows as wrong cards are re-queued
+  const totalItems = items.length;
+  const itemsDone = items.filter(
+    (it) =>
+      clearedKeys.has(`${it.item_type}-${it.item_id}-meaning`) &&
+      clearedKeys.has(`${it.item_type}-${it.item_id}-reading`),
+  ).length;
   const done = index >= cards.length;
 
   // Lock in the lessons exactly once, when every card has been cleared.
@@ -87,7 +95,12 @@ export function LessonQuiz({
 
   const commitAndAdvance = useCallback(() => {
     if (correct) {
-      setCleared((c) => c + 1);
+      const c = cards[index];
+      setClearedKeys((prev) => {
+        const next = new Set(prev);
+        next.add(`${c.item.item_type}-${c.item.item_id}-${c.type}`);
+        return next;
+      });
       setIndex((i) => i + 1);
     } else {
       // Re-queue the missed card later in the (remaining) deck.
@@ -106,7 +119,7 @@ export function LessonQuiz({
     setShowInfo(false);
     setInputError('');
     setWarning('');
-  }, [correct, index]);
+  }, [correct, index, cards]);
 
   // Global keys once an answer is shown (Enter = continue, Backspace = retype, F = item info).
   useEffect(() => {
@@ -132,36 +145,40 @@ export function LessonQuiz({
   if (done) {
     if (error) {
       return (
-        <div className="flex flex-col items-center justify-center py-20 space-y-4 text-center">
-          <div className="text-5xl">&#9888;&#65039;</div>
-          <h2 className="text-2xl font-bold">Couldn't save your lessons</h2>
-          <p className="max-w-md text-error">{error.message}</p>
-          <div className="flex gap-3">
-            <button
-              onClick={onPassed}
-              disabled={submitting}
-              className="px-5 py-2 rounded-lg bg-wk-radical text-white font-bold hover:opacity-90 transition-opacity disabled:opacity-50"
-            >
-              {submitting ? 'Retrying…' : 'Try again'}
-            </button>
-            <button
-              onClick={onExit}
-              className="px-5 py-2 rounded-lg bg-surface border border-border font-medium hover:bg-border transition-colors"
-            >
-              Back to lessons
-            </button>
+        <QuizShell onExit={onExit}>
+          <div className="flex-1 flex flex-col items-center justify-center py-20 space-y-4 text-center">
+            <div className="text-5xl">&#9888;&#65039;</div>
+            <h2 className="text-2xl font-bold">Couldn't save your lessons</h2>
+            <p className="max-w-md text-error">{error.message}</p>
+            <div className="flex gap-3">
+              <button
+                onClick={onPassed}
+                disabled={submitting}
+                className="px-5 py-2 rounded-lg bg-wk-radical text-white font-bold hover:opacity-90 transition-opacity disabled:opacity-50"
+              >
+                {submitting ? 'Retrying…' : 'Try again'}
+              </button>
+              <button
+                onClick={onExit}
+                className="px-5 py-2 rounded-lg bg-surface border border-border font-medium hover:bg-border transition-colors"
+              >
+                Back to lessons
+              </button>
+            </div>
           </div>
-        </div>
+        </QuizShell>
       );
     }
     return (
-      <div className="flex flex-col items-center justify-center py-20 space-y-4">
-        <div className="text-5xl">&#127881;</div>
-        <h2 className="text-2xl font-bold">Quiz passed!</h2>
-        <p className="text-text-muted">
-          {submitting ? 'Locking in your lessons…' : 'Done!'}
-        </p>
-      </div>
+      <QuizShell onExit={onExit}>
+        <div className="flex-1 flex flex-col items-center justify-center py-20 space-y-4">
+          <div className="text-5xl">&#127881;</div>
+          <h2 className="text-2xl font-bold">Quiz passed!</h2>
+          <p className="text-text-muted">
+            {submitting ? 'Locking in your lessons…' : 'Done!'}
+          </p>
+        </div>
+      </QuizShell>
     );
   }
 
@@ -199,43 +216,44 @@ export function LessonQuiz({
     }
   };
 
-  const progressPct = total > 0 ? (cleared / total) * 100 : 0;
+  const progressPct = totalItems > 0 ? (itemsDone / totalItems) * 100 : 0;
 
   return (
-    <div className="-mx-4 -mt-6 min-h-[calc(100vh-3.5rem)]">
-      {/* Quiz banner + progress */}
-      <div className="bg-wk-radical text-white text-center py-1.5 text-xs font-bold tracking-wide uppercase">
-        Lesson Quiz
-      </div>
-      <div className="h-2 bg-border overflow-hidden">
+    <QuizShell
+      onExit={onExit}
+      right={
+        <span className="flex items-center gap-3">
+          <span>{itemsDone} / {totalItems}</span>
+          <span className="uppercase tracking-wide text-[11px]">Lesson Quiz</span>
+        </span>
+      }
+    >
+      {/* Progress bar */}
+      <div className="h-2 bg-border overflow-hidden flex shrink-0">
         <div className="h-full bg-success transition-all" style={{ width: `${progressPct}%` }} />
       </div>
 
-      <QuizCard
-        itemType={item.item_type}
-        details={details}
-        cardType={cardType}
-        input={input}
-        onInput={setInput}
-        onKeyDown={handleKeyDown}
-        inputRef={inputRef}
-        inputError={inputError}
-        warning={warning}
-        shakeSignal={shakeSignal}
-        answered={answered}
-        correct={correct}
-        showInfo={showInfo}
-        onToggleInfo={() => setShowInfo((v) => !v)}
-        continueLabel="continue"
-        wrongLabel="try again later"
-      />
-
-      <div className="max-w-2xl mx-auto px-4 pt-3 flex justify-between text-xs text-text-muted">
-        <button onClick={onExit} className="hover:text-text transition-colors">
-          &larr; Back to lessons
-        </button>
-        <span>{items.length} item{items.length !== 1 ? 's' : ''} to clear</span>
+      {/* Quiz fills the full width, band anchored to the top (WaniKani-style) */}
+      <div className="flex-1">
+        <QuizCard
+          itemType={item.item_type}
+          details={details}
+          cardType={cardType}
+          input={input}
+          onInput={setInput}
+          onKeyDown={handleKeyDown}
+          inputRef={inputRef}
+          inputError={inputError}
+          warning={warning}
+          shakeSignal={shakeSignal}
+          answered={answered}
+          correct={correct}
+          showInfo={showInfo}
+          onToggleInfo={() => setShowInfo((v) => !v)}
+          continueLabel="continue"
+          wrongLabel="try again later"
+        />
       </div>
-    </div>
+    </QuizShell>
   );
 }

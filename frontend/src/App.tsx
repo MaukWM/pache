@@ -34,9 +34,10 @@ function ProtectedRoutes() {
         <Route path="vocab" element={<VocabPage />} />
         <Route path="vocab/:id" element={<VocabDetailPage />} />
         <Route path="lessons" element={<LessonsPage />} />
-        <Route path="reviews" element={<ReviewPage />} />
         <Route path="account" element={<AccountPage />} />
       </Route>
+      {/* Reviews run full-screen (no navbar) for a more immersive, WaniKani-like session. */}
+      <Route path="reviews" element={<ReviewPage />} />
     </Routes>
   );
 }

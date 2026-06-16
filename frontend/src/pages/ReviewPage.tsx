@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api, type ReviewItem } from '../lib/api';
 import { QuizCard, type CardType } from '../components/QuizCard';
+import { QuizShell } from '../components/QuizShell';
 import { evaluateAnswer } from '../lib/quiz';
 
 type ReviewMode = 'scrambled' | 'paired';
@@ -127,9 +128,11 @@ export function ReviewPage() {
 
   if (reviewsQuery.isLoading) {
     return (
-      <div className="flex items-center justify-center h-96 text-text-muted animate-pulse text-lg">
-        Loading reviews...
-      </div>
+      <QuizShell exitTo="/">
+        <div className="flex-1 flex items-center justify-center text-text-muted animate-pulse text-lg">
+          Loading reviews...
+        </div>
+      </QuizShell>
     );
   }
 
@@ -138,15 +141,18 @@ export function ReviewPage() {
   if (!started) {
     if (reviewItems.length === 0) {
       return (
-        <div className="flex flex-col items-center justify-center py-20 space-y-4 text-center">
-          <h2 className="text-2xl font-bold">No reviews due</h2>
-          <p className="text-text-muted">Come back later when items are ready for review.</p>
-        </div>
+        <QuizShell exitTo="/">
+          <div className="flex-1 flex flex-col items-center justify-center space-y-4 text-center">
+            <h2 className="text-2xl font-bold">No reviews due</h2>
+            <p className="text-text-muted">Come back later when items are ready for review.</p>
+          </div>
+        </QuizShell>
       );
     }
 
     return (
-      <div className="flex flex-col items-center justify-center py-20 space-y-6">
+      <QuizShell exitTo="/">
+      <div className="flex-1 flex flex-col items-center justify-center space-y-6">
         <h2 className="text-2xl font-bold">{reviewItems.length} items to review</h2>
         <div className="flex gap-3">
           <button
@@ -178,13 +184,15 @@ export function ReviewPage() {
           Start Reviews
         </button>
       </div>
+      </QuizShell>
     );
   }
 
   // Session complete
   if (currentIndex >= cards.length) {
     return (
-      <div className="flex flex-col items-center justify-center py-20 space-y-6">
+      <QuizShell exitTo="/">
+      <div className="flex-1 flex flex-col items-center justify-center space-y-6">
         <div className="text-6xl">&#10003;</div>
         <h2 className="text-2xl font-bold">All done!</h2>
         <p className="text-text-muted">{completedCorrect} correct, {completedIncorrect} incorrect</p>
@@ -204,6 +212,7 @@ export function ReviewPage() {
           Done
         </button>
       </div>
+      </QuizShell>
     );
   }
 
@@ -297,52 +306,47 @@ export function ReviewPage() {
   const incorrectPct = totalItems > 0 ? (completedIncorrect / totalItems) * 100 : 0;
 
   return (
-    <div className="-mx-4 -mt-6 min-h-[calc(100vh-3.5rem)]">
+    <QuizShell
+      exitTo="/"
+      right={
+        <span className="flex items-center gap-3">
+          <span>{completedCorrect + completedIncorrect} / {totalItems}</span>
+          <span className="text-success">{completedCorrect}✓</span>
+          {completedIncorrect > 0 && <span className="text-error">{completedIncorrect}✗</span>}
+        </span>
+      }
+    >
       {/* Progress bar — WK style with counts */}
-      <div className="h-6 bg-border overflow-hidden flex text-xs font-bold">
+      <div className="h-2 bg-border overflow-hidden flex shrink-0">
         {completedCorrect > 0 && (
-          <div
-            className="h-full bg-success flex items-center justify-center text-white transition-all"
-            style={{ width: `${correctPct}%` }}
-          >
-            {correctPct > 5 ? completedCorrect : ''}
-          </div>
+          <div className="h-full bg-success transition-all" style={{ width: `${correctPct}%` }} />
         )}
         {completedIncorrect > 0 && (
-          <div
-            className="h-full bg-error flex items-center justify-center text-white transition-all"
-            style={{ width: `${incorrectPct}%` }}
-          >
-            {incorrectPct > 5 ? completedIncorrect : ''}
-          </div>
+          <div className="h-full bg-error transition-all" style={{ width: `${incorrectPct}%` }} />
         )}
       </div>
 
-      <QuizCard
-        itemType={item.item_type}
-        details={item.item_details}
-        cardType={cardType}
-        input={input}
-        onInput={setInput}
-        onKeyDown={handleKeyDown}
-        inputRef={inputRef}
-        inputError={inputError}
-        warning={warning}
-        shakeSignal={shakeSignal}
-        answered={answered}
-        correct={correct}
-        showInfo={showInfo}
-        onToggleInfo={() => setShowInfo((v) => !v)}
-        continueLabel="continue"
-        wrongLabel="accept"
-      />
-
-      {/* Stats */}
-      <div className="flex justify-between text-xs text-text-muted mt-3 px-4">
-        <span>{completedCorrect + completedIncorrect} / {totalItems} items</span>
-        <span className="text-success">{completedCorrect} correct</span>
-        {completedIncorrect > 0 && <span className="text-error">{completedIncorrect} incorrect</span>}
+      {/* Quiz fills the full width, band anchored to the top (WaniKani-style) */}
+      <div className="flex-1">
+        <QuizCard
+          itemType={item.item_type}
+          details={item.item_details}
+          cardType={cardType}
+          input={input}
+          onInput={setInput}
+          onKeyDown={handleKeyDown}
+          inputRef={inputRef}
+          inputError={inputError}
+          warning={warning}
+          shakeSignal={shakeSignal}
+          answered={answered}
+          correct={correct}
+          showInfo={showInfo}
+          onToggleInfo={() => setShowInfo((v) => !v)}
+          continueLabel="continue"
+          wrongLabel="accept"
+        />
       </div>
-    </div>
+    </QuizShell>
   );
 }

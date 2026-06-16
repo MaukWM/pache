@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api, type QueueItem } from '../lib/api';
 import { RadicalList } from '../components/RadicalList';
 import { LessonQuiz } from '../components/LessonQuiz';
+import { QuizShell } from '../components/QuizShell';
 
 type Tab = 'composition' | 'meaning' | 'reading' | 'info';
 
@@ -316,26 +318,18 @@ export function LessonsPage() {
   }));
 
   return (
-    <div className="max-w-2xl mx-auto space-y-0">
-      {/* Progress */}
-      <div className="flex items-center justify-between text-sm text-text-muted mb-4">
-        <button
-          onClick={() => setSessionActive(false)}
-          className="hover:text-text transition-colors"
-        >
-          &larr; Back to queue
-        </button>
-        <span>{currentIndex + 1} / {sessionItems.length}</span>
-      </div>
-
-      {/* Hero card */}
-      <div className={`${bgColor} rounded-t-2xl p-10 text-white text-center`}>
-        <div className="text-7xl font-bold mb-3">{display}</div>
+    <QuizShell
+      onExit={() => setSessionActive(false)}
+      right={<span>{currentIndex + 1} / {sessionItems.length}</span>}
+    >
+      {/* Hero band — full width, WaniKani-style */}
+      <div className={`${bgColor} p-10 text-white text-center shrink-0`}>
+        <div className="text-7xl font-bold mb-3" lang="ja">{display}</div>
         <div className="text-xl opacity-90">{meanings[0]}</div>
       </div>
 
-      {/* Tabs */}
-      <div className="bg-surface-alt flex border-b border-border">
+      {/* Tabs — full width */}
+      <div className="bg-surface-alt flex border-b border-border shrink-0">
         {tabs.map((tab) => (
           <button
             key={tab.id}
@@ -352,8 +346,9 @@ export function LessonsPage() {
         ))}
       </div>
 
-      {/* Tab content */}
-      <div className="bg-surface rounded-b-2xl p-6 shadow-sm min-h-[200px]">
+      {/* Tab content + navigation in a centered column */}
+      <div className="flex-1 w-full max-w-2xl mx-auto px-4 py-6">
+        <div className="min-h-[200px]">
         {activeTab === 'composition' && (
           <div className="space-y-4">
             <h3 className="text-text-muted text-xs uppercase tracking-wide mb-2">
@@ -368,12 +363,17 @@ export function LessonsPage() {
             </p>
             <div className="flex gap-4 flex-wrap">
               {kanjiComposition.map((k) => (
-                <div key={k.character} className="flex items-center gap-2">
-                  <div className="bg-wk-kanji w-11 h-11 rounded-lg flex items-center justify-center text-white text-xl font-bold">
+                <Link
+                  key={k.character}
+                  to={`/kanji/${encodeURIComponent(k.character)}`}
+                  className="flex items-center gap-2 rounded-lg hover:bg-surface-alt px-1 py-0.5 -mx-1 transition-colors"
+                  title={`View ${k.character}`}
+                >
+                  <div className="bg-wk-kanji border-2 border-wk-kanji-dark w-11 h-11 rounded-lg flex items-center justify-center text-white text-xl font-bold" lang="ja">
                     {k.character}
                   </div>
                   <span className="text-sm">{k.meanings[0]}</span>
-                </div>
+                </Link>
               ))}
             </div>
             <p className="text-sm text-text-muted pt-2">
@@ -436,26 +436,27 @@ export function LessonsPage() {
             </div>
           </div>
         )}
-      </div>
+        </div>
 
-      {/* Navigation */}
-      <div className="flex items-center justify-between pt-4">
-        <button
-          onClick={goBack}
-          disabled={atStart}
-          className="px-5 py-2.5 rounded-lg bg-surface border border-border font-bold text-sm disabled:opacity-30 hover:bg-border transition-colors"
-        >
-          <kbd className="mr-1.5 px-1.5 py-0.5 rounded bg-border text-text text-[10px] font-mono">&larr;</kbd>
-          Back
-        </button>
-        <button
-          onClick={goForward}
-          className="px-5 py-2.5 rounded-lg bg-wk-radical text-white font-bold text-sm hover:opacity-90 transition-opacity"
-        >
-          {isLastStep ? 'Finish' : 'Next'}
-          <kbd className="ml-1.5 px-1.5 py-0.5 rounded bg-white/25 text-white text-[10px] font-mono">&rarr;</kbd>
-        </button>
+        {/* Navigation */}
+        <div className="flex items-center justify-between pt-6">
+          <button
+            onClick={goBack}
+            disabled={atStart}
+            className="px-5 py-2.5 rounded-lg bg-surface border border-border font-bold text-sm disabled:opacity-30 hover:bg-border transition-colors"
+          >
+            <kbd className="mr-1.5 px-1.5 py-0.5 rounded bg-border text-text text-[10px] font-mono">&larr;</kbd>
+            Back
+          </button>
+          <button
+            onClick={goForward}
+            className="px-5 py-2.5 rounded-lg bg-wk-radical text-white font-bold text-sm hover:opacity-90 transition-opacity"
+          >
+            {isLastStep ? 'Finish' : 'Next'}
+            <kbd className="ml-1.5 px-1.5 py-0.5 rounded bg-white/25 text-white text-[10px] font-mono">&rarr;</kbd>
+          </button>
+        </div>
       </div>
-    </div>
+    </QuizShell>
   );
 }
