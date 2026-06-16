@@ -286,6 +286,13 @@ export const api = {
 };
 
 // Types
+
+// A constituent kanji of a vocab word, for the Kanji Composition panel.
+export interface KanjiComposition {
+  character: string;
+  meanings: string[];
+}
+
 export interface ReviewItem {
   item_type: string;
   item_id: number;
@@ -299,6 +306,7 @@ export interface ReviewItem {
     readings_on?: string[];
     readings_kun?: string[];
     components?: string[];
+    kanji?: KanjiComposition[];
   };
 }
 
@@ -310,11 +318,17 @@ export interface Sentence {
   created_at: string;
 }
 
+export interface DictionarySense {
+  glosses: string[];
+  pos: string[];
+}
+
 export interface VocabSearchResult {
   word: string;
   readings: string[];
   meanings: string[];
   pos: string[];
+  senses: DictionarySense[];
   is_common: boolean;
   already_exists: boolean;
 }
@@ -379,5 +393,6 @@ export interface QueueItem {
     readings_on?: string[];
     readings_kun?: string[];
     components?: string[];
+    kanji?: KanjiComposition[];
   };
 }

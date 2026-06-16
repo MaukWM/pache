@@ -99,6 +99,13 @@ class VocabResponse(BaseModel):
     kanji: list[KanjiResponse]
 
 
+class DictionarySenseResult(BaseModel):
+    """One numbered sense of a dictionary entry (its own glosses + parts of speech)."""
+
+    glosses: list[str]
+    pos: list[str]
+
+
 class VocabSearchResult(BaseModel):
     """A dictionary lookup candidate for importing as vocabulary."""
 
@@ -106,6 +113,8 @@ class VocabSearchResult(BaseModel):
     readings: list[str]
     meanings: list[str]
     pos: list[str]
+    # Per-sense breakdown so the UI can show numbered senses and import one or more.
+    senses: list[DictionarySenseResult] = Field(default_factory=list)
     is_common: bool
     already_exists: bool = Field(
         default=False, description="True if this word is already in the shared pool"

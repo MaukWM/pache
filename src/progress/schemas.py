@@ -18,6 +18,13 @@ class KanjiItemDetails(TypedDict):
     components: list[str]
 
 
+class KanjiComposition(TypedDict):
+    """A constituent kanji of a vocab word, for the Kanji Composition panel."""
+
+    character: str
+    meanings: list[str]
+
+
 class VocabItemDetails(TypedDict):
     """Type definition for vocabulary item details."""
 
@@ -27,6 +34,8 @@ class VocabItemDetails(TypedDict):
     tags: list[str]
     creator_comment: str | None
     creator_username: str | None
+    # Constituent kanji (character + meanings) for the Kanji Composition panel.
+    kanji: list[KanjiComposition]
 
 
 class QueueItemRequest(BaseModel):

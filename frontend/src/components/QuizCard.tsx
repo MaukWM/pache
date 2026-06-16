@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { RadicalList } from './RadicalList';
 import { romajiToHiraganaLive } from '../lib/romaji';
+import type { KanjiComposition } from '../lib/api';
 
 export type CardType = 'reading' | 'meaning';
 
@@ -14,6 +15,7 @@ export interface QuizItemDetails {
   readings_on?: string[];
   readings_kun?: string[];
   components?: string[];
+  kanji?: KanjiComposition[];
   tags?: string[];
   creator_comment?: string | null;
   creator_username?: string | null;
@@ -77,6 +79,7 @@ export function QuizCard({
   const readingsOn = details.readings_on || [];
   const readingsKun = details.readings_kun || [];
   const components = details.components || [];
+  const kanjiComposition = details.kanji || [];
   const vocabReadings = details.readings || [];
   const vocabTags = details.tags || [];
   const vocabComment = details.creator_comment;
@@ -194,6 +197,25 @@ export function QuizCard({
                     </summary>
                     <div className="px-4 pb-3 pt-1">
                       <RadicalList components={components} size="sm" />
+                    </div>
+                  </details>
+                )}
+
+                {/* Kanji Composition — constituent kanji for vocab */}
+                {!isKanji && kanjiComposition.length > 0 && (
+                  <details className="bg-surface-alt rounded-lg overflow-hidden">
+                    <summary className="px-4 py-2 text-xs font-bold uppercase tracking-wide text-text-muted cursor-pointer hover:bg-border/50">
+                      Kanji Composition
+                    </summary>
+                    <div className="px-4 pb-3 pt-1 flex gap-4 flex-wrap">
+                      {kanjiComposition.map((k) => (
+                        <div key={k.character} className="flex items-center gap-2">
+                          <div className="bg-wk-kanji w-9 h-9 rounded-lg flex items-center justify-center text-white font-bold">
+                            {k.character}
+                          </div>
+                          <span className="text-sm">{k.meanings[0]}</span>
+                        </div>
+                      ))}
                     </div>
                   </details>
                 )}

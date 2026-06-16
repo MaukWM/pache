@@ -135,6 +135,7 @@ class ReviewService:
                     vocab_query = select(Vocab).where(Vocab.id.in_(vocab_ids)).options(
                         selectinload(Vocab.tags),
                         selectinload(Vocab.creator),
+                        selectinload(Vocab.kanji),
                     )
                     vocab_result = await self.db.execute(vocab_query)
                     vocab_map = {v.id: v for v in vocab_result.scalars().all()}
@@ -185,6 +186,10 @@ class ReviewService:
                         tags=[t.name for t in vocab.tags],
                         creator_comment=vocab.creator_comment,
                         creator_username=vocab.creator.username if vocab.creator else None,
+                        kanji=[
+                            {"character": k.character, "meanings": k.meanings}
+                            for k in vocab.kanji
+                        ],
                     )
                 else:
                     # Unknown item type, skip

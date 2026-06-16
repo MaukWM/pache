@@ -27,13 +27,24 @@ _COMMON_PRI = {"news1", "ichi1", "spec1", "spec2", "gai1"}
 _JAPANESE_RE = re.compile(r"[぀-ヿ㐀-鿿]")
 
 
+class DictionarySense(TypedDict):
+    """A single JMdict sense (one numbered definition with its own glosses + pos)."""
+
+    glosses: list[str]
+    pos: list[str]
+
+
 class DictionaryEntry(TypedDict):
     """A single dictionary lookup result, shaped for the vocab create form."""
 
     word: str
     readings: list[str]
+    # Flattened glosses across all senses (kept for back-compat / quick display).
     meanings: list[str]
     pos: list[str]
+    # Per-sense breakdown so the UI can show numbered senses Jisho-style and let
+    # the user import one or several senses' glosses.
+    senses: list[DictionarySense]
     is_common: bool
 
 
@@ -85,11 +96,16 @@ def search_jmdict(query: str, limit: int = 20) -> list[DictionaryEntry]:
 
         meanings: list[str] = []
         pos: list[str] = []
+        senses: list[DictionarySense] = []
         for sense in entry.senses:
-            meanings.extend(str(g) for g in sense.gloss)
-            for p in sense.pos:
+            glosses = [str(g) for g in sense.gloss]
+            meanings.extend(glosses)
+            sense_pos = list(sense.pos)
+            for p in sense_pos:
                 if p not in pos:
                     pos.append(p)
+            if glosses:
+                senses.append(DictionarySense(glosses=glosses, pos=sense_pos))
 
         pri_tags = {p for k in entry.kanji_forms for p in (k.pri or [])}
         pri_tags |= {p for k in entry.kana_forms for p in (k.pri or [])}
@@ -100,6 +116,7 @@ def search_jmdict(query: str, limit: int = 20) -> list[DictionaryEntry]:
                 readings=kana_forms,
                 meanings=meanings,
                 pos=pos,
+                senses=senses,
                 is_common=bool(pri_tags & _COMMON_PRI),
             )
         )

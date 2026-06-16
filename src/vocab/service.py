@@ -11,7 +11,12 @@ from src.progress.models import LessonQueue, UserItemProgress
 from src.reviews.models import ReviewLog
 from src.vocab.dictionary import search_jmdict_async
 from src.vocab.models import Tag, Vocab, VocabSentence
-from src.vocab.schemas import VocabCreateRequest, VocabSearchResult, VocabUpdateRequest
+from src.vocab.schemas import (
+    DictionarySenseResult,
+    VocabCreateRequest,
+    VocabSearchResult,
+    VocabUpdateRequest,
+)
 
 
 class VocabService:
@@ -161,6 +166,7 @@ class VocabService:
                 readings=e["readings"],
                 meanings=e["meanings"],
                 pos=e["pos"],
+                senses=[DictionarySenseResult(**s) for s in e["senses"]],
                 is_common=e["is_common"],
                 already_exists=e["word"] in existing_words,
             )

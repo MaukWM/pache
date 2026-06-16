@@ -97,7 +97,11 @@ class LessonService:
             result = await self.db.execute(
                 select(Vocab)
                 .where(Vocab.id == item_id)
-                .options(selectinload(Vocab.tags), selectinload(Vocab.creator))
+                .options(
+                    selectinload(Vocab.tags),
+                    selectinload(Vocab.creator),
+                    selectinload(Vocab.kanji),
+                )
             )
             item = result.scalar_one_or_none()
             if item is None:
@@ -112,6 +116,9 @@ class LessonService:
                 "tags": [t.name for t in item.tags],
                 "creator_comment": item.creator_comment,
                 "creator_username": item.creator.username if item.creator else None,
+                "kanji": [
+                    {"character": k.character, "meanings": k.meanings} for k in item.kanji
+                ],
             }
         else:
             raise HTTPException(

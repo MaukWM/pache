@@ -1,6 +1,13 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { api, type KanjiItem, type VocabItem, type VocabSearchResult, type Sentence } from '../lib/api';
+import {
+  api,
+  type KanjiItem,
+  type VocabItem,
+  type VocabSearchResult,
+  type DictionarySense,
+  type Sentence,
+} from '../lib/api';
 import { SRS_STAGE_COLORS, SRS_STAGE_NAMES } from '../lib/srs';
 
 // Extract kanji characters from a string
@@ -883,6 +890,12 @@ function CreateVocabForm({ onCreated }: { onCreated: () => void }) {
   const [word, setWord] = useState('');
   const [readings, setReadings] = useState('');
   const [meanings, setMeanings] = useState('');
+  // Senses currently combined via shift-click, scoped to a single dictionary
+  // entry (word). Switching entries starts fresh rather than stacking.
+  const [selectedSenses, setSelectedSenses] = useState<{ word: string; indices: number[] }>({
+    word: '',
+    indices: [],
+  });
   const [tags, setTags] = useState<string[]>([]);
   const [comment, setComment] = useState('');
   const allTags = useAllTags();
@@ -919,12 +932,48 @@ function CreateVocabForm({ onCreated }: { onCreated: () => void }) {
     enabled: debouncedQuery.length > 0,
   });
 
-  const applyResult = (r: VocabSearchResult) => {
+  // Picking a sense prefills the meanings with that sense's glosses (a JMdict
+  // entry can have several distinct senses — e.g. 界隈 = "vicinity" vs.
+  // "community/scene"). Plain click replaces the meanings and closes the list.
+  // Shift-click builds up a combined selection scoped to a SINGLE entry: it
+  // toggles the clicked sense and rebuilds the meanings from all selected senses
+  // (deduped, in order). Shift-clicking a different entry starts fresh rather
+  // than stacking across words. Editable afterwards.
+  const applySense = (
+    r: VocabSearchResult,
+    senses: DictionarySense[],
+    si: number,
+    additive: boolean,
+  ) => {
     setWord(r.word);
     setReadings(r.readings.join(', '));
-    setMeanings(r.meanings.join(', '));
-    setDictQuery('');
-    setDebouncedQuery('');
+
+    if (!additive) {
+      setMeanings(senses[si].glosses.join(', '));
+      setSelectedSenses({ word: r.word, indices: [si] });
+      setDictQuery('');
+      setDebouncedQuery('');
+      return;
+    }
+
+    const sameWord = selectedSenses.word === r.word;
+    let indices: number[];
+    if (!sameWord) {
+      indices = [si];
+    } else if (selectedSenses.indices.includes(si)) {
+      indices = selectedSenses.indices.filter((x) => x !== si); // toggle off
+    } else {
+      indices = [...selectedSenses.indices, si];
+    }
+
+    const glosses: string[] = [];
+    for (const idx of indices) {
+      for (const g of senses[idx].glosses) {
+        if (!glosses.includes(g)) glosses.push(g);
+      }
+    }
+    setMeanings(glosses.join(', '));
+    setSelectedSenses({ word: r.word, indices });
   };
 
   // Auto-detect kanji from word
@@ -1003,27 +1052,61 @@ function CreateVocabForm({ onCreated }: { onCreated: () => void }) {
             {dictResults.data?.length === 0 && (
               <p className="px-3 py-2 text-sm text-text-muted">No dictionary matches.</p>
             )}
-            {dictResults.data?.map((r, i) => (
-              <button
-                key={`${r.word}-${i}`}
-                type="button"
-                disabled={r.already_exists}
-                onClick={() => applyResult(r)}
-                className={`w-full text-left px-3 py-2 flex items-center gap-3 transition-colors ${
-                  r.already_exists ? 'opacity-50 cursor-not-allowed' : 'hover:bg-border/50 cursor-pointer'
-                }`}
-              >
-                <span className="text-lg font-bold shrink-0" lang="ja">{r.word}</span>
-                <span className="text-sm text-text-muted shrink-0" lang="ja">{r.readings.slice(0, 2).join('、')}</span>
-                <span className="text-sm flex-1 min-w-0 truncate">{r.meanings.slice(0, 4).join(', ')}</span>
-                {r.is_common && !r.already_exists && (
-                  <span className="text-[10px] font-bold text-success shrink-0">● common</span>
-                )}
-                {r.already_exists && (
-                  <span className="text-[10px] font-bold text-text-muted shrink-0">✓ in pool</span>
-                )}
-              </button>
-            ))}
+            {dictResults.data?.map((r, i) => {
+              // Fall back to a single synthetic sense for entries without a
+              // per-sense breakdown (back-compat).
+              const senses: DictionarySense[] = r.senses?.length
+                ? r.senses
+                : [{ glosses: r.meanings, pos: r.pos }];
+              return (
+                <div key={`${r.word}-${i}`} className="px-3 py-2">
+                  <div className="flex items-center gap-3 mb-1">
+                    <span className="text-lg font-bold shrink-0" lang="ja">{r.word}</span>
+                    <span className="text-sm text-text-muted shrink-0" lang="ja">{r.readings.slice(0, 2).join('、')}</span>
+                    {r.is_common && !r.already_exists && (
+                      <span className="text-[10px] font-bold text-success shrink-0">● common</span>
+                    )}
+                    {r.already_exists && (
+                      <span className="text-[10px] font-bold text-text-muted shrink-0">✓ in pool</span>
+                    )}
+                  </div>
+                  <div className="space-y-0.5">
+                    {senses.map((s, si) => {
+                      const selected =
+                        selectedSenses.word === r.word && selectedSenses.indices.includes(si);
+                      return (
+                        <button
+                          key={si}
+                          type="button"
+                          disabled={r.already_exists}
+                          onClick={(e) => applySense(r, senses, si, e.shiftKey)}
+                          title="Click to use this sense · Shift-click to combine senses"
+                          className={`w-full text-left text-sm rounded px-2 py-1 flex gap-2 transition-colors ${
+                            r.already_exists
+                              ? 'opacity-50 cursor-not-allowed'
+                              : selected
+                                ? 'bg-wk-vocab/15 text-wk-vocab font-medium cursor-pointer'
+                                : 'hover:bg-border/50 cursor-pointer'
+                          }`}
+                        >
+                          {senses.length > 1 && (
+                            <span className="shrink-0 tabular-nums text-text-muted">
+                              {selected ? '✓' : `${si + 1}.`}
+                            </span>
+                          )}
+                          <span className="flex-1 min-w-0">{s.glosses.join('; ')}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {senses.length > 1 && !r.already_exists && (
+                    <p className="text-[10px] text-text-muted mt-1">
+                      Shift-click to combine senses · click again to remove.
+                    </p>
+                  )}
+                </div>
+              );
+            })}
           </div>
         )}
       </div>

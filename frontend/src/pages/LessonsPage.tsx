@@ -4,10 +4,17 @@ import { api, type QueueItem } from '../lib/api';
 import { RadicalList } from '../components/RadicalList';
 import { LessonQuiz } from '../components/LessonQuiz';
 
-type Tab = 'meaning' | 'reading' | 'info';
+type Tab = 'composition' | 'meaning' | 'reading' | 'info';
 
-// Order the lesson session steps through: tabs of a card, then the next card.
-const TAB_ORDER: Tab[] = ['meaning', 'reading', 'info'];
+// The ordered tabs a card steps through. Vocab with constituent kanji gets a
+// leading "Kanji Composition" panel (WaniKani-style); kanji and kana-only vocab
+// skip it.
+function tabOrderFor(item: QueueItem | undefined): Tab[] {
+  const hasComposition = (item?.item_details?.kanji?.length ?? 0) > 0;
+  return hasComposition
+    ? ['composition', 'meaning', 'reading', 'info']
+    : ['meaning', 'reading', 'info'];
+}
 
 export function LessonsPage() {
   const queryClient = useQueryClient();
@@ -49,25 +56,29 @@ export function LessonsPage() {
     },
   });
 
-  // Step forward: meaning -> reading -> info -> next card.
+  // Step forward through the current card's tabs, then on to the next card
+  // (landing on its first tab).
   const goForward = () => {
     if (!sessionActive || currentIndex >= sessionItems.length) return;
-    const tabIdx = TAB_ORDER.indexOf(activeTab);
-    if (tabIdx < TAB_ORDER.length - 1) {
-      setActiveTab(TAB_ORDER[tabIdx + 1]);
+    const order = tabOrderFor(sessionItems[currentIndex]);
+    const tabIdx = order.indexOf(activeTab);
+    if (tabIdx < order.length - 1) {
+      setActiveTab(order[tabIdx + 1]);
     } else {
-      setCurrentIndex((i) => i + 1);
-      setActiveTab('meaning');
+      const next = currentIndex + 1;
+      setCurrentIndex(next);
+      setActiveTab(tabOrderFor(sessionItems[next])[0]);
     }
   };
 
-  // Step back: info -> reading -> meaning -> previous card (landing on its info
-  // tab so the flow is reversible).
+  // Step back through tabs, then to the previous card's last tab ('info') so the
+  // flow is reversible.
   const goBack = () => {
     if (!sessionActive || currentIndex >= sessionItems.length) return;
-    const tabIdx = TAB_ORDER.indexOf(activeTab);
+    const order = tabOrderFor(sessionItems[currentIndex]);
+    const tabIdx = order.indexOf(activeTab);
     if (tabIdx > 0) {
-      setActiveTab(TAB_ORDER[tabIdx - 1]);
+      setActiveTab(order[tabIdx - 1]);
     } else if (currentIndex > 0) {
       setCurrentIndex((i) => i - 1);
       setActiveTab('info');
@@ -118,7 +129,7 @@ export function LessonsPage() {
     setSessionItems(toStudy);
     setSessionActive(true);
     setCurrentIndex(0);
-    setActiveTab('meaning');
+    setActiveTab(tabOrderFor(toStudy[0])[0]);
   };
 
   // Queue overview
@@ -286,16 +297,23 @@ export function LessonsPage() {
   const readingsKun = (item.item_details as Record<string, unknown>)?.readings_kun as string[] | undefined;
   const readings = (item.item_details as Record<string, unknown>)?.readings as string[] | undefined;
   const components = item.item_details?.components ?? [];
+  const kanjiComposition = item.item_details?.kanji ?? [];
   const bgColor = isKanji ? 'bg-wk-kanji' : 'bg-wk-vocab';
 
+  const tabOrder = tabOrderFor(item);
   const isLastStep = currentIndex === sessionItems.length - 1 && activeTab === 'info';
-  const atStart = currentIndex === 0 && activeTab === 'meaning';
+  const atStart = currentIndex === 0 && tabOrder.indexOf(activeTab) === 0;
 
-  const tabs: { id: Tab; label: string }[] = [
-    { id: 'meaning', label: 'Meaning' },
-    { id: 'reading', label: isKanji ? 'Readings' : 'Reading' },
-    { id: 'info', label: 'Info' },
-  ];
+  const tabLabels: Record<Tab, string> = {
+    composition: 'Kanji Composition',
+    meaning: 'Meaning',
+    reading: isKanji ? 'Readings' : 'Reading',
+    info: 'Info',
+  };
+  const tabs: { id: Tab; label: string }[] = tabOrder.map((id) => ({
+    id,
+    label: tabLabels[id],
+  }));
 
   return (
     <div className="max-w-2xl mx-auto space-y-0">
@@ -336,6 +354,35 @@ export function LessonsPage() {
 
       {/* Tab content */}
       <div className="bg-surface rounded-b-2xl p-6 shadow-sm min-h-[200px]">
+        {activeTab === 'composition' && (
+          <div className="space-y-4">
+            <h3 className="text-text-muted text-xs uppercase tracking-wide mb-2">
+              Kanji Composition
+            </h3>
+            <p className="text-sm text-text-muted">
+              This vocabulary is composed of{' '}
+              {kanjiComposition.length === 1
+                ? 'one kanji'
+                : `${kanjiComposition.length} kanji`}
+              :
+            </p>
+            <div className="flex gap-4 flex-wrap">
+              {kanjiComposition.map((k) => (
+                <div key={k.character} className="flex items-center gap-2">
+                  <div className="bg-wk-kanji w-11 h-11 rounded-lg flex items-center justify-center text-white text-xl font-bold">
+                    {k.character}
+                  </div>
+                  <span className="text-sm">{k.meanings[0]}</span>
+                </div>
+              ))}
+            </div>
+            <p className="text-sm text-text-muted pt-2">
+              Does the combination of the kanji meanings relate to the vocabulary meaning?
+              Can you guess the reading from the kanji?
+            </p>
+          </div>
+        )}
+
         {activeTab === 'meaning' && (
           <div className="space-y-4">
             <div>

@@ -60,7 +60,10 @@ class ProgressService:
                 "components": item.components or [],
             }
         elif item_type == ItemType.VOCAB:
-            item = await self.db.get(Vocab, item_id)
+            vocab_result = await self.db.execute(
+                select(Vocab).where(Vocab.id == item_id).options(selectinload(Vocab.kanji))
+            )
+            item = vocab_result.scalar_one_or_none()
             if item is None:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
@@ -73,6 +76,9 @@ class ProgressService:
                 "tags": [],
                 "creator_comment": None,
                 "creator_username": None,
+                "kanji": [
+                    {"character": k.character, "meanings": k.meanings} for k in item.kanji
+                ],
             }
         else:
             raise HTTPException(
@@ -208,6 +214,10 @@ class ProgressService:
                         "tags": [],
                         "creator_comment": None,
                         "creator_username": None,
+                        "kanji": [
+                            {"character": k.character, "meanings": k.meanings}
+                            for k in vocab.kanji
+                        ],
                     }
                 else:
                     # Item was deleted, mark for cleanup
