@@ -5,6 +5,11 @@
   --color-wk-radical: #00aaff;
   --color-wk-kanji: #ff00aa;
   --color-wk-vocab: #aa00ff;
+  /* WaniKani subject-card accents (dark borders + burned fill) */
+  --color-wk-kanji-dark: #b9007b;
+  --color-wk-vocab-dark: #8600b9;
+  --color-wk-burned: #6b7079;
+  --color-wk-burned-dark: #333333;
 
   /* SRS stage colors */
   --color-srs-apprentice: #dd0093;

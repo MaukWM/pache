@@ -9,6 +9,7 @@ import {
   type Sentence,
 } from '../lib/api';
 import { SRS_STAGE_COLORS, SRS_STAGE_NAMES } from '../lib/srs';
+import { SubjectCard } from '../components/SubjectCard';
 
 // Extract kanji characters from a string
 function extractKanji(text: string): string[] {
@@ -244,18 +245,18 @@ export function VocabPage() {
           No vocabulary yet. Be the first to add some!
         </div>
       ) : (
-        <div className="flex flex-wrap gap-1.5">
+        <div className="flex flex-wrap gap-2">
           {items.map((item) => (
-            <button
+            <SubjectCard
               key={item.id}
+              type="vocab"
+              character={item.word}
+              reading={item.readings[0]}
+              meaning={item.meanings[0]}
+              srsStage={progressMap.data?.[`vocab-${item.id}`]}
+              selected={selectedId === item.id}
               onClick={() => setSelectedId(item.id)}
-              className={`bg-wk-vocab rounded-full px-5 py-2.5 text-white text-lg font-bold hover:scale-105 transition-all cursor-pointer whitespace-nowrap ${
-                selectedId === item.id ? 'ring-2 ring-wk-vocab ring-offset-2' : ''
-              }`}
-              title={`${item.word} — ${item.meanings.join(', ')}`}
-            >
-              {item.word}
-            </button>
+            />
           ))}
         </div>
       )}

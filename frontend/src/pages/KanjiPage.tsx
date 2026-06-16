@@ -2,8 +2,9 @@ import { useState, useMemo, useRef, useCallback, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api, type KanjiItem } from '../lib/api';
 import { RadicalList } from '../components/RadicalList';
+import { SubjectCard } from '../components/SubjectCard';
 import { romajiToKana } from '../lib/romaji';
-import { SRS_STAGE_COLORS, SRS_STAGE_NAMES, getSrsGroup } from '../lib/srs';
+import { SRS_STAGE_COLORS, SRS_STAGE_NAMES } from '../lib/srs';
 
 const CHUNK_SIZE = 250;
 const INITIAL_LOAD = 250;
@@ -254,25 +255,19 @@ export function KanjiPage() {
               </div>
 
               {/* Grid */}
-              <div className="grid grid-cols-[repeat(auto-fill,minmax(3.2rem,1fr))] gap-1.5">
-                {chunk.items.map((k) => {
-                  const srsStage = progressMap.data?.[`kanji-${k.id}`];
-                  const stageColor = srsStage != null ? SRS_STAGE_COLORS[srsStage] : undefined;
-                  const group = srsStage != null ? getSrsGroup(srsStage) : undefined;
-                  return (
-                    <button
-                      key={k.id}
-                      onClick={() => setSelected(k)}
-                      className={`aspect-square rounded-lg flex items-center justify-center text-white text-2xl hover:scale-105 transition-all cursor-pointer ${
-                        selected?.id === k.id ? 'ring-2 ring-offset-2' : ''
-                      } ${!stageColor ? 'bg-border hover:bg-text-muted/30 text-text-muted' : ''}`}
-                      style={stageColor ? { backgroundColor: stageColor } : undefined}
-                      title={`${k.character} — ${k.meanings.join(', ')}${group ? ` (${group})` : ''}`}
-                    >
-                      {k.character}
-                    </button>
-                  );
-                })}
+              <div className="flex flex-wrap gap-2">
+                {chunk.items.map((k) => (
+                  <SubjectCard
+                    key={k.id}
+                    type="kanji"
+                    character={k.character}
+                    reading={k.readings_on[0] || k.readings_kun[0]}
+                    meaning={k.meanings[0]}
+                    srsStage={progressMap.data?.[`kanji-${k.id}`]}
+                    selected={selected?.id === k.id}
+                    onClick={() => setSelected(k)}
+                  />
+                ))}
               </div>
             </div>
           ))}
