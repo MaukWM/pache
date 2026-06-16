@@ -1,10 +1,8 @@
 import { useState, useMemo, useRef, useCallback, useEffect } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { api, type KanjiItem } from '../lib/api';
-import { RadicalList } from '../components/RadicalList';
 import { SubjectCard } from '../components/SubjectCard';
 import { romajiToKana } from '../lib/romaji';
-import { SRS_STAGE_COLORS, SRS_STAGE_NAMES } from '../lib/srs';
 
 const CHUNK_SIZE = 250;
 const INITIAL_LOAD = 250;
@@ -39,10 +37,8 @@ function sortKanji(items: KanjiItem[], mode: SortMode): KanjiItem[] {
 }
 
 export function KanjiPage() {
-  const queryClient = useQueryClient();
   const [search, setSearch] = useState('');
   const [sort, setSort] = useState<SortMode>('frequency');
-  const [selected, setSelected] = useState<KanjiItem | null>(null);
   const [visibleCount, setVisibleCount] = useState(INITIAL_LOAD);
   const [hideKnown, setHideKnown] = useState(false);
 
@@ -227,17 +223,6 @@ export function KanjiPage() {
         </select>
       </div>
 
-      {/* Detail panel — sticky at top */}
-      {selected && (
-        <div className="sticky top-2 z-10">
-          <KanjiDetail
-            kanji={selected}
-            onClose={() => setSelected(null)}
-            queryClient={queryClient}
-          />
-        </div>
-      )}
-
       {kanji.isLoading ? (
         <div className="text-text-muted animate-pulse text-center py-10">Loading kanji...</div>
       ) : (
@@ -264,8 +249,7 @@ export function KanjiPage() {
                     reading={k.readings_on[0] || k.readings_kun[0]}
                     meaning={k.meanings[0]}
                     srsStage={progressMap.data?.[`kanji-${k.id}`]}
-                    selected={selected?.id === k.id}
-                    onClick={() => setSelected(k)}
+                    to={`/kanji/${encodeURIComponent(k.character)}`}
                   />
                 ))}
               </div>
@@ -287,201 +271,6 @@ export function KanjiPage() {
         </div>
       )}
 
-    </div>
-  );
-}
-
-function KanjiDetail({
-  kanji,
-  onClose,
-  queryClient,
-}: {
-  kanji: KanjiItem;
-  onClose: () => void;
-  queryClient: ReturnType<typeof useQueryClient>;
-}) {
-  const [actionMsg, setActionMsg] = useState('');
-  const [confirmUnlearn, setConfirmUnlearn] = useState(false);
-  const [confirmResurrect, setConfirmResurrect] = useState(false);
-
-  // Check if already in progress
-  const progressMap = useQuery({
-    queryKey: ['progressMap'],
-    queryFn: api.getProgressMap,
-  });
-  const currentStage = progressMap.data?.[`kanji-${kanji.id}`];
-  const alreadyLearned = currentStage != null;
-  const isBurned = currentStage === 9;
-
-  const queueMutation = useMutation({
-    mutationFn: () => api.addToQueue('kanji', kanji.id),
-    onSuccess: () => {
-      setActionMsg('Added to lesson queue!');
-      queryClient.invalidateQueries({ queryKey: ['queue'] });
-    },
-    onError: (err: Error) => setActionMsg(err.message),
-  });
-
-  const unlearnMutation = useMutation({
-    mutationFn: () => api.unlearnItem('kanji', kanji.id),
-    onSuccess: () => {
-      setActionMsg('Unlearned! Removed from your reviews.');
-      setConfirmUnlearn(false);
-      queryClient.invalidateQueries({ queryKey: ['progressMap'] });
-      queryClient.invalidateQueries({ queryKey: ['progress'] });
-      queryClient.invalidateQueries({ queryKey: ['reviews'] });
-      queryClient.invalidateQueries({ queryKey: ['queue'] });
-    },
-    onError: (err: Error) => setActionMsg(err.message),
-  });
-
-  const resurrectMutation = useMutation({
-    mutationFn: () => api.resurrectItem('kanji', kanji.id),
-    onSuccess: () => {
-      setActionMsg('Resurrected to Apprentice I! First review in 4 hours.');
-      setConfirmResurrect(false);
-      queryClient.invalidateQueries({ queryKey: ['progressMap'] });
-      queryClient.invalidateQueries({ queryKey: ['progress'] });
-      queryClient.invalidateQueries({ queryKey: ['reviews'] });
-    },
-    onError: (err: Error) => setActionMsg(err.message),
-  });
-
-  return (
-    <div className="bg-surface rounded-xl p-6 shadow-md relative">
-      <button
-        onClick={onClose}
-        className="absolute top-3 right-3 text-text-muted hover:text-text text-xl leading-none"
-      >
-        &times;
-      </button>
-
-      <div className="flex items-start gap-6">
-        <div className="bg-wk-kanji w-20 h-20 rounded-xl flex items-center justify-center text-white text-4xl shadow-md shrink-0">
-          {kanji.character}
-        </div>
-        <div className="space-y-3 flex-1">
-          <div>
-            <p className="text-text-muted text-sm">{kanji.meanings.join(', ')}</p>
-          </div>
-          {kanji.components && kanji.components.length > 0 && (
-            <div>
-              <span className="text-text-muted text-xs block mb-1.5">Radicals</span>
-              <RadicalList components={kanji.components} size="sm" />
-            </div>
-          )}
-          <div className="grid grid-cols-2 gap-3 text-sm">
-            <div>
-              <span className="text-text-muted text-xs block">On'yomi</span>
-              <span>{kanji.readings_on.join(', ') || 'None'}</span>
-            </div>
-            <div>
-              <span className="text-text-muted text-xs block">Kun'yomi</span>
-              <span>{kanji.readings_kun.join(', ') || 'None'}</span>
-            </div>
-            <div className="flex gap-4 flex-wrap">
-              {kanji.frequency && (
-                <span><span className="text-text-muted text-xs">Freq </span>#{kanji.frequency}</span>
-              )}
-              {kanji.grade && (
-                <span><span className="text-text-muted text-xs">Grade </span>{kanji.grade}</span>
-              )}
-              {kanji.jlpt_level && (
-                <span><span className="text-text-muted text-xs">JLPT </span>N{kanji.jlpt_level}</span>
-              )}
-              {kanji.stroke_count && (
-                <span><span className="text-text-muted text-xs">Strokes </span>{kanji.stroke_count}</span>
-              )}
-            </div>
-          </div>
-
-          {/* Actions */}
-          {alreadyLearned ? (
-            <div className="pt-1 space-y-2">
-              <div className="flex items-center gap-2 flex-wrap">
-                <span
-                  className="inline-block text-xs font-bold px-3 py-1.5 rounded-full text-white"
-                  style={{ backgroundColor: SRS_STAGE_COLORS[currentStage] }}
-                >
-                  {SRS_STAGE_NAMES[currentStage]}
-                </span>
-                {isBurned && !confirmResurrect && (
-                  <button
-                    onClick={() => setConfirmResurrect(true)}
-                    className="px-3 py-1.5 rounded-lg bg-wk-radical text-white font-bold text-xs hover:opacity-90 transition-opacity"
-                  >
-                    Resurrect
-                  </button>
-                )}
-                {!confirmUnlearn && (
-                  <button
-                    onClick={() => setConfirmUnlearn(true)}
-                    className="px-3 py-1.5 rounded-lg bg-surface border border-border text-xs font-bold hover:bg-border transition-colors"
-                  >
-                    Unlearn
-                  </button>
-                )}
-              </div>
-              {confirmResurrect && (
-                <div className="flex items-center gap-2 flex-wrap text-xs">
-                  <span className="text-text-muted font-medium">
-                    Resurrect {kanji.character} back to Apprentice I? It re-enters your reviews.
-                  </span>
-                  <button
-                    onClick={() => resurrectMutation.mutate()}
-                    disabled={resurrectMutation.isPending}
-                    className="px-3 py-1.5 rounded-lg bg-wk-radical text-white font-bold hover:opacity-90 transition-opacity disabled:opacity-50"
-                  >
-                    {resurrectMutation.isPending ? 'Resurrecting…' : 'Yes, resurrect'}
-                  </button>
-                  <button
-                    onClick={() => setConfirmResurrect(false)}
-                    className="px-3 py-1.5 rounded-lg bg-surface border border-border font-bold hover:bg-border transition-colors"
-                  >
-                    Cancel
-                  </button>
-                </div>
-              )}
-              {confirmUnlearn && (
-                <div className="flex items-center gap-2 flex-wrap text-xs">
-                  <span className="text-error font-medium">
-                    Unlearn {kanji.character}? This deletes its progress and upcoming reviews.
-                  </span>
-                  <button
-                    onClick={() => unlearnMutation.mutate()}
-                    disabled={unlearnMutation.isPending}
-                    className="px-3 py-1.5 rounded-lg bg-error text-white font-bold hover:opacity-90 transition-opacity disabled:opacity-50"
-                  >
-                    {unlearnMutation.isPending ? 'Unlearning…' : 'Yes, unlearn'}
-                  </button>
-                  <button
-                    onClick={() => setConfirmUnlearn(false)}
-                    className="px-3 py-1.5 rounded-lg bg-surface border border-border font-bold hover:bg-border transition-colors"
-                  >
-                    Cancel
-                  </button>
-                </div>
-              )}
-            </div>
-          ) : (
-            <div className="flex gap-2 pt-1">
-              <button
-                onClick={() => queueMutation.mutate()}
-                disabled={queueMutation.isPending}
-                className="px-4 py-2 rounded-lg bg-wk-kanji text-white font-bold text-sm hover:bg-accent-hover transition-colors disabled:opacity-50"
-              >
-                {queueMutation.isPending ? 'Adding...' : 'Add to Queue'}
-              </button>
-            </div>
-          )}
-
-          {actionMsg && (
-            <p className={`text-sm ${actionMsg.includes('!') ? 'text-success' : 'text-error'}`}>
-              {actionMsg}
-            </p>
-          )}
-        </div>
-      </div>
     </div>
   );
 }

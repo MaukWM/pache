@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef, useEffect } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   api,
@@ -41,7 +41,7 @@ function useDetectedKanji(word: string): KanjiItem[] {
 // Add a vocab to the queue along with any constituent kanji the user isn't already
 // learning (so the kanji get studied first — vocab stays locked until they're Guru).
 // Returns how many kanji were newly queued. "Already queued" (409) is ignored.
-async function queueVocabAndKanji(
+export async function queueVocabAndKanji(
   vocabId: number,
   kanji: { id: number }[],
   progressMap: Record<string, number> | undefined,
@@ -163,7 +163,6 @@ export function VocabPage() {
     queryFn: api.getProgressMap,
   });
 
-  const [selectedId, setSelectedId] = useState<number | null>(null);
   const items = useMemo(() => {
     let list = vocab.data || [];
     if (hideKnown && progressMap.data) {
@@ -197,21 +196,6 @@ export function VocabPage() {
           }}
         />
       )}
-
-      {/* Detail panel — sticky, always reads fresh data from query cache */}
-      {selectedId != null && (() => {
-        const freshItem = (vocab.data || []).find((v) => v.id === selectedId);
-        if (!freshItem) return null;
-        return (
-          <div className="sticky top-2 z-10">
-            <VocabDetail
-              item={freshItem}
-              onClose={() => setSelectedId(null)}
-              queryClient={queryClient}
-            />
-          </div>
-        );
-      })()}
 
       {/* Filters */}
       <div className="flex gap-3">
@@ -254,8 +238,7 @@ export function VocabPage() {
               reading={item.readings[0]}
               meaning={item.meanings[0]}
               srsStage={progressMap.data?.[`vocab-${item.id}`]}
-              selected={selectedId === item.id}
-              onClick={() => setSelectedId(item.id)}
+              to={`/vocab/${item.id}`}
             />
           ))}
         </div>
@@ -264,370 +247,7 @@ export function VocabPage() {
   );
 }
 
-function VocabDetail({
-  item,
-  onClose,
-  queryClient,
-}: {
-  item: VocabItem;
-  onClose: () => void;
-  queryClient: ReturnType<typeof useQueryClient>;
-}) {
-  const [actionMsg, setActionMsg] = useState('');
-  const [showAddSentence, setShowAddSentence] = useState(false);
-  const [showSuggest, setShowSuggest] = useState(false);
-  const [newJa, setNewJa] = useState('');
-  const [newEn, setNewEn] = useState('');
-  const [editing, setEditing] = useState(false);
-  const [editingSentenceId, setEditingSentenceId] = useState<number | null>(null);
-  const [editJa, setEditJa] = useState('');
-  const [editEn, setEditEn] = useState('');
-
-  // Reset state when item changes
-  const prevItemId = useRef(item.id);
-  if (item.id !== prevItemId.current) {
-    prevItemId.current = item.id;
-    setShowAddSentence(false);
-    setShowSuggest(false);
-    setNewJa('');
-    setNewEn('');
-    setActionMsg('');
-    setEditing(false);
-    setEditingSentenceId(null);
-  }
-
-  const deleteMut = useMutation({
-    mutationFn: () => api.deleteVocab(item.id),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['vocab'] });
-      queryClient.invalidateQueries({ queryKey: ['queue'] });
-      queryClient.invalidateQueries({ queryKey: ['progressMap'] });
-      onClose();
-    },
-    onError: (err: Error) => setActionMsg(err.message),
-  });
-
-  const updateSentenceMut = useMutation({
-    mutationFn: ({ id, ja, en }: { id: number; ja: string; en: string }) =>
-      api.updateSentence(item.id, id, ja, en),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['vocab'] });
-      setEditingSentenceId(null);
-    },
-    onError: (err: Error) => setActionMsg(err.message),
-  });
-
-  const handleDelete = () => {
-    if (
-      window.confirm(
-        `Delete "${item.word}" permanently?\n\nThis removes it from the shared pool for everyone, ` +
-          `along with its lesson-queue entries and all users' review progress for it. ` +
-          `Linked example sentences are kept. This cannot be undone.`,
-      )
-    ) {
-      deleteMut.mutate();
-    }
-  };
-
-  const startEditSentence = (id: number, ja: string, en: string) => {
-    setEditingSentenceId(id);
-    setEditJa(ja);
-    setEditEn(en);
-  };
-
-  const createSentenceMut = useMutation({
-    mutationFn: () => api.createSentence(item.id, newJa.trim(), newEn.trim()),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['vocab'] });
-      setShowAddSentence(false);
-      setNewJa('');
-      setNewEn('');
-    },
-    onError: (err: Error) => setActionMsg(err.message),
-  });
-
-  const linkMut = useMutation({
-    mutationFn: (sentenceId: number) => api.linkSentence(item.id, sentenceId),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['vocab'] }),
-    onError: (err: Error) => setActionMsg(err.message),
-  });
-
-  const unlinkMut = useMutation({
-    mutationFn: (sentenceId: number) => api.unlinkSentence(item.id, sentenceId),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['vocab'] }),
-    onError: (err: Error) => setActionMsg(err.message),
-  });
-
-  const suggestions = useQuery({
-    queryKey: ['vocab', item.id, 'suggest'],
-    queryFn: () => api.suggestSentences(item.id),
-    enabled: showSuggest,
-  });
-
-  const progressMap = useQuery({
-    queryKey: ['progressMap'],
-    queryFn: api.getProgressMap,
-  });
-  const currentStage = progressMap.data?.[`vocab-${item.id}`];
-  const alreadyLearned = currentStage != null;
-  const isBurned = currentStage === 9;
-  const [confirmUnlearn, setConfirmUnlearn] = useState(false);
-  const [confirmResurrect, setConfirmResurrect] = useState(false);
-
-  const queueMutation = useMutation({
-    mutationFn: () => queueVocabAndKanji(item.id, item.kanji ?? [], progressMap.data),
-    onSuccess: (addedKanji) => {
-      setActionMsg(
-        addedKanji > 0
-          ? `Added to lesson queue (+${addedKanji} kanji)!`
-          : 'Added to lesson queue!',
-      );
-      queryClient.invalidateQueries({ queryKey: ['queue'] });
-    },
-    onError: (err: Error) => setActionMsg(err.message),
-  });
-
-  const unlearnMutation = useMutation({
-    mutationFn: () => api.unlearnItem('vocab', item.id),
-    onSuccess: () => {
-      setActionMsg('Unlearned! Removed from your reviews.');
-      setConfirmUnlearn(false);
-      queryClient.invalidateQueries({ queryKey: ['progressMap'] });
-      queryClient.invalidateQueries({ queryKey: ['progress'] });
-      queryClient.invalidateQueries({ queryKey: ['reviews'] });
-      queryClient.invalidateQueries({ queryKey: ['queue'] });
-    },
-    onError: (err: Error) => setActionMsg(err.message),
-  });
-
-  const resurrectMutation = useMutation({
-    mutationFn: () => api.resurrectItem('vocab', item.id),
-    onSuccess: () => {
-      setActionMsg('Resurrected to Apprentice I! First review in 4 hours.');
-      setConfirmResurrect(false);
-      queryClient.invalidateQueries({ queryKey: ['progressMap'] });
-      queryClient.invalidateQueries({ queryKey: ['progress'] });
-      queryClient.invalidateQueries({ queryKey: ['reviews'] });
-    },
-    onError: (err: Error) => setActionMsg(err.message),
-  });
-
-  return (
-    <div className="bg-surface rounded-xl shadow-md overflow-hidden relative">
-      <button
-        onClick={onClose}
-        className="absolute top-3 right-3 text-text-muted hover:text-text text-xl leading-none z-10"
-      >
-        &times;
-      </button>
-
-      {/* Header — word + reading + SRS badge */}
-      <div className="bg-wk-vocab px-5 py-4 text-white flex items-center gap-3">
-        <div className="flex-1 min-w-0">
-          <div className="flex items-baseline gap-2">
-            <span className="text-2xl font-bold">{item.word}</span>
-            <span className="text-sm opacity-80">{item.readings.join('、')}</span>
-          </div>
-          <p className="text-sm opacity-90">{item.meanings.join(', ')}</p>
-        </div>
-        {alreadyLearned && (
-          <span
-            className="text-[10px] font-bold px-2 py-1 rounded-full shrink-0"
-            style={{ backgroundColor: SRS_STAGE_COLORS[currentStage], color: '#fff' }}
-          >
-            {SRS_STAGE_NAMES[currentStage]}
-          </span>
-        )}
-      </div>
-
-      {/* Body */}
-      {editing ? (
-        <EditVocabForm
-          item={item}
-          queryClient={queryClient}
-          onDone={() => setEditing(false)}
-        />
-      ) : (
-      <div className="px-5 py-3 space-y-3">
-        {/* Meta row — tags, creator, comment */}
-        <div className="flex items-center gap-2 flex-wrap text-xs">
-          {item.tags?.map((tag) => (
-            <span key={tag.id} className="bg-wk-vocab/10 text-wk-vocab px-2 py-0.5 rounded-full font-medium">
-              {tag.name}
-            </span>
-          ))}
-          {item.creator_comment && (
-            <span className="text-text-muted italic">"{item.creator_comment}"</span>
-          )}
-          {item.creator_username && (
-            <span className="text-text-muted">by {item.creator_username}</span>
-          )}
-        </div>
-
-        {/* Sentences */}
-        {(item.sentences.length > 0 || showAddSentence || showSuggest) && (
-          <div className="space-y-1.5">
-            {item.sentences.map((s) =>
-              editingSentenceId === s.id ? (
-                <div key={s.id} className="flex gap-2">
-                  <div className="flex-1 space-y-1">
-                    <input type="text" value={editJa} onChange={(e) => setEditJa(e.target.value)} lang="ja"
-                      className="w-full px-2.5 py-1.5 rounded border border-border bg-surface-alt text-sm focus:outline-none focus:ring-1 focus:ring-wk-vocab" />
-                    <input type="text" value={editEn} onChange={(e) => setEditEn(e.target.value)}
-                      className="w-full px-2.5 py-1.5 rounded border border-border bg-surface-alt text-sm focus:outline-none focus:ring-1 focus:ring-wk-vocab" />
-                  </div>
-                  <div className="flex flex-col gap-1 self-end">
-                    <button
-                      onClick={() => updateSentenceMut.mutate({ id: s.id, ja: editJa.trim(), en: editEn.trim() })}
-                      disabled={!editJa.trim() || !editEn.trim() || updateSentenceMut.isPending}
-                      className="px-3 rounded bg-wk-vocab text-white text-xs font-bold py-1.5 disabled:opacity-50">
-                      Save
-                    </button>
-                    <button onClick={() => setEditingSentenceId(null)}
-                      className="px-3 rounded border border-border text-xs font-bold py-1 hover:bg-border">
-                      Cancel
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <div key={s.id} className="bg-surface-alt rounded-lg px-3 py-2 text-sm group relative">
-                  <p lang="ja">{s.ja}</p>
-                  <p className="text-text-muted text-xs">{s.en}</p>
-                  <div className="absolute top-1 right-2 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <button
-                      onClick={() => startEditSentence(s.id, s.ja, s.en)}
-                      className="text-text-muted hover:text-wk-vocab text-xs"
-                      title="Edit sentence"
-                    >
-                      &#9998;
-                    </button>
-                    <button
-                      onClick={() => unlinkMut.mutate(s.id)}
-                      className="text-text-muted hover:text-error text-xs"
-                      title="Unlink sentence"
-                    >
-                      &times;
-                    </button>
-                  </div>
-                </div>
-              ),
-            )}
-
-            {showAddSentence && (
-              <div className="flex gap-2">
-                <div className="flex-1 space-y-1">
-                  <input type="text" value={newJa} onChange={(e) => setNewJa(e.target.value)} placeholder="Japanese..." lang="ja"
-                    className="w-full px-2.5 py-1.5 rounded border border-border bg-surface-alt text-sm focus:outline-none focus:ring-1 focus:ring-wk-vocab" />
-                  <input type="text" value={newEn} onChange={(e) => setNewEn(e.target.value)} placeholder="English..."
-                    className="w-full px-2.5 py-1.5 rounded border border-border bg-surface-alt text-sm focus:outline-none focus:ring-1 focus:ring-wk-vocab" />
-                </div>
-                <button onClick={() => createSentenceMut.mutate()} disabled={!newJa.trim() || !newEn.trim() || createSentenceMut.isPending}
-                  className="px-3 self-end rounded bg-wk-vocab text-white text-xs font-bold py-1.5 disabled:opacity-50">
-                  Add
-                </button>
-              </div>
-            )}
-
-            {showSuggest && (
-              <div className="space-y-1">
-                {suggestions.isLoading && <p className="text-xs text-text-muted animate-pulse">Searching...</p>}
-                {suggestions.data?.length === 0 && <p className="text-xs text-text-muted">No matches found.</p>}
-                {suggestions.data?.map((s) => (
-                  <div key={s.id} className="bg-surface-alt rounded-lg px-3 py-1.5 text-sm flex items-center gap-2">
-                    <div className="flex-1 min-w-0">
-                      <span lang="ja">{s.ja}</span>
-                      <span className="text-text-muted text-xs ml-2">{s.en}</span>
-                    </div>
-                    <button onClick={() => linkMut.mutate(s.id)} className="text-xs text-wk-vocab font-bold hover:underline shrink-0">Link</button>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Actions */}
-        <div className="flex items-center gap-2">
-          {!alreadyLearned && (
-            <button onClick={() => queueMutation.mutate()} disabled={queueMutation.isPending}
-              className="px-3 py-1.5 rounded-lg bg-wk-vocab text-white font-bold text-xs hover:opacity-90 disabled:opacity-50">
-              {queueMutation.isPending ? 'Adding...' : 'Add to Queue'}
-            </button>
-          )}
-          {alreadyLearned && isBurned && !confirmResurrect && (
-            <button onClick={() => setConfirmResurrect(true)}
-              className="px-3 py-1.5 rounded-lg bg-wk-radical text-white font-bold text-xs hover:opacity-90">
-              Resurrect
-            </button>
-          )}
-          {alreadyLearned && !confirmUnlearn && (
-            <button onClick={() => setConfirmUnlearn(true)}
-              className="px-3 py-1.5 rounded-lg bg-surface border border-border text-xs font-bold hover:bg-border">
-              Unlearn
-            </button>
-          )}
-          <button onClick={() => { setShowAddSentence(!showAddSentence); setShowSuggest(false); }}
-            className="px-3 py-1.5 rounded-lg bg-surface border border-border text-xs font-bold hover:bg-border">
-            {showAddSentence ? 'Cancel' : '+ Sentence'}
-          </button>
-          <button onClick={() => { setShowSuggest(!showSuggest); setShowAddSentence(false); }}
-            className="px-3 py-1.5 rounded-lg bg-surface border border-border text-xs font-bold hover:bg-border">
-            {showSuggest ? 'Cancel' : 'Find Links'}
-          </button>
-          <div className="ml-auto flex items-center gap-2">
-            <button onClick={() => setEditing(true)}
-              className="px-3 py-1.5 rounded-lg bg-surface border border-border text-xs font-bold hover:bg-border">
-              Edit
-            </button>
-            <button onClick={handleDelete} disabled={deleteMut.isPending}
-              className="px-3 py-1.5 rounded-lg border border-error/40 text-error text-xs font-bold hover:bg-error/10 disabled:opacity-50">
-              {deleteMut.isPending ? 'Deleting...' : 'Delete'}
-            </button>
-          </div>
-        </div>
-
-        {confirmResurrect && (
-          <div className="flex items-center gap-2 flex-wrap text-xs">
-            <span className="text-text-muted font-medium">
-              Resurrect {item.word} back to Apprentice I? It re-enters your reviews.
-            </span>
-            <button onClick={() => resurrectMutation.mutate()} disabled={resurrectMutation.isPending}
-              className="px-3 py-1.5 rounded-lg bg-wk-radical text-white font-bold hover:opacity-90 disabled:opacity-50">
-              {resurrectMutation.isPending ? 'Resurrecting…' : 'Yes, resurrect'}
-            </button>
-            <button onClick={() => setConfirmResurrect(false)}
-              className="px-3 py-1.5 rounded-lg bg-surface border border-border font-bold hover:bg-border">
-              Cancel
-            </button>
-          </div>
-        )}
-
-        {confirmUnlearn && (
-          <div className="flex items-center gap-2 flex-wrap text-xs">
-            <span className="text-error font-medium">
-              Unlearn {item.word}? This deletes its progress and upcoming reviews.
-            </span>
-            <button onClick={() => unlearnMutation.mutate()} disabled={unlearnMutation.isPending}
-              className="px-3 py-1.5 rounded-lg bg-error text-white font-bold hover:opacity-90 disabled:opacity-50">
-              {unlearnMutation.isPending ? 'Unlearning…' : 'Yes, unlearn'}
-            </button>
-            <button onClick={() => setConfirmUnlearn(false)}
-              className="px-3 py-1.5 rounded-lg bg-surface border border-border font-bold hover:bg-border">
-              Cancel
-            </button>
-          </div>
-        )}
-
-        {actionMsg && (
-          <p className={`text-xs ${actionMsg.includes('!') ? 'text-success' : 'text-error'}`}>{actionMsg}</p>
-        )}
-      </div>
-      )}
-    </div>
-  );
-}
-
-function EditVocabForm({
+export function EditVocabForm({
   item,
   queryClient,
   onDone,

@@ -5,7 +5,9 @@ import { Layout } from './components/Layout';
 import { LoginPage } from './pages/LoginPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { KanjiPage } from './pages/KanjiPage';
+import { KanjiDetailPage } from './pages/KanjiDetailPage';
 import { VocabPage } from './pages/VocabPage';
+import { VocabDetailPage } from './pages/VocabDetailPage';
 import { LessonsPage } from './pages/LessonsPage';
 import { ReviewPage } from './pages/ReviewPage';
 import { AccountPage } from './pages/AccountPage';
@@ -28,7 +30,9 @@ function ProtectedRoutes() {
       <Route element={<Layout />}>
         <Route index element={<DashboardPage />} />
         <Route path="kanji" element={<KanjiPage />} />
+        <Route path="kanji/:char" element={<KanjiDetailPage />} />
         <Route path="vocab" element={<VocabPage />} />
+        <Route path="vocab/:id" element={<VocabDetailPage />} />
         <Route path="lessons" element={<LessonsPage />} />
         <Route path="reviews" element={<ReviewPage />} />
         <Route path="account" element={<AccountPage />} />

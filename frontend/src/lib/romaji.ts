@@ -45,6 +45,14 @@ function hiraganaToKatakana(str: string): string {
   );
 }
 
+// Convert katakana to hiragana (e.g. on'yomi \u30CB\u30C1 \u2192 \u306B\u3061) for display. Leaves
+// non-katakana characters (kun'yomi is already hiragana) untouched.
+export function katakanaToHiragana(str: string): string {
+  return str.replace(/[\u30A1-\u30F6]/g, (ch) =>
+    String.fromCharCode(ch.charCodeAt(0) - HIRAGANA_TO_KATAKANA_OFFSET)
+  );
+}
+
 export function romajiToKana(input: string): { hiragana: string; katakana: string } | null {
   const lower = input.toLowerCase();
   // Only convert if it looks like romaji (all ascii letters)

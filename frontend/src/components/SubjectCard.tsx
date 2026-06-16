@@ -7,6 +7,9 @@
 // wraps the character text — long words like 殖産興業 stretch the card onto one
 // line instead of wrapping inside it, mirroring WaniKani.
 
+import { Link } from 'react-router-dom';
+import { katakanaToHiragana } from '../lib/romaji';
+
 export interface SubjectCardProps {
   type: 'kanji' | 'vocab';
   character: string;
@@ -15,7 +18,9 @@ export interface SubjectCardProps {
   /** SRS stage 1–9, or undefined when the user hasn't started the item. */
   srsStage?: number;
   selected?: boolean;
-  onClick?: () => void;
+  /** Route to the item's detail page. Rendered as a link so ctrl/cmd/middle
+   *  click opens it in a new tab natively. */
+  to: string;
 }
 
 export function SubjectCard({
@@ -25,9 +30,11 @@ export function SubjectCard({
   meaning,
   srsStage,
   selected,
-  onClick,
+  to,
 }: SubjectCardProps) {
   const isKanji = type === 'kanji';
+  // Kanji on'yomi is stored as katakana; show it as hiragana like WaniKani.
+  const displayReading = isKanji && reading ? katakanaToHiragana(reading) : reading;
   const learned = srsStage != null;
   const burned = srsStage != null && srsStage >= 9;
 
@@ -46,9 +53,8 @@ export function SubjectCard({
   }
 
   return (
-    <button
-      type="button"
-      onClick={onClick}
+    <Link
+      to={to}
       title={`${character}${meaning ? ` — ${meaning}` : ''}`}
       className={`inline-flex flex-col items-center gap-1.5 px-3.5 py-3 rounded-lg border bg-surface transition-all hover:shadow-sm hover:-translate-y-0.5 cursor-pointer ${
         selected
@@ -63,13 +69,13 @@ export function SubjectCard({
         {character}
       </span>
       <span className="flex flex-col items-center leading-tight text-center">
-        {reading && (
+        {displayReading && (
           <span lang="ja" className="text-sm text-text-muted whitespace-nowrap">
-            {reading}
+            {displayReading}
           </span>
         )}
         {meaning && <span className="text-sm text-text max-w-[12rem] truncate">{meaning}</span>}
       </span>
-    </button>
+    </Link>
   );
 }

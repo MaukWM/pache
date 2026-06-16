@@ -171,6 +171,8 @@ export const api = {
     return request<VocabItem[]>(`/vocab${qs}`);
   },
 
+  getVocabById: (id: number) => request<VocabItem>(`/vocab/${id}`),
+
   createVocab: (data: {
     word: string;
     readings: string[];
@@ -341,7 +343,9 @@ export interface VocabItem {
   sentences: Sentence[];
   creator_username?: string;
   tags?: { id: number; name: string }[];
-  kanji?: { id: number; character: string }[];
+  // GET /vocab/{id} returns full kanji objects; the list endpoint may send a
+  // lighter shape, so readings/meanings are optional.
+  kanji?: { id: number; character: string; meanings?: string[]; readings_on?: string[]; readings_kun?: string[] }[];
   creator_comment?: string;
 }
 
