@@ -69,14 +69,12 @@ export function DashboardPage() {
           rel="noopener noreferrer"
           className="flex items-center justify-between border border-border bg-card p-5 transition-colors hover:bg-accent"
         >
-          <div className="flex items-baseline gap-3">
-            <span className="font-[family-name:var(--font-mincho)] text-3xl tabular-nums">{wkDue}</span>
-            <span className="text-sm text-muted-foreground">
-              WaniKaniの復習
-            </span>
+          <div className="flex items-center gap-3">
+            <span className="font-[family-name:var(--font-mincho)] text-3xl leading-none tabular-nums">{wkDue}</span>
+            <span className="text-sm text-muted-foreground">鰐蟹の復習</span>
           </div>
           <span className="flex items-center gap-1.5 font-mono text-xs tracking-wider text-muted-foreground uppercase">
-            WaniKaniを開く
+            鰐蟹を開く
             <ExternalLink className="size-3.5" />
           </span>
         </a>

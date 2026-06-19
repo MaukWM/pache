@@ -151,7 +151,7 @@ export function VocabDetailPage() {
           <p lang="ja" className="text-muted-foreground mt-1">{item.readings.join('、')}</p>
           <div className="flex items-center gap-2 flex-wrap mt-2 text-xs">
             {item.tags?.map((t) => (
-              <Badge key={t.id} variant="secondary" className="bg-wk-vocab/10 text-wk-vocab font-medium">{t.name}</Badge>
+              <Badge key={t.id} variant="secondary">{t.name}</Badge>
             ))}
             {item.creator_comment && <span className="text-muted-foreground italic">"{item.creator_comment}"</span>}
             {item.creator_username && <span className="text-muted-foreground">作成者: {item.creator_username}</span>}

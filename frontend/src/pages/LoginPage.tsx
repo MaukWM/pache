@@ -1,13 +1,8 @@
 import { useState } from 'react';
 import { useAuth } from '../lib/auth';
+import { GlyphCell } from '../components/GlyphCell';
 import { Button } from '@/components/ui/button';
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 
@@ -41,13 +36,10 @@ export function LoginPage() {
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
       <Card className="w-full max-w-sm">
         <CardHeader className="items-center text-center">
-          <div className="mx-auto mb-2 flex size-16 items-center justify-center rounded-full bg-wk-kanji">
-            <span lang="ja" className="text-3xl font-bold text-white">
-              漢
-            </span>
+          <div className="mb-2">
+            <GlyphCell type="kanji" character="漢" size="lg" />
           </div>
           <CardTitle className="text-2xl">iwkisgwitnwk2</CardTitle>
-          <CardDescription>仲間と楽しむ漢字学習</CardDescription>
         </CardHeader>
 
         <CardContent>

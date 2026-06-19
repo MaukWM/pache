@@ -11,7 +11,7 @@ import { Card } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
 
-type Tab = 'composition' | 'meaning' | 'reading' | 'info';
+type Tab = 'composition' | 'meaning' | 'reading';
 
 // The ordered tabs a card steps through. Vocab with constituent kanji gets a
 // leading "Kanji Composition" panel (WaniKani-style); kanji and kana-only vocab
@@ -19,8 +19,8 @@ type Tab = 'composition' | 'meaning' | 'reading' | 'info';
 function tabOrderFor(item: QueueItem | undefined): Tab[] {
   const hasComposition = (item?.item_details?.kanji?.length ?? 0) > 0;
   return hasComposition
-    ? ['composition', 'meaning', 'reading', 'info']
-    : ['meaning', 'reading', 'info'];
+    ? ['composition', 'meaning', 'reading']
+    : ['meaning', 'reading'];
 }
 
 export function LessonsPage() {
@@ -78,8 +78,8 @@ export function LessonsPage() {
     }
   };
 
-  // Step back through tabs, then to the previous card's last tab ('info') so the
-  // flow is reversible.
+  // Step back through tabs, then to the previous card's last tab so the flow is
+  // reversible.
   const goBack = () => {
     if (!sessionActive || currentIndex >= sessionItems.length) return;
     const order = tabOrderFor(sessionItems[currentIndex]);
@@ -87,8 +87,10 @@ export function LessonsPage() {
     if (tabIdx > 0) {
       setActiveTab(order[tabIdx - 1]);
     } else if (currentIndex > 0) {
-      setCurrentIndex((i) => i - 1);
-      setActiveTab('info');
+      const prev = currentIndex - 1;
+      const prevOrder = tabOrderFor(sessionItems[prev]);
+      setCurrentIndex(prev);
+      setActiveTab(prevOrder[prevOrder.length - 1]);
     }
   };
 
@@ -313,14 +315,14 @@ export function LessonsPage() {
   const kanjiComposition = item.item_details?.kanji ?? [];
 
   const tabOrder = tabOrderFor(item);
-  const isLastStep = currentIndex === sessionItems.length - 1 && activeTab === 'info';
+  const isLastStep =
+    currentIndex === sessionItems.length - 1 && activeTab === tabOrder[tabOrder.length - 1];
   const atStart = currentIndex === 0 && tabOrder.indexOf(activeTab) === 0;
 
   const tabLabels: Record<Tab, string> = {
     composition: '漢字構成',
     meaning: '意味',
     reading: isKanji ? '読み' : '読み方',
-    info: '情報',
   };
   const tabs: { id: Tab; label: string }[] = tabOrder.map((id) => ({
     id,
@@ -433,19 +435,6 @@ export function LessonsPage() {
                 <p className="text-lg">{readings?.join('、') || 'なし'}</p>
               </div>
             )}
-          </div>
-        )}
-
-        {activeTab === 'info' && (
-          <div className="space-y-2 text-sm">
-            <div className="flex gap-2">
-              <span className="text-muted-foreground">種類:</span>
-              <span>{item.item_type === 'kanji' ? '漢字' : '語彙'}</span>
-            </div>
-            <div className="flex gap-2">
-              <span className="text-muted-foreground">追加日:</span>
-              <span>{new Date(item.added_at).toLocaleDateString()}</span>
-            </div>
           </div>
         )}
         </div>

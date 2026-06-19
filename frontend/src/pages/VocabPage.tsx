@@ -381,7 +381,7 @@ function FilterDropdown({
         </button>
       )}
       {open && filtered.length > 0 && (
-        <div className="absolute top-full left-0 mt-1 w-full bg-popover border border-border rounded-md shadow-md z-20 max-h-48 overflow-y-auto p-1">
+        <div className="absolute top-full left-0 z-20 mt-1 max-h-48 w-full overflow-y-auto border border-border bg-popover p-1 shadow-md">
           {filtered.map((opt) => (
             <button
               key={opt}
@@ -391,7 +391,7 @@ function FilterDropdown({
                 onChange(opt);
                 setOpen(false);
               }}
-              className="w-full text-left px-2 py-1.5 text-sm rounded-sm hover:bg-accent hover:text-accent-foreground transition-colors"
+              className="w-full px-2.5 py-1.5 text-left font-mono text-xs tracking-wider uppercase transition-colors hover:bg-accent hover:text-accent-foreground"
             >
               {opt}
             </button>
@@ -447,16 +447,12 @@ function TagInput({
     <div className="relative">
       <div className="flex flex-wrap items-center gap-1.5 px-2 py-1.5 rounded-md border border-input bg-card focus-within:border-ring focus-within:ring-[3px] focus-within:ring-ring/40">
         {value.map((tag) => (
-          <Badge
-            key={tag}
-            variant="secondary"
-            className="gap-1 bg-wk-vocab/10 text-wk-vocab font-medium"
-          >
+          <Badge key={tag} variant="secondary" className="gap-1">
             {tag}
             <button
               type="button"
               onClick={() => removeTag(tag)}
-              className="hover:text-wk-vocab/60 leading-none"
+              className="leading-none hover:text-destructive"
             >
               <X className="size-3" />
             </button>
@@ -486,14 +482,14 @@ function TagInput({
         />
       </div>
       {open && available.length > 0 && (
-        <div className="absolute top-full left-0 mt-1 w-full bg-popover border border-border rounded-md shadow-md z-20 max-h-48 overflow-y-auto p-1">
+        <div className="absolute top-full left-0 z-20 mt-1 max-h-48 w-full overflow-y-auto border border-border bg-popover p-1 shadow-md">
           {available.map((opt) => (
             <button
               key={opt}
               type="button"
               onMouseDown={(e) => e.preventDefault()}
               onClick={() => addTag(opt)}
-              className="w-full text-left px-2 py-1.5 text-sm rounded-sm hover:bg-accent hover:text-accent-foreground transition-colors"
+              className="w-full px-2.5 py-1.5 text-left font-mono text-xs tracking-wider uppercase transition-colors hover:bg-accent hover:text-accent-foreground"
             >
               {opt}
             </button>
@@ -651,12 +647,12 @@ function CreateVocabForm({ onCreated }: { onCreated: () => void }) {
 
         {/* Dictionary search — pick a result to prefill the fields below */}
         <div>
-          <Label className="mb-1 block text-xs text-muted-foreground">辞書を検索（日本語・英語）</Label>
+          <Label className="mb-1 block text-xs text-muted-foreground">辞書を検索（日本語）</Label>
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
             <Input
               type="text"
-              placeholder="例：食べ、たべる、eat など"
+              placeholder="例：食べ、たべる など"
               value={dictQuery}
               onChange={(e) => setDictQuery(e.target.value)}
               className="pl-9"

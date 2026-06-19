@@ -26,8 +26,8 @@ export function Navbar() {
 
   return (
     <nav className="sticky top-0 z-30 border-b border-border bg-background/85 backdrop-blur">
-      <div className="mx-auto flex h-14 max-w-6xl items-center justify-between gap-4 px-4">
-        <Link to="/" className="flex items-center gap-2.5">
+      <div className="mx-auto grid h-14 max-w-6xl grid-cols-[1fr_auto_1fr] items-center gap-4 px-4">
+        <Link to="/" className="flex items-center gap-2.5 justify-self-start">
           <span
             lang="ja"
             className="grid size-7 place-items-center bg-foreground font-[family-name:var(--font-mincho)] text-sm text-background"
@@ -39,7 +39,7 @@ export function Navbar() {
           </span>
         </Link>
 
-        <div className="flex h-full items-stretch gap-1">
+        <div className="flex h-full items-stretch gap-1 justify-self-center">
           {NAV_LINKS.map(({ to, label, rule }) => {
             const active = location.pathname === to;
             return (
@@ -59,7 +59,7 @@ export function Navbar() {
           })}
         </div>
 
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1 justify-self-end">
           <ThemeToggle />
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
