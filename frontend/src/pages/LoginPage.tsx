@@ -29,8 +29,8 @@ export function LoginPage() {
       const status = (err as { status?: number }).status;
       setError(
         status === 401
-          ? 'Incorrect password for this account.'
-          : 'Failed to log in. Is the API running?',
+          ? 'このアカウントのパスワードが正しくありません。'
+          : 'ログインに失敗しました。APIは起動していますか？',
       );
     } finally {
       setLoading(false);
@@ -47,31 +47,31 @@ export function LoginPage() {
             </span>
           </div>
           <CardTitle className="text-2xl">iwkisgwitnwk2</CardTitle>
-          <CardDescription>Social kanji learning for friends</CardDescription>
+          <CardDescription>仲間と楽しむ漢字学習</CardDescription>
         </CardHeader>
 
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="username">Username</Label>
+              <Label htmlFor="username">ユーザー名</Label>
               <Input
                 id="username"
                 type="text"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
-                placeholder="Enter your username"
+                placeholder="ユーザー名を入力"
                 autoFocus
               />
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
+              <Label htmlFor="password">パスワード</Label>
               <Input
                 id="password"
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder="Password"
+                placeholder="パスワード"
               />
             </div>
 
@@ -80,14 +80,14 @@ export function LoginPage() {
               disabled={loading || !username.trim() || !password}
               className="w-full"
             >
-              {loading ? 'Logging in...' : 'Log In'}
+              {loading ? 'ログイン中...' : 'ログイン'}
             </Button>
 
             {error && <p className="text-sm text-destructive">{error}</p>}
           </form>
 
           <p className="mt-6 text-center text-xs text-muted-foreground">
-            No account? Ask an admin to create one for you.
+            アカウントがありませんか？管理者に作成を依頼してください。
           </p>
         </CardContent>
       </Card>

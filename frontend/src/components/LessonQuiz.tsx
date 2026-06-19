@@ -150,14 +150,14 @@ export function LessonQuiz({
         <QuizShell onExit={onExit}>
           <div className="flex-1 flex flex-col items-center justify-center py-20 space-y-4 text-center">
             <div className="text-5xl">&#9888;&#65039;</div>
-            <h2 className="text-2xl font-bold">Couldn't save your lessons</h2>
+            <h2 className="text-2xl font-bold">レッスンを保存できませんでした</h2>
             <p className="max-w-md text-destructive">{error.message}</p>
             <div className="flex gap-3">
               <Button onClick={onPassed} disabled={submitting} size="lg">
-                {submitting ? 'Retrying…' : 'Try again'}
+                {submitting ? '再試行中…' : 'もう一度'}
               </Button>
               <Button onClick={onExit} variant="outline" size="lg">
-                Back to lessons
+                レッスンに戻る
               </Button>
             </div>
           </div>
@@ -168,9 +168,9 @@ export function LessonQuiz({
       <QuizShell onExit={onExit}>
         <div className="flex-1 flex flex-col items-center justify-center py-20 space-y-4">
           <div className="text-5xl">&#127881;</div>
-          <h2 className="text-2xl font-bold">Quiz passed!</h2>
+          <h2 className="text-2xl font-bold">クイズ合格！</h2>
           <p className="text-muted-foreground">
-            {submitting ? 'Locking in your lessons…' : 'Done!'}
+            {submitting ? 'レッスンを確定中…' : '完了！'}
           </p>
         </div>
       </QuizShell>
@@ -219,7 +219,7 @@ export function LessonQuiz({
       right={
         <span className="flex items-center gap-3">
           <span>{itemsDone} / {totalItems}</span>
-          <span className="uppercase tracking-wide text-[11px]">Lesson Quiz</span>
+          <span className="tracking-wide text-[11px]">レッスンクイズ</span>
         </span>
       }
     >
@@ -246,8 +246,8 @@ export function LessonQuiz({
           correct={correct}
           showInfo={showInfo}
           onToggleInfo={() => setShowInfo((v) => !v)}
-          continueLabel="continue"
-          wrongLabel="try again later"
+          continueLabel="次へ"
+          wrongLabel="後でもう一度"
         />
       </div>
     </QuizShell>

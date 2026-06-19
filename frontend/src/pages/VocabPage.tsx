@@ -83,7 +83,7 @@ function LinkedKanji({ word, kanji }: { word: string; kanji: KanjiItem[] }) {
 
   return (
     <div>
-      <Label className="mb-1 block text-xs text-muted-foreground">Linked Kanji (auto-detected)</Label>
+      <Label className="mb-1 block text-xs text-muted-foreground">関連漢字（自動検出）</Label>
       <div className="flex gap-2 flex-wrap">
         {kanji.map((k) => {
           const stage = progressMap.data?.[`kanji-${k.id}`];
@@ -101,26 +101,26 @@ function LinkedKanji({ word, kanji }: { word: string; kanji: KanjiItem[] }) {
                 </span>
               ) : (
                 <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground whitespace-nowrap">
-                  New
+                  新規
                 </span>
               )}
             </div>
           );
         })}
         {missing.map((ch) => (
-          <div key={ch} className="flex flex-col items-center gap-1" title="Not in the kanji pool">
+          <div key={ch} className="flex flex-col items-center gap-1" title="漢字プールに未登録">
             <div className="w-9 h-9 rounded-lg flex items-center justify-center font-bold border-2 border-dashed border-border text-muted-foreground">
               {ch}
             </div>
             <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground whitespace-nowrap">
-              Not in pool
+              プール外
             </span>
           </div>
         ))}
       </div>
       {hasNew && (
         <p className="text-[11px] text-muted-foreground mt-1.5">
-          Adding to queue also queues the “New” kanji above, so you learn them first.
+          学習キューに追加すると、上の「新規」漢字も一緒に追加され、先に学習できます。
         </p>
       )}
     </div>
@@ -181,16 +181,16 @@ export function VocabPage() {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Vocabulary</h1>
+        <h1 className="text-2xl font-bold">語彙</h1>
         <div className="flex items-center gap-3">
           <span className="text-sm text-muted-foreground">
-            {items.length} item{items.length !== 1 ? 's' : ''}
+            {items.length}件
           </span>
           <Button
             variant={showCreate ? 'outline' : 'default'}
             onClick={() => setShowCreate(!showCreate)}
           >
-            {showCreate ? 'Cancel' : '+ New Vocab'}
+            {showCreate ? 'キャンセル' : '＋新しい語彙'}
           </Button>
         </div>
       </div>
@@ -207,13 +207,13 @@ export function VocabPage() {
       {/* Filters */}
       <div className="flex gap-3">
         <FilterDropdown
-          placeholder="Filter by tag..."
+          placeholder="タグで絞り込み..."
           value={tagFilter}
           onChange={setTagFilter}
           options={allTags}
         />
         <FilterDropdown
-          placeholder="Filter by creator..."
+          placeholder="作成者で絞り込み..."
           value={creatorFilter}
           onChange={setCreatorFilter}
           options={allCreators}
@@ -222,16 +222,16 @@ export function VocabPage() {
           variant={hideKnown ? 'secondary' : 'outline'}
           onClick={() => setHideKnown(!hideKnown)}
         >
-          Hide Known
+          習得済みを隠す
         </Button>
       </div>
 
       {/* Vocab grid — compact blocks */}
       {vocab.isLoading ? (
-        <div className="text-muted-foreground animate-pulse">Loading...</div>
+        <div className="text-muted-foreground animate-pulse">読み込み中...</div>
       ) : items.length === 0 ? (
         <Card className="p-10 text-center text-muted-foreground">
-          No vocabulary yet. Be the first to add some!
+          まだ語彙がありません。最初に追加してみましょう！
         </Card>
       ) : (
         <div className="flex flex-wrap gap-2">
@@ -295,17 +295,17 @@ export function EditVocabForm({
     <div className="px-5 py-4 space-y-3">
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <Label className="mb-1 block text-xs text-muted-foreground">Word</Label>
+          <Label className="mb-1 block text-xs text-muted-foreground">単語</Label>
           <Input type="text" value={word} onChange={(e) => setWord(e.target.value)} className="h-auto py-2 text-lg" />
         </div>
         <div>
-          <Label className="mb-1 block text-xs text-muted-foreground">Reading(s) — comma-separated</Label>
+          <Label className="mb-1 block text-xs text-muted-foreground">読み（カンマ区切り）</Label>
           <Input type="text" value={readings} onChange={(e) => setReadings(e.target.value)} />
         </div>
       </div>
 
       <div>
-        <Label className="mb-1 block text-xs text-muted-foreground">Meanings — comma-separated</Label>
+        <Label className="mb-1 block text-xs text-muted-foreground">意味（カンマ区切り）</Label>
         <Input type="text" value={meanings} onChange={(e) => setMeanings(e.target.value)} />
       </div>
 
@@ -313,11 +313,11 @@ export function EditVocabForm({
 
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <Label className="mb-1 block text-xs text-muted-foreground">Tags</Label>
+          <Label className="mb-1 block text-xs text-muted-foreground">タグ</Label>
           <TagInput value={tags} onChange={setTags} options={allTags} />
         </div>
         <div>
-          <Label className="mb-1 block text-xs text-muted-foreground">Comment</Label>
+          <Label className="mb-1 block text-xs text-muted-foreground">コメント</Label>
           <Input type="text" value={comment} onChange={(e) => setComment(e.target.value)} className="text-sm" />
         </div>
       </div>
@@ -329,10 +329,10 @@ export function EditVocabForm({
           onClick={() => { if (canSave) { setError(''); mutation.mutate(); } }}
           disabled={!canSave || mutation.isPending}
         >
-          {mutation.isPending ? 'Saving...' : 'Save Changes'}
+          {mutation.isPending ? '保存中...' : '変更を保存'}
         </Button>
         <Button variant="outline" onClick={onDone}>
-          Cancel
+          キャンセル
         </Button>
       </div>
     </div>
@@ -465,7 +465,7 @@ function TagInput({
         <input
           type="text"
           value={input}
-          placeholder={value.length ? '' : 'Add tags...'}
+          placeholder={value.length ? '' : 'タグを追加...'}
           onChange={(e) => {
             const v = e.target.value;
             if (v.endsWith(',')) addTag(v.slice(0, -1));
@@ -647,16 +647,16 @@ function CreateVocabForm({ onCreated }: { onCreated: () => void }) {
 
   return (
     <form onSubmit={handleSubmit} className="bg-card text-card-foreground flex flex-col gap-3 rounded-xl border p-5 shadow-sm">
-      <h2 className="font-bold text-lg">Add Vocabulary</h2>
+      <h2 className="font-bold text-lg">語彙を追加</h2>
 
         {/* Dictionary search — pick a result to prefill the fields below */}
         <div>
-          <Label className="mb-1 block text-xs text-muted-foreground">Search dictionary (Japanese or English)</Label>
+          <Label className="mb-1 block text-xs text-muted-foreground">辞書を検索（日本語・英語）</Label>
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
             <Input
               type="text"
-              placeholder="e.g. 食べ, たべる, or eat"
+              placeholder="例：食べ、たべる、eat など"
               value={dictQuery}
               onChange={(e) => setDictQuery(e.target.value)}
               className="pl-9"
@@ -666,10 +666,10 @@ function CreateVocabForm({ onCreated }: { onCreated: () => void }) {
           {debouncedQuery.length > 0 && (
             <div className="mt-1 border border-border rounded-md bg-popover max-h-64 overflow-y-auto divide-y divide-border">
               {dictResults.isLoading && (
-                <p className="px-3 py-2 text-sm text-muted-foreground animate-pulse">Searching...</p>
+                <p className="px-3 py-2 text-sm text-muted-foreground animate-pulse">検索中...</p>
               )}
               {dictResults.data?.length === 0 && (
-                <p className="px-3 py-2 text-sm text-muted-foreground">No dictionary matches.</p>
+                <p className="px-3 py-2 text-sm text-muted-foreground">辞書に一致する項目がありません。</p>
               )}
               {dictResults.data?.map((r, i) => {
                 // Fall back to a single synthetic sense for entries without a
@@ -683,10 +683,10 @@ function CreateVocabForm({ onCreated }: { onCreated: () => void }) {
                       <span className="text-lg font-bold shrink-0" lang="ja">{r.word}</span>
                       <span className="text-sm text-muted-foreground shrink-0" lang="ja">{r.readings.slice(0, 2).join('、')}</span>
                       {r.is_common && !r.already_exists && (
-                        <span className="text-[10px] font-bold text-success shrink-0">● common</span>
+                        <span className="text-[10px] font-bold text-success shrink-0">● 常用</span>
                       )}
                       {r.already_exists && (
-                        <span className="text-[10px] font-bold text-muted-foreground shrink-0">✓ in pool</span>
+                        <span className="text-[10px] font-bold text-muted-foreground shrink-0">✓ 登録済み</span>
                       )}
                     </div>
                     <div className="space-y-0.5">
@@ -699,7 +699,7 @@ function CreateVocabForm({ onCreated }: { onCreated: () => void }) {
                             type="button"
                             disabled={r.already_exists}
                             onClick={(e) => applySense(r, senses, si, e.shiftKey)}
-                            title="Click to use this sense · Shift-click to combine senses"
+                            title="クリックでこの意味を使用 · Shift＋クリックで意味を組み合わせ"
                             className={cn(
                               'w-full text-left text-sm rounded px-2 py-1 flex gap-2 transition-colors',
                               r.already_exists
@@ -721,7 +721,7 @@ function CreateVocabForm({ onCreated }: { onCreated: () => void }) {
                     </div>
                     {senses.length > 1 && !r.already_exists && (
                       <p className="text-[10px] text-muted-foreground mt-1">
-                        Shift-click to combine senses · click again to remove.
+                        Shift＋クリックで意味を組み合わせ · もう一度クリックで解除。
                       </p>
                     )}
                   </div>
@@ -733,10 +733,10 @@ function CreateVocabForm({ onCreated }: { onCreated: () => void }) {
 
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <Label className="mb-1 block text-xs text-muted-foreground">Word</Label>
+            <Label className="mb-1 block text-xs text-muted-foreground">単語</Label>
             <Input
               type="text"
-              placeholder="e.g. 食べ物"
+              placeholder="例：食べ物"
               value={word}
               onChange={(e) => setWord(e.target.value)}
               className="h-auto py-2 text-lg"
@@ -744,10 +744,10 @@ function CreateVocabForm({ onCreated }: { onCreated: () => void }) {
             />
           </div>
           <div>
-            <Label className="mb-1 block text-xs text-muted-foreground">Reading(s) — comma-separated</Label>
+            <Label className="mb-1 block text-xs text-muted-foreground">読み（カンマ区切り）</Label>
             <Input
               type="text"
-              placeholder="e.g. たべもの"
+              placeholder="例：たべもの"
               value={readings}
               onChange={(e) => setReadings(e.target.value)}
               required
@@ -756,10 +756,10 @@ function CreateVocabForm({ onCreated }: { onCreated: () => void }) {
         </div>
 
         <div>
-          <Label className="mb-1 block text-xs text-muted-foreground">Meanings — comma-separated</Label>
+          <Label className="mb-1 block text-xs text-muted-foreground">意味（カンマ区切り）</Label>
           <Input
             type="text"
-            placeholder="e.g. food, provisions"
+            placeholder="例：food, provisions"
             value={meanings}
             onChange={(e) => setMeanings(e.target.value)}
             required
@@ -771,14 +771,14 @@ function CreateVocabForm({ onCreated }: { onCreated: () => void }) {
 
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <Label className="mb-1 block text-xs text-muted-foreground">Tags (optional)</Label>
+            <Label className="mb-1 block text-xs text-muted-foreground">タグ（任意）</Label>
             <TagInput value={tags} onChange={setTags} options={allTags} />
           </div>
           <div>
-            <Label className="mb-1 block text-xs text-muted-foreground">Comment (optional)</Label>
+            <Label className="mb-1 block text-xs text-muted-foreground">コメント（任意）</Label>
             <Input
               type="text"
-              placeholder="Where did you find this word?"
+              placeholder="この単語をどこで見つけましたか？"
               value={comment}
               onChange={(e) => setComment(e.target.value)}
               className="text-sm"
@@ -788,7 +788,7 @@ function CreateVocabForm({ onCreated }: { onCreated: () => void }) {
 
         {/* Example sentences (optional) */}
         <div>
-          <Label className="mb-1 block text-xs text-muted-foreground">Example sentences (optional)</Label>
+          <Label className="mb-1 block text-xs text-muted-foreground">例文（任意）</Label>
           <div className="space-y-2">
             {sentences.map((s, i) => (
               <div key={i} className="flex gap-2">
@@ -797,7 +797,7 @@ function CreateVocabForm({ onCreated }: { onCreated: () => void }) {
                     type="text"
                     value={s.ja}
                     onChange={(e) => updateSentence(i, 'ja', e.target.value)}
-                    placeholder="Japanese..."
+                    placeholder="日本語..."
                     lang="ja"
                     className="h-auto py-1.5 text-sm"
                   />
@@ -805,7 +805,7 @@ function CreateVocabForm({ onCreated }: { onCreated: () => void }) {
                     type="text"
                     value={s.en}
                     onChange={(e) => updateSentence(i, 'en', e.target.value)}
-                    placeholder="English..."
+                    placeholder="英語..."
                     className="h-auto py-1.5 text-sm"
                   />
                 </div>
@@ -813,7 +813,7 @@ function CreateVocabForm({ onCreated }: { onCreated: () => void }) {
                   type="button"
                   onClick={() => removeSentence(i)}
                   className="self-start text-muted-foreground hover:text-destructive text-lg leading-none px-1"
-                  title="Remove sentence"
+                  title="例文を削除"
                 >
                   &times;
                 </button>
@@ -826,7 +826,7 @@ function CreateVocabForm({ onCreated }: { onCreated: () => void }) {
               onClick={addSentence}
               className="h-auto p-0 text-wk-vocab font-bold"
             >
-              + Add sentence
+              ＋例文を追加
             </Button>
           </div>
         </div>
@@ -834,7 +834,7 @@ function CreateVocabForm({ onCreated }: { onCreated: () => void }) {
         {/* Find & link existing pool sentences containing this word */}
         <div>
           <div className="flex items-center gap-3 mb-1">
-            <Label className="text-xs text-muted-foreground">Link existing sentences (optional)</Label>
+            <Label className="text-xs text-muted-foreground">既存の例文をリンク（任意）</Label>
             <Button
               type="button"
               variant="link"
@@ -843,20 +843,20 @@ function CreateVocabForm({ onCreated }: { onCreated: () => void }) {
               disabled={!word.trim()}
               className="h-auto p-0 text-wk-vocab font-bold"
             >
-              {showLinks ? 'Hide' : 'Find links'}
+              {showLinks ? '隠す' : '例文を探す'}
             </Button>
             {linkIds.size > 0 && (
-              <span className="text-xs text-muted-foreground">{linkIds.size} selected</span>
+              <span className="text-xs text-muted-foreground">{linkIds.size}件選択中</span>
             )}
           </div>
 
           {showLinks && word.trim() && (
             <div className="space-y-1">
               {linkSuggestions.isLoading && (
-                <p className="text-xs text-muted-foreground animate-pulse">Searching…</p>
+                <p className="text-xs text-muted-foreground animate-pulse">検索中…</p>
               )}
               {linkSuggestions.data?.length === 0 && (
-                <p className="text-xs text-muted-foreground">No existing sentences contain "{word.trim()}".</p>
+                <p className="text-xs text-muted-foreground">「{word.trim()}」を含む既存の例文はありません。</p>
               )}
               {linkSuggestions.data?.map((s: Sentence) => {
                 const selected = linkIds.has(s.id);
@@ -891,7 +891,7 @@ function CreateVocabForm({ onCreated }: { onCreated: () => void }) {
             type="submit"
             disabled={mutation.isPending || !word.trim() || !readings.trim() || !meanings.trim()}
           >
-            {mutation.isPending ? 'Saving...' : 'Create & Add to Queue'}
+            {mutation.isPending ? '保存中...' : '作成して学習キューに追加'}
           </Button>
           <Button
             type="button"
@@ -899,7 +899,7 @@ function CreateVocabForm({ onCreated }: { onCreated: () => void }) {
             onClick={() => submit(false)}
             disabled={mutation.isPending || !word.trim() || !readings.trim() || !meanings.trim()}
           >
-            Create only
+            作成のみ
           </Button>
         </div>
     </form>

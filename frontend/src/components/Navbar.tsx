@@ -15,9 +15,9 @@ import { ThemeToggle } from './ThemeToggle';
 
 // Each section carries its own ink: kanji = pink, vocab = purple, dashboard = paper.
 const NAV_LINKS = [
-  { to: '/', label: 'Dashboard', ink: 'text-foreground', rule: 'bg-foreground' },
-  { to: '/kanji', label: 'Kanji', ink: 'text-wk-kanji', rule: 'bg-wk-kanji' },
-  { to: '/vocab', label: 'Vocab', ink: 'text-wk-vocab', rule: 'bg-wk-vocab' },
+  { to: '/', label: 'ダッシュボード', ink: 'text-foreground', rule: 'bg-foreground' },
+  { to: '/kanji', label: '漢字', ink: 'text-wk-kanji', rule: 'bg-wk-kanji' },
+  { to: '/vocab', label: '語彙', ink: 'text-wk-vocab', rule: 'bg-wk-vocab' },
 ];
 
 export function Navbar() {
@@ -80,12 +80,12 @@ export function Navbar() {
               <DropdownMenuItem asChild>
                 <Link to="/account">
                   <User className="size-4" />
-                  Account
+                  アカウント
                 </Link>
               </DropdownMenuItem>
               <DropdownMenuItem variant="destructive" onSelect={() => logout()}>
                 <LogOut className="size-4" />
-                Log out
+                ログアウト
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>

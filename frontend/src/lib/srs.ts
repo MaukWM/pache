@@ -1,14 +1,15 @@
+// WaniKani's own SRS terms — rendered in katakana (they're proper-noun jargon).
 export const SRS_STAGE_NAMES: Record<number, string> = {
-  0: 'Locked',
-  1: 'Apprentice I',
-  2: 'Apprentice II',
-  3: 'Apprentice III',
-  4: 'Apprentice IV',
-  5: 'Guru I',
-  6: 'Guru II',
-  7: 'Master',
-  8: 'Enlightened',
-  9: 'Burned',
+  0: 'ロック',
+  1: 'アプレンティスI',
+  2: 'アプレンティスII',
+  3: 'アプレンティスIII',
+  4: 'アプレンティスIV',
+  5: 'グルI',
+  6: 'グルII',
+  7: 'マスター',
+  8: 'エンライテンド',
+  9: 'バーンド',
 };
 
 export const SRS_STAGE_COLORS: Record<number, string> = {
@@ -24,24 +25,24 @@ export const SRS_STAGE_COLORS: Record<number, string> = {
   9: '#c8a000',
 };
 
-export const SRS_GROUP_NAMES = ['Apprentice', 'Guru', 'Master', 'Enlightened', 'Burned'] as const;
+export const SRS_GROUP_NAMES = ['アプレンティス', 'グル', 'マスター', 'エンライテンド', 'バーンド'] as const;
 
 export function getSrsGroup(stage: number): string {
-  if (stage <= 0) return 'Locked';
-  if (stage <= 4) return 'Apprentice';
-  if (stage <= 6) return 'Guru';
-  if (stage === 7) return 'Master';
-  if (stage === 8) return 'Enlightened';
-  return 'Burned';
+  if (stage <= 0) return 'ロック';
+  if (stage <= 4) return 'アプレンティス';
+  if (stage <= 6) return 'グル';
+  if (stage === 7) return 'マスター';
+  if (stage === 8) return 'エンライテンド';
+  return 'バーンド';
 }
 
 export function getSrsGroupColor(group: string): string {
   switch (group) {
-    case 'Apprentice': return '#dd0093';
-    case 'Guru': return '#882d9e';
-    case 'Master': return '#294ddb';
-    case 'Enlightened': return '#0093dd';
-    case 'Burned': return '#c8a000';
+    case 'アプレンティス': return '#dd0093';
+    case 'グル': return '#882d9e';
+    case 'マスター': return '#294ddb';
+    case 'エンライテンド': return '#0093dd';
+    case 'バーンド': return '#c8a000';
     default: return '#999999';
   }
 }

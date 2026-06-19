@@ -6,13 +6,13 @@ interface SrsStageBarProps {
 }
 
 export function SrsStageBar({ counts }: SrsStageBarProps) {
-  const groups = ['Apprentice', 'Guru', 'Master', 'Enlightened', 'Burned'];
+  const groups = ['アプレンティス', 'グル', 'マスター', 'エンライテンド', 'バーンド'];
   const total = groups.reduce((sum, g) => sum + (counts[g] || 0), 0);
 
   if (total === 0) {
     return (
       <Card className="items-center p-6 text-center text-sm text-muted-foreground">
-        No items in SRS yet. Complete some lessons to get started!
+        まだSRSに項目がありません。レッスンを完了して始めましょう！
       </Card>
     );
   }

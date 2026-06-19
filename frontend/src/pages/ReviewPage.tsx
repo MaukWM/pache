@@ -131,7 +131,7 @@ export function ReviewPage() {
     return (
       <QuizShell exitTo="/">
         <div className="flex-1 flex items-center justify-center text-muted-foreground animate-pulse text-lg">
-          Loading reviews...
+          復習を読み込み中...
         </div>
       </QuizShell>
     );
@@ -144,8 +144,8 @@ export function ReviewPage() {
       return (
         <QuizShell exitTo="/">
           <div className="flex-1 flex flex-col items-center justify-center space-y-4 text-center">
-            <h2 className="text-2xl font-bold">No reviews due</h2>
-            <p className="text-muted-foreground">Come back later when items are ready for review.</p>
+            <h2 className="text-2xl font-bold">復習はありません</h2>
+            <p className="text-muted-foreground">項目が復習可能になったら、また来てください。</p>
           </div>
         </QuizShell>
       );
@@ -154,19 +154,19 @@ export function ReviewPage() {
     return (
       <QuizShell exitTo="/">
       <div className="flex-1 flex flex-col items-center justify-center space-y-6">
-        <h2 className="text-2xl font-bold">{reviewItems.length} items to review</h2>
+        <h2 className="text-2xl font-bold">復習する項目: {reviewItems.length}件</h2>
         <div className="flex gap-3">
           <Button
             variant={mode === 'paired' ? 'default' : 'outline'}
             onClick={() => setMode('paired')}
           >
-            Paired
+            ペア
           </Button>
           <Button
             variant={mode === 'scrambled' ? 'default' : 'outline'}
             onClick={() => setMode('scrambled')}
           >
-            Scrambled
+            シャッフル
           </Button>
         </div>
         <Button
@@ -178,7 +178,7 @@ export function ReviewPage() {
             setStarted(true);
           }}
         >
-          Start Reviews
+          復習を開始
         </Button>
       </div>
       </QuizShell>
@@ -191,8 +191,8 @@ export function ReviewPage() {
       <QuizShell exitTo="/">
       <div className="flex-1 flex flex-col items-center justify-center space-y-6">
         <div className="text-6xl">&#10003;</div>
-        <h2 className="text-2xl font-bold">All done!</h2>
-        <p className="text-muted-foreground">{completedCorrect} correct, {completedIncorrect} incorrect</p>
+        <h2 className="text-2xl font-bold">完了しました！</h2>
+        <p className="text-muted-foreground">正解 {completedCorrect}件、不正解 {completedIncorrect}件</p>
         <Button
           size="lg"
           onClick={() => {
@@ -206,7 +206,7 @@ export function ReviewPage() {
             queryClient.invalidateQueries({ queryKey: ['reviews'] });
           }}
         >
-          Done
+          終了
         </Button>
       </div>
       </QuizShell>
@@ -340,8 +340,8 @@ export function ReviewPage() {
           correct={correct}
           showInfo={showInfo}
           onToggleInfo={() => setShowInfo((v) => !v)}
-          continueLabel="continue"
-          wrongLabel="accept"
+          continueLabel="続ける"
+          wrongLabel="確定"
         />
       </div>
     </QuizShell>

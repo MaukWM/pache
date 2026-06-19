@@ -9,12 +9,12 @@ import { Card } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 
 const STAGE_FILTERS = [
-  { label: 'All', value: '' },
-  { label: 'Apprentice', value: '1,2,3,4' },
-  { label: 'Guru', value: '5,6' },
-  { label: 'Master', value: '7' },
-  { label: 'Enlightened', value: '8' },
-  { label: 'Burned', value: '9' },
+  { label: 'すべて', value: '' },
+  { label: 'アプレンティス', value: '1,2,3,4' },
+  { label: 'グル', value: '5,6' },
+  { label: 'マスター', value: '7' },
+  { label: 'エンライテンド', value: '8' },
+  { label: 'バーンド', value: '9' },
 ];
 
 export function ProgressPage() {
@@ -48,7 +48,7 @@ export function ProgressPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold">Progress</h1>
+      <h1 className="text-2xl font-bold">進捗</h1>
 
       <SrsStageBar counts={srsCounts} />
 
@@ -72,7 +72,7 @@ export function ProgressPage() {
           className={cn('rounded-full', typeFilter === 'kanji' && 'bg-wk-kanji hover:bg-wk-kanji/90')}
           onClick={() => setTypeFilter(typeFilter === 'kanji' ? '' : 'kanji')}
         >
-          Kanji
+          漢字
         </Button>
         <Button
           size="sm"
@@ -80,16 +80,16 @@ export function ProgressPage() {
           className={cn('rounded-full', typeFilter === 'vocab' && 'bg-wk-vocab hover:bg-wk-vocab/90')}
           onClick={() => setTypeFilter(typeFilter === 'vocab' ? '' : 'vocab')}
         >
-          Vocab
+          語彙
         </Button>
       </div>
 
       {/* Items */}
       {progress.isLoading ? (
-        <div className="animate-pulse text-muted-foreground">Loading...</div>
+        <div className="animate-pulse text-muted-foreground">読み込み中...</div>
       ) : items.length === 0 ? (
         <Card className="items-center p-8 text-center text-muted-foreground">
-          No items match the current filter.
+          条件に一致する項目がありません。
         </Card>
       ) : (
         <div className="grid gap-2">

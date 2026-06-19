@@ -79,8 +79,8 @@ export function QuizCard({
   correct,
   showInfo,
   onToggleInfo,
-  continueLabel = 'continue',
-  wrongLabel = 'accept',
+  continueLabel = '次へ',
+  wrongLabel = '正解にする',
 }: {
   itemType: string;
   details: QuizItemDetails;
@@ -140,9 +140,9 @@ export function QuizCard({
 
       {/* Reading/Meaning bar */}
       <div className="border-y border-border bg-muted py-2.5 text-center">
-        <span className="font-mono text-xs tracking-[0.2em] text-muted-foreground uppercase">
-          {itemType} ·{' '}
-          <span className="text-foreground">{cardType === 'reading' ? 'Reading' : 'Meaning'}</span>
+        <span className="font-mono text-xs tracking-[0.2em] text-muted-foreground">
+          {isKanji ? '漢字' : '語彙'} ・{' '}
+          <span className="text-foreground">{cardType === 'reading' ? '読み' : '意味'}</span>
         </span>
       </div>
 
@@ -158,7 +158,7 @@ export function QuizCard({
             }
             onKeyDown={onKeyDown}
             onAnimationEnd={() => setShaking(false)}
-            placeholder={cardType === 'reading' ? '答え' : 'Your Response'}
+            placeholder={cardType === 'reading' ? '答え' : '意味を入力'}
             disabled={answered}
             lang={cardType === 'reading' ? 'ja' : 'en'}
             className={cn(
@@ -181,10 +181,10 @@ export function QuizCard({
           <div className="mx-auto max-w-2xl space-y-3 px-4 pb-5">
             <div className="flex items-center justify-center gap-4">
               <span className={cn('text-lg font-bold', correct ? 'text-success' : 'text-destructive')}>
-                {correct ? 'Correct!' : 'Incorrect'}
+                {correct ? '正解！' : '不正解'}
               </span>
               <Button variant="outline" size="sm" onClick={onToggleInfo} className="text-muted-foreground">
-                {showInfo ? 'Hide Info' : 'Item Info'}{' '}
+                {showInfo ? '情報を隠す' : '項目情報'}{' '}
                 <kbd className="ml-1 rounded bg-muted px-1 py-0.5 font-mono text-[10px]">F</kbd>
               </Button>
             </div>
@@ -192,7 +192,7 @@ export function QuizCard({
             {showInfo && (
               <div className="text-left">
                 {/* Meaning — auto-open only when this is a meaning card */}
-                <InfoSection title="Meaning" open={cardType === 'meaning'}>
+                <InfoSection title="意味" open={cardType === 'meaning'}>
                   <p className="text-xl">{meanings[0]}</p>
                   {meanings.length > 1 && (
                     <p className="mt-0.5 text-sm text-muted-foreground">{meanings.slice(1).join(', ')}</p>
@@ -200,18 +200,18 @@ export function QuizCard({
                 </InfoSection>
 
                 {/* Reading — auto-open only when this is a reading card */}
-                <InfoSection title="Reading" open={cardType === 'reading'}>
+                <InfoSection title="読み" open={cardType === 'reading'}>
                   {isKanji ? (
                     <div className="flex gap-8">
                       {readingsOn.length > 0 && (
                         <div>
-                          <span className="block text-xs text-muted-foreground">On'yomi</span>
+                          <span className="block text-xs text-muted-foreground">音読み</span>
                           <span lang="ja" className="text-xl">{readingsOn.map(katakanaToHiragana).join('、')}</span>
                         </div>
                       )}
                       {readingsKun.length > 0 && (
                         <div>
-                          <span className="block text-xs text-muted-foreground">Kun'yomi</span>
+                          <span className="block text-xs text-muted-foreground">訓読み</span>
                           <span lang="ja" className="text-xl">{readingsKun.join('、')}</span>
                         </div>
                       )}
@@ -223,19 +223,19 @@ export function QuizCard({
 
                 {/* Radicals (kanji) / Kanji Composition (vocab) — collapsed by default */}
                 {isKanji && components.length > 0 && (
-                  <InfoSection title="Radicals">
+                  <InfoSection title="部首">
                     <RadicalList components={components} size="sm" />
                   </InfoSection>
                 )}
                 {!isKanji && kanjiComposition.length > 0 && (
-                  <InfoSection title="Kanji Composition">
+                  <InfoSection title="漢字構成">
                     <div className="flex flex-wrap gap-4">
                       {kanjiComposition.map((k) => (
                         <Link
                           key={k.character}
                           to={`/kanji/${encodeURIComponent(k.character)}`}
                           className="-mx-1 flex items-center gap-2 px-1 transition-colors hover:bg-accent"
-                          title={`View ${k.character}`}
+                          title={`${k.character} を見る`}
                         >
                           <GlyphCell type="kanji" character={k.character} size="sm" />
                           <span className="text-sm">{k.meanings[0]}</span>
@@ -256,7 +256,7 @@ export function QuizCard({
                   </Badge>
                 ))}
                 {vocabComment && <span className="italic">"{vocabComment}"</span>}
-                {vocabCreator && <span>by {vocabCreator}</span>}
+                {vocabCreator && <span>作成者：{vocabCreator}</span>}
               </div>
             )}
 
@@ -268,7 +268,7 @@ export function QuizCard({
               <Separator orientation="vertical" className="!h-3.5" />
               <span>
                 <kbd className="rounded bg-muted px-1.5 py-0.5 font-mono text-[10px] text-foreground">Backspace</kbd>{' '}
-                {correct ? 'undo' : 'retype'}
+                {correct ? '取り消す' : '再入力'}
               </span>
             </div>
           </div>

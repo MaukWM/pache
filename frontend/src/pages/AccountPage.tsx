@@ -16,18 +16,18 @@ export function AccountPage() {
 
   return (
     <div className="space-y-8 max-w-xl">
-      <h1 className="text-2xl font-bold">Account</h1>
+      <h1 className="text-2xl font-bold">アカウント</h1>
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-lg">Profile</CardTitle>
+          <CardTitle className="text-lg">プロフィール</CardTitle>
           <CardDescription>
-            Logged in as <span className="font-bold text-foreground">{user?.username}</span>
+            <span className="font-bold text-foreground">{user?.username}</span> でログイン中
           </CardDescription>
         </CardHeader>
         <CardContent>
           <Button variant="destructive" onClick={logout}>
-            Logout
+            ログアウト
           </Button>
         </CardContent>
       </Card>
@@ -53,7 +53,7 @@ function AdminUsers({ queryClient }: { queryClient: ReturnType<typeof useQueryCl
   const createMutation = useMutation({
     mutationFn: () => api.createUser(username.trim(), password || undefined, makeAdmin),
     onSuccess: (created) => {
-      setMsg(`Created "${created.username}" — password: ${created.password}`);
+      setMsg(`「${created.username}」を作成しました — パスワード: ${created.password}`);
       setUsername('');
       setPassword('');
       setMakeAdmin(false);
@@ -65,7 +65,7 @@ function AdminUsers({ queryClient }: { queryClient: ReturnType<typeof useQueryCl
   const resetMutation = useMutation({
     mutationFn: (userId: number) => api.resetUserPassword(userId),
     onSuccess: (updated) => {
-      setMsg(`Reset "${updated.username}" — new password: ${updated.password}`);
+      setMsg(`「${updated.username}」をリセットしました — 新しいパスワード: ${updated.password}`);
     },
     onError: (err: Error) => setMsg(`⚠ ${err.message}`),
   });
@@ -74,7 +74,7 @@ function AdminUsers({ queryClient }: { queryClient: ReturnType<typeof useQueryCl
     mutationFn: ({ userId, isAdmin }: { userId: number; isAdmin: boolean }) =>
       api.setUserAdmin(userId, isAdmin),
     onSuccess: (updated) => {
-      setMsg(`"${updated.username}" is now ${updated.is_admin ? 'an admin' : 'a regular user'}.`);
+      setMsg(`「${updated.username}」は${updated.is_admin ? '管理者' : '一般ユーザー'}になりました。`);
       queryClient.invalidateQueries({ queryKey: ['users'] });
     },
     onError: (err: Error) => setMsg(`⚠ ${err.message}`),
@@ -88,13 +88,13 @@ function AdminUsers({ queryClient }: { queryClient: ReturnType<typeof useQueryCl
     const revokingSelf = u.id === currentUser?.id && u.is_admin;
     if (revokingSelf) {
       if (adminCount <= 1) {
-        setMsg('⚠ You are the only admin — promote someone else before revoking your own access.');
+        setMsg('⚠ あなたは唯一の管理者です。自分の権限を取り消す前に、別のユーザーを管理者に昇格させてください。');
         return;
       }
       if (
         !window.confirm(
-          'Revoke your OWN admin access? You will immediately lose user management ' +
-            'and cannot restore it yourself — another admin would have to.',
+          '自分自身の管理者権限を取り消しますか？ ただちにユーザー管理ができなくなり、' +
+            '自分では復元できません。別の管理者に依頼する必要があります。',
         )
       ) {
         return;
@@ -107,7 +107,7 @@ function AdminUsers({ queryClient }: { queryClient: ReturnType<typeof useQueryCl
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-lg">Admin · Users</CardTitle>
+        <CardTitle className="text-lg">管理者 · ユーザー</CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
         {/* Create user */}
@@ -117,52 +117,52 @@ function AdminUsers({ queryClient }: { queryClient: ReturnType<typeof useQueryCl
               type="text"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
-              placeholder="New username"
+              placeholder="新しいユーザー名"
             />
             <Input
               type="text"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              placeholder="Password (default: changeme)"
+              placeholder="パスワード（既定: changeme）"
             />
             <Button
               onClick={() => { setMsg(''); createMutation.mutate(); }}
               disabled={!username.trim() || createMutation.isPending}
             >
-              {createMutation.isPending ? 'Creating...' : 'Create'}
+              {createMutation.isPending ? '作成中...' : '作成'}
             </Button>
           </div>
           <Label className="text-muted-foreground font-normal">
             <input type="checkbox" checked={makeAdmin} onChange={(e) => setMakeAdmin(e.target.checked)} />
-            Make this user an admin
+            このユーザーを管理者にする
           </Label>
         </div>
 
         {/* User list */}
         <div className="divide-y divide-border border border-border rounded-lg overflow-hidden">
           {users.isLoading ? (
-            <p className="px-3 py-2 text-sm text-muted-foreground animate-pulse">Loading users...</p>
+            <p className="px-3 py-2 text-sm text-muted-foreground animate-pulse">ユーザーを読み込み中...</p>
           ) : (
             users.data?.map((u) => (
               <div key={u.id} className="px-3 py-2 flex items-center gap-2 text-sm">
                 <span className="font-medium">{u.username}</span>
                 {u.is_admin && (
-                  <Badge className="bg-wk-kanji/15 text-wk-kanji text-[10px]">admin</Badge>
+                  <Badge className="bg-wk-kanji/15 text-wk-kanji text-[10px]">管理者</Badge>
                 )}
                 <button
                   onClick={() => handleToggleAdmin(u)}
                   disabled={adminMutation.isPending || isOnlyAdmin(u)}
-                  title={isOnlyAdmin(u) ? 'You are the only admin — promote someone else first' : undefined}
+                  title={isOnlyAdmin(u) ? 'あなたは唯一の管理者です。先に別のユーザーを昇格させてください' : undefined}
                   className="ml-auto text-xs text-muted-foreground hover:text-wk-kanji font-bold disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  {u.is_admin ? 'Revoke admin' : 'Make admin'}
+                  {u.is_admin ? '管理者を解除' : '管理者にする'}
                 </button>
                 <button
                   onClick={() => { setMsg(''); resetMutation.mutate(u.id); }}
                   disabled={resetMutation.isPending}
                   className="text-xs text-muted-foreground hover:text-destructive font-bold disabled:opacity-50"
                 >
-                  Reset password
+                  パスワードをリセット
                 </button>
               </div>
             ))
@@ -188,7 +188,7 @@ function PasswordSettings({ queryClient }: { queryClient: ReturnType<typeof useQ
   const saveMutation = useMutation({
     mutationFn: (newPassword: string) => api.setPassword(newPassword),
     onSuccess: () => {
-      setMsg('Password updated!');
+      setMsg('パスワードを更新しました！');
       setPassword('');
       setConfirm('');
       queryClient.invalidateQueries({ queryKey: ['settings'] });
@@ -200,7 +200,7 @@ function PasswordSettings({ queryClient }: { queryClient: ReturnType<typeof useQ
 
   const handleSave = () => {
     if (password !== confirm) {
-      setMsg('Passwords do not match.');
+      setMsg('パスワードが一致しません。');
       return;
     }
     setMsg('');
@@ -210,11 +210,11 @@ function PasswordSettings({ queryClient }: { queryClient: ReturnType<typeof useQ
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-lg">Password</CardTitle>
+        <CardTitle className="text-lg">パスワード</CardTitle>
         <CardDescription>
           {hasPassword
-            ? 'A password is set. Enter a new one to change it — no need to type the old one.'
-            : 'No password set. Anyone who knows your username can log in until you set one.'}
+            ? 'パスワードは設定済みです。変更するには新しいパスワードを入力してください。古いパスワードの入力は不要です。'
+            : 'パスワードが未設定です。設定するまで、ユーザー名を知っている人なら誰でもログインできます。'}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-2">
@@ -222,16 +222,16 @@ function PasswordSettings({ queryClient }: { queryClient: ReturnType<typeof useQ
           type="password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          placeholder="New password (min 4 chars)"
+          placeholder="新しいパスワード（4文字以上）"
         />
         <Input
           type="password"
           value={confirm}
           onChange={(e) => setConfirm(e.target.value)}
-          placeholder="Confirm new password"
+          placeholder="新しいパスワードを再入力"
         />
         <Button onClick={handleSave} disabled={!canSave || saveMutation.isPending}>
-          {saveMutation.isPending ? 'Saving...' : hasPassword ? 'Change Password' : 'Set Password'}
+          {saveMutation.isPending ? '保存中...' : hasPassword ? 'パスワードを変更' : 'パスワードを設定'}
         </Button>
 
         {msg && (
@@ -254,7 +254,7 @@ function WaniKaniSettings({ queryClient }: { queryClient: ReturnType<typeof useQ
   const saveMutation = useMutation({
     mutationFn: (key: string) => api.updateSettings(key),
     onSuccess: () => {
-      setMsg('API key saved!');
+      setMsg('APIキーを保存しました！');
       setApiKey('');
       queryClient.invalidateQueries({ queryKey: ['settings'] });
     },
@@ -264,7 +264,7 @@ function WaniKaniSettings({ queryClient }: { queryClient: ReturnType<typeof useQ
   const removeMutation = useMutation({
     mutationFn: () => api.removeSettings(),
     onSuccess: () => {
-      setMsg('API key removed.');
+      setMsg('APIキーを削除しました。');
       queryClient.invalidateQueries({ queryKey: ['settings'] });
     },
     onError: (err: Error) => setMsg(`⚠ ${err.message}`),
@@ -273,7 +273,7 @@ function WaniKaniSettings({ queryClient }: { queryClient: ReturnType<typeof useQ
   const importMutation = useMutation({
     mutationFn: api.importWanikani,
     onSuccess: (data) => {
-      setMsg(`Imported ${data.imported_count} kanji from ${data.total_fetched} Guru+ items! (${data.skipped_count} skipped, ${data.already_existed} already existed)`);
+      setMsg(`${data.total_fetched}件のGuru+項目から${data.imported_count}件の漢字をインポートしました！（${data.skipped_count}件スキップ、${data.already_existed}件は既存）`);
       queryClient.invalidateQueries({ queryKey: ['kanji'] });
       queryClient.invalidateQueries({ queryKey: ['progress'] });
     },
@@ -285,17 +285,17 @@ function WaniKaniSettings({ queryClient }: { queryClient: ReturnType<typeof useQ
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-lg">WaniKani Integration</CardTitle>
+        <CardTitle className="text-lg">WaniKani連携</CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
         {settings.isLoading ? (
-          <p className="text-muted-foreground animate-pulse">Loading...</p>
+          <p className="text-muted-foreground animate-pulse">読み込み中...</p>
         ) : (
           <>
             <p className="text-sm text-muted-foreground">
               {hasKey
-                ? 'API key configured. You can import your burned kanji.'
-                : 'Add your WaniKani API key to import Guru+ kanji.'}
+                ? 'APIキーは設定済みです。バーンした漢字をインポートできます。'
+                : 'WaniKaniのAPIキーを追加して、Guru+の漢字をインポートしましょう。'}
             </p>
 
             {/* Save API key */}
@@ -304,13 +304,13 @@ function WaniKaniSettings({ queryClient }: { queryClient: ReturnType<typeof useQ
                 type="password"
                 value={apiKey}
                 onChange={(e) => setApiKey(e.target.value)}
-                placeholder={hasKey ? 'Replace API key...' : 'Paste your WK API key...'}
+                placeholder={hasKey ? 'APIキーを置き換える...' : 'WaniKaniのAPIキーを貼り付け...'}
               />
               <Button
                 onClick={() => saveMutation.mutate(apiKey)}
                 disabled={!apiKey.trim() || saveMutation.isPending}
               >
-                {saveMutation.isPending ? 'Saving...' : 'Save'}
+                {saveMutation.isPending ? '保存中...' : '保存'}
               </Button>
             </div>
 
@@ -323,14 +323,14 @@ function WaniKaniSettings({ queryClient }: { queryClient: ReturnType<typeof useQ
                     onClick={() => importMutation.mutate()}
                     disabled={importMutation.isPending}
                   >
-                    {importMutation.isPending ? 'Importing...' : 'Import Guru+ Kanji'}
+                    {importMutation.isPending ? 'インポート中...' : 'Guru+の漢字をインポート'}
                   </Button>
                   <Button
                     variant="destructive"
                     onClick={() => removeMutation.mutate()}
                     disabled={removeMutation.isPending}
                   >
-                    Remove Key
+                    キーを削除
                   </Button>
                 </div>
               </>
@@ -338,7 +338,7 @@ function WaniKaniSettings({ queryClient }: { queryClient: ReturnType<typeof useQ
 
             {importMutation.isPending && (
               <p className="text-sm text-muted-foreground animate-pulse">
-                Fetching from WaniKani API... this can take a minute for large accounts.
+                WaniKani APIから取得中... アカウントが大きい場合は1分ほどかかることがあります。
               </p>
             )}
 

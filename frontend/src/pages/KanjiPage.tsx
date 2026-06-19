@@ -21,11 +21,11 @@ const INITIAL_LOAD = 250;
 type SortMode = 'frequency' | 'grade' | 'jlpt' | 'strokes' | 'default';
 
 const SORT_OPTIONS: { value: SortMode; label: string }[] = [
-  { value: 'frequency', label: 'Frequency' },
-  { value: 'grade', label: 'School Grade' },
-  { value: 'jlpt', label: 'JLPT Level' },
-  { value: 'strokes', label: 'Stroke Count' },
-  { value: 'default', label: 'Database Order' },
+  { value: 'frequency', label: '頻度' },
+  { value: 'grade', label: '学年' },
+  { value: 'jlpt', label: 'JLPTレベル' },
+  { value: 'strokes', label: '画数' },
+  { value: 'default', label: 'データベース順' },
 ];
 
 function sortKanji(items: KanjiItem[], mode: SortMode): KanjiItem[] {
@@ -130,7 +130,7 @@ export function KanjiPage() {
     if (sort === 'grade') {
       const groups = new Map<string, KanjiItem[]>();
       for (const k of visible) {
-        const label = k.grade ? `Grade ${k.grade}` : 'No Grade';
+        const label = k.grade ? `${k.grade}年生` : '学年なし';
         if (!groups.has(label)) groups.set(label, []);
         groups.get(label)!.push(k);
       }
@@ -150,7 +150,7 @@ export function KanjiPage() {
         1: 'JLPT N1',
       };
       for (const k of visible) {
-        const label = k.jlpt_level ? (labelMap[k.jlpt_level] || `JLPT ${k.jlpt_level}`) : 'Not in JLPT';
+        const label = k.jlpt_level ? (labelMap[k.jlpt_level] || `JLPT ${k.jlpt_level}`) : 'JLPT対象外';
         if (!groups.has(label)) groups.set(label, []);
         groups.get(label)!.push(k);
       }
@@ -163,7 +163,7 @@ export function KanjiPage() {
     if (sort === 'strokes') {
       const groups = new Map<string, KanjiItem[]>();
       for (const k of visible) {
-        const label = `${k.stroke_count} Stroke${k.stroke_count !== 1 ? 's' : ''}`;
+        const label = `${k.stroke_count}画`;
         if (!groups.has(label)) groups.set(label, []);
         groups.get(label)!.push(k);
       }
@@ -196,11 +196,11 @@ export function KanjiPage() {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-4">
-        <h1 className="text-2xl font-bold">Kanji</h1>
+        <h1 className="text-2xl font-bold">漢字</h1>
         <span className="text-sm text-muted-foreground">
           {hideKnown
-            ? `${(sortedAll.length - Object.keys(progressMap.data || {}).length).toLocaleString()} unknown / ${sortedAll.length.toLocaleString()}`
-            : `${sortedAll.length.toLocaleString()} kanji`}
+            ? `未習得 ${(sortedAll.length - Object.keys(progressMap.data || {}).length).toLocaleString()} / ${sortedAll.length.toLocaleString()}`
+            : `${sortedAll.length.toLocaleString()}字`}
         </span>
       </div>
 
@@ -208,7 +208,7 @@ export function KanjiPage() {
       <div className="flex gap-3">
         <Input
           type="text"
-          placeholder="Search by character, meaning, or reading..."
+          placeholder="文字・意味・読みで検索..."
           value={search}
           onChange={(e) => { setSearch(e.target.value); setVisibleCount(INITIAL_LOAD); }}
           className="flex-1"
@@ -219,7 +219,7 @@ export function KanjiPage() {
           onClick={() => { setHideKnown(!hideKnown); setVisibleCount(INITIAL_LOAD); }}
           className="whitespace-nowrap"
         >
-          Hide Known
+          習得済みを隠す
         </Button>
         <Select
           value={sort}
@@ -278,13 +278,13 @@ export function KanjiPage() {
           {/* Infinite scroll sentinel */}
           {hasMore && (
             <div ref={sentinelRef} className="text-center py-4 text-muted-foreground text-sm">
-              Loading more...
+              読み込み中...
             </div>
           )}
 
           {!hasMore && filtered.length > CHUNK_SIZE && (
             <div className="text-center py-4 text-muted-foreground text-xs">
-              All {sortedAll.length.toLocaleString()} kanji loaded
+              全{sortedAll.length.toLocaleString()}字を読み込みました
             </div>
           )}
         </div>

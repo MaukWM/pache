@@ -54,19 +54,19 @@ export function VocabDetailPage() {
   const queueMutation = useMutation({
     mutationFn: () => queueVocabAndKanji(item!.id, item!.kanji ?? [], progressMap.data),
     onSuccess: (added) => {
-      setActionMsg(added > 0 ? `Added to lesson queue (+${added} kanji)!` : 'Added to lesson queue!');
+      setActionMsg(added > 0 ? `学習キューに追加しました（漢字+${added}件）！` : '学習キューに追加しました！');
       invalidateAll();
     },
     onError: (err: Error) => setActionMsg(err.message),
   });
   const unlearnMutation = useMutation({
     mutationFn: () => api.unlearnItem('vocab', item!.id),
-    onSuccess: () => { setActionMsg('Unlearned! Removed from your reviews.'); setConfirmUnlearn(false); invalidateAll(); },
+    onSuccess: () => { setActionMsg('学習を取り消しました！復習からも削除されました。'); setConfirmUnlearn(false); invalidateAll(); },
     onError: (err: Error) => setActionMsg(err.message),
   });
   const resurrectMutation = useMutation({
     mutationFn: () => api.resurrectItem('vocab', item!.id),
-    onSuccess: () => { setActionMsg('Resurrected to Apprentice I! First review in 4 hours.'); setConfirmResurrect(false); invalidateAll(); },
+    onSuccess: () => { setActionMsg('見習いIに復活しました！最初の復習は4時間後です。'); setConfirmResurrect(false); invalidateAll(); },
     onError: (err: Error) => setActionMsg(err.message),
   });
   const deleteMut = useMutation({
@@ -104,9 +104,9 @@ export function VocabDetailPage() {
   const handleDelete = () => {
     if (
       window.confirm(
-        `Delete "${item!.word}" permanently?\n\nThis removes it from the shared pool for everyone, ` +
-          `along with its lesson-queue entries and all users' review progress for it. ` +
-          `Linked example sentences are kept. This cannot be undone.`,
+        `「${item!.word}」を完全に削除しますか？\n\n全員の共有プールから削除され、` +
+          `学習キューの項目とすべてのユーザーの復習進捗も削除されます。` +
+          `リンクされた例文は保持されます。この操作は取り消せません。`,
       )
     ) {
       deleteMut.mutate();
@@ -114,13 +114,13 @@ export function VocabDetailPage() {
   };
 
   if (vocabQuery.isLoading) {
-    return <div className="text-muted-foreground animate-pulse py-10 text-center">Loading…</div>;
+    return <div className="text-muted-foreground animate-pulse py-10 text-center">読み込み中…</div>;
   }
   if (!item) {
     return (
       <div className="space-y-3 text-center py-10">
-        <p className="text-muted-foreground">Vocabulary not found.</p>
-        <Link to="/vocab" className="text-wk-vocab font-bold">← Back to Vocabulary</Link>
+        <p className="text-muted-foreground">語彙が見つかりません。</p>
+        <Link to="/vocab" className="text-wk-vocab font-bold">← 語彙一覧へ戻る</Link>
       </div>
     );
   }
@@ -128,7 +128,7 @@ export function VocabDetailPage() {
   if (editing) {
     return (
       <div className="max-w-3xl mx-auto space-y-4">
-        <Button variant="ghost" size="sm" onClick={() => setEditing(false)} className="text-muted-foreground">← Cancel edit</Button>
+        <Button variant="ghost" size="sm" onClick={() => setEditing(false)} className="text-muted-foreground">← 編集をキャンセル</Button>
         <Card className="overflow-hidden p-0">
           <EditVocabForm item={item} queryClient={queryClient} onDone={() => { setEditing(false); refetchVocab(); }} />
         </Card>
@@ -138,7 +138,7 @@ export function VocabDetailPage() {
 
   return (
     <div className="max-w-3xl mx-auto space-y-4">
-      <Button variant="ghost" size="sm" onClick={() => navigate(-1)} className="text-muted-foreground">← Back</Button>
+      <Button variant="ghost" size="sm" onClick={() => navigate(-1)} className="text-muted-foreground">← 戻る</Button>
 
       {/* Hero */}
       <Card className="flex-row items-center gap-5 p-6">
@@ -154,7 +154,7 @@ export function VocabDetailPage() {
               <Badge key={t.id} variant="secondary" className="bg-wk-vocab/10 text-wk-vocab font-medium">{t.name}</Badge>
             ))}
             {item.creator_comment && <span className="text-muted-foreground italic">"{item.creator_comment}"</span>}
-            {item.creator_username && <span className="text-muted-foreground">by {item.creator_username}</span>}
+            {item.creator_username && <span className="text-muted-foreground">作成者: {item.creator_username}</span>}
           </div>
         </div>
       </Card>
@@ -163,42 +163,42 @@ export function VocabDetailPage() {
       <div className="flex items-center gap-2 flex-wrap">
         {!alreadyLearned && (
           <Button onClick={() => queueMutation.mutate()} disabled={queueMutation.isPending}>
-            {queueMutation.isPending ? 'Adding…' : 'Add to Queue'}
+            {queueMutation.isPending ? '追加中…' : '学習キューに追加'}
           </Button>
         )}
         {alreadyLearned && isBurned && !confirmResurrect && (
-          <Button onClick={() => setConfirmResurrect(true)} className="border border-destructive/40 bg-destructive/10 text-destructive hover:bg-destructive/20 hover:text-destructive">Resurrect</Button>
+          <Button onClick={() => setConfirmResurrect(true)} className="border border-destructive/40 bg-destructive/10 text-destructive hover:bg-destructive/20 hover:text-destructive">復活</Button>
         )}
         {alreadyLearned && !confirmUnlearn && (
-          <Button variant="outline" onClick={() => setConfirmUnlearn(true)}>Unlearn</Button>
+          <Button variant="outline" onClick={() => setConfirmUnlearn(true)}>学習を取り消す</Button>
         )}
         <div className="ml-auto flex items-center gap-2">
-          <Button variant="outline" onClick={() => setEditing(true)}>Edit</Button>
+          <Button variant="outline" onClick={() => setEditing(true)}>編集</Button>
           <Button variant="outline" onClick={handleDelete} disabled={deleteMut.isPending}
             className="border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive">
-            {deleteMut.isPending ? 'Deleting…' : 'Delete'}
+            {deleteMut.isPending ? '削除中…' : '削除'}
           </Button>
         </div>
       </div>
       {confirmResurrect && (
         <div className="flex items-center gap-2 text-sm">
-          <span className="text-muted-foreground">Resurrect {item.word} to Apprentice I?</span>
-          <Button size="sm" onClick={() => resurrectMutation.mutate()} disabled={resurrectMutation.isPending} className="border border-destructive/40 bg-destructive/10 text-destructive hover:bg-destructive/20 hover:text-destructive">Yes</Button>
-          <Button size="sm" variant="outline" onClick={() => setConfirmResurrect(false)}>Cancel</Button>
+          <span className="text-muted-foreground">{item.word}を見習いIに復活しますか？</span>
+          <Button size="sm" onClick={() => resurrectMutation.mutate()} disabled={resurrectMutation.isPending} className="border border-destructive/40 bg-destructive/10 text-destructive hover:bg-destructive/20 hover:text-destructive">はい</Button>
+          <Button size="sm" variant="outline" onClick={() => setConfirmResurrect(false)}>キャンセル</Button>
         </div>
       )}
       {confirmUnlearn && (
         <div className="flex items-center gap-2 text-sm">
-          <span className="text-destructive">Unlearn {item.word}? Deletes progress + reviews.</span>
-          <Button size="sm" variant="destructive" onClick={() => unlearnMutation.mutate()} disabled={unlearnMutation.isPending}>Yes</Button>
-          <Button size="sm" variant="outline" onClick={() => setConfirmUnlearn(false)}>Cancel</Button>
+          <span className="text-destructive">{item.word}の学習を取り消しますか？進捗と復習が削除されます。</span>
+          <Button size="sm" variant="destructive" onClick={() => unlearnMutation.mutate()} disabled={unlearnMutation.isPending}>はい</Button>
+          <Button size="sm" variant="outline" onClick={() => setConfirmUnlearn(false)}>キャンセル</Button>
         </div>
       )}
-      {actionMsg && <p className={`text-sm ${actionMsg.includes('!') ? 'text-success' : 'text-destructive'}`}>{actionMsg}</p>}
+      {actionMsg && <p className={`text-sm ${actionMsg.includes('！') ? 'text-success' : 'text-destructive'}`}>{actionMsg}</p>}
 
       {/* Kanji Composition */}
       {item.kanji && item.kanji.length > 0 && (
-        <Section title="Kanji Composition">
+        <Section title="漢字構成">
           <div className="flex flex-wrap gap-2">
             {item.kanji.map((k) => (
               <SubjectCard
@@ -216,27 +216,27 @@ export function VocabDetailPage() {
       )}
 
       {/* Meaning */}
-      <Section title="Meaning">
+      <Section title="意味">
         <p className="text-lg">{item.meanings.join(', ')}</p>
       </Section>
 
       {/* Reading */}
-      <Section title="Reading">
+      <Section title="読み">
         <p lang="ja" className="text-lg">{item.readings.join('、')}</p>
       </Section>
 
       {/* Context — example sentences */}
       <Section
-        title="Context"
+        title="例文"
         action={
           <div className="flex gap-2">
             <Button variant="ghost" size="sm" onClick={() => { setShowAddSentence(!showAddSentence); setShowSuggest(false); }}
               className="h-auto px-1 py-0 text-xs font-bold text-muted-foreground hover:text-wk-vocab hover:bg-transparent">
-              {showAddSentence ? 'Cancel' : '+ Sentence'}
+              {showAddSentence ? 'キャンセル' : '＋例文'}
             </Button>
             <Button variant="ghost" size="sm" onClick={() => { setShowSuggest(!showSuggest); setShowAddSentence(false); }}
               className="h-auto px-1 py-0 text-xs font-bold text-muted-foreground hover:text-wk-vocab hover:bg-transparent">
-              {showSuggest ? 'Cancel' : 'Find Links'}
+              {showSuggest ? 'キャンセル' : '例文を探す'}
             </Button>
           </div>
         }
@@ -253,8 +253,8 @@ export function VocabDetailPage() {
                 </div>
                 <div className="flex flex-col gap-1 self-end">
                   <Button size="sm" onClick={() => updateSentenceMut.mutate({ sid: s.id, ja: editJa.trim(), en: editEn.trim() })}
-                    disabled={!editJa.trim() || !editEn.trim() || updateSentenceMut.isPending}>Save</Button>
-                  <Button size="sm" variant="outline" onClick={() => setEditingSentenceId(null)}>Cancel</Button>
+                    disabled={!editJa.trim() || !editEn.trim() || updateSentenceMut.isPending}>保存</Button>
+                  <Button size="sm" variant="outline" onClick={() => setEditingSentenceId(null)}>キャンセル</Button>
                 </div>
               </div>
             ) : (
@@ -263,37 +263,37 @@ export function VocabDetailPage() {
                 <p className="text-muted-foreground text-xs">{s.en}</p>
                 <div className="absolute top-1 right-2 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                   <button onClick={() => { setEditingSentenceId(s.id); setEditJa(s.ja); setEditEn(s.en); }}
-                    className="text-muted-foreground hover:text-wk-vocab text-xs" title="Edit sentence">&#9998;</button>
-                  <button onClick={() => unlinkMut.mutate(s.id)} className="text-muted-foreground hover:text-destructive text-xs" title="Unlink sentence">&times;</button>
+                    className="text-muted-foreground hover:text-wk-vocab text-xs" title="例文を編集">&#9998;</button>
+                  <button onClick={() => unlinkMut.mutate(s.id)} className="text-muted-foreground hover:text-destructive text-xs" title="例文のリンクを解除">&times;</button>
                 </div>
               </div>
             ),
           )}
           {item.sentences.length === 0 && !showAddSentence && !showSuggest && (
-            <p className="text-sm text-muted-foreground">No example sentences yet.</p>
+            <p className="text-sm text-muted-foreground">まだ例文がありません。</p>
           )}
           {showAddSentence && (
             <div className="flex gap-2">
               <div className="flex-1 space-y-1">
-                <Input type="text" value={newJa} onChange={(e) => setNewJa(e.target.value)} placeholder="Japanese..." lang="ja"
+                <Input type="text" value={newJa} onChange={(e) => setNewJa(e.target.value)} placeholder="日本語..." lang="ja"
                   className="h-auto py-1.5 text-sm" />
-                <Input type="text" value={newEn} onChange={(e) => setNewEn(e.target.value)} placeholder="English..."
+                <Input type="text" value={newEn} onChange={(e) => setNewEn(e.target.value)} placeholder="英語..."
                   className="h-auto py-1.5 text-sm" />
               </div>
-              <Button size="sm" className="self-end" onClick={() => createSentenceMut.mutate()} disabled={!newJa.trim() || !newEn.trim() || createSentenceMut.isPending}>Add</Button>
+              <Button size="sm" className="self-end" onClick={() => createSentenceMut.mutate()} disabled={!newJa.trim() || !newEn.trim() || createSentenceMut.isPending}>追加</Button>
             </div>
           )}
           {showSuggest && (
             <div className="space-y-1">
-              {suggestions.isLoading && <p className="text-xs text-muted-foreground animate-pulse">Searching...</p>}
-              {suggestions.data?.length === 0 && <p className="text-xs text-muted-foreground">No matches found.</p>}
+              {suggestions.isLoading && <p className="text-xs text-muted-foreground animate-pulse">検索中...</p>}
+              {suggestions.data?.length === 0 && <p className="text-xs text-muted-foreground">一致する例文が見つかりません。</p>}
               {suggestions.data?.map((s) => (
                 <div key={s.id} className="bg-muted rounded-lg px-3 py-1.5 text-sm flex items-center gap-2">
                   <div className="flex-1 min-w-0">
                     <span lang="ja">{s.ja}</span>
                     <span className="text-muted-foreground text-xs ml-2">{s.en}</span>
                   </div>
-                  <Button variant="link" size="sm" onClick={() => linkMut.mutate(s.id)} className="h-auto p-0 text-xs text-wk-vocab font-bold shrink-0">Link</Button>
+                  <Button variant="link" size="sm" onClick={() => linkMut.mutate(s.id)} className="h-auto p-0 text-xs text-wk-vocab font-bold shrink-0">リンク</Button>
                 </div>
               ))}
             </div>

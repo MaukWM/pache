@@ -49,9 +49,9 @@ export function ProgressionSection({
   const item = progress.data?.find((p) => p.item_type === itemType && p.item_id === itemId);
 
   return (
-    <Section title="Your Progression">
+    <Section title="進捗">
       {!item ? (
-        <p className="text-sm text-muted-foreground">Not started yet — add it to your lesson queue.</p>
+        <p className="text-sm text-muted-foreground">まだ開始していません — 学習キューに追加してください。</p>
       ) : (
         <div className="space-y-2 text-sm">
           <span
@@ -61,13 +61,13 @@ export function ProgressionSection({
             {SRS_STAGE_NAMES[item.srs_stage]}
           </span>
           <div className="grid grid-cols-2 gap-x-6 gap-y-1 text-muted-foreground">
-            <span>Unlocked</span>
+            <span>解放日</span>
             <span className="text-foreground">{fmtDate(item.unlocked_at)}</span>
-            <span>Next review</span>
-            <span className="text-foreground">{item.burned_at ? 'Burned' : fmtDate(item.next_review_at)}</span>
+            <span>次の復習</span>
+            <span className="text-foreground">{item.burned_at ? 'バーンド' : fmtDate(item.next_review_at)}</span>
             {item.burned_at && (
               <>
-                <span>Burned</span>
+                <span>バーンド</span>
                 <span className="text-foreground">{fmtDate(item.burned_at)}</span>
               </>
             )}

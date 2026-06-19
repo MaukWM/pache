@@ -50,7 +50,7 @@ export function KanjiDetailPage() {
   const queueMutation = useMutation({
     mutationFn: () => api.addToQueue('kanji', kanji!.id),
     onSuccess: () => {
-      setActionMsg('Added to lesson queue!');
+      setActionMsg('学習キューに追加しました！');
       invalidate();
     },
     onError: (err: Error) => setActionMsg(err.message),
@@ -58,7 +58,7 @@ export function KanjiDetailPage() {
   const unlearnMutation = useMutation({
     mutationFn: () => api.unlearnItem('kanji', kanji!.id),
     onSuccess: () => {
-      setActionMsg('Unlearned! Removed from your reviews.');
+      setActionMsg('学習を取り消しました！復習からも削除されました。');
       setConfirmUnlearn(false);
       invalidate();
     },
@@ -67,7 +67,7 @@ export function KanjiDetailPage() {
   const resurrectMutation = useMutation({
     mutationFn: () => api.resurrectItem('kanji', kanji!.id),
     onSuccess: () => {
-      setActionMsg('Resurrected to Apprentice I! First review in 4 hours.');
+      setActionMsg('見習いIに復活しました！最初の復習は4時間後です。');
       setConfirmResurrect(false);
       invalidate();
     },
@@ -86,8 +86,8 @@ export function KanjiDetailPage() {
   if (!kanji) {
     return (
       <div className="space-y-3 text-center py-10">
-        <p className="text-muted-foreground">Kanji not found.</p>
-        <Link to="/kanji" className="text-wk-kanji font-bold">← Back to Kanji</Link>
+        <p className="text-muted-foreground">漢字が見つかりません。</p>
+        <Link to="/kanji" className="text-wk-kanji font-bold">← 漢字一覧へ戻る</Link>
       </div>
     );
   }
@@ -96,7 +96,7 @@ export function KanjiDetailPage() {
     <div className="max-w-3xl mx-auto space-y-4">
       <Button variant="ghost" size="sm" onClick={() => navigate(-1)} className="text-muted-foreground -ml-2">
         <ArrowLeft className="size-4" />
-        Back
+        戻る
       </Button>
 
       {/* Hero */}
@@ -108,10 +108,10 @@ export function KanjiDetailPage() {
             <p className="text-muted-foreground">{kanji.meanings.slice(1).join(', ')}</p>
           )}
           <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 font-mono text-xs uppercase tracking-wider text-muted-foreground">
-            {kanji.frequency && <span>Freq #{kanji.frequency}</span>}
-            {kanji.grade && <span>Grade {kanji.grade}</span>}
+            {kanji.frequency && <span>頻度#{kanji.frequency}</span>}
+            {kanji.grade && <span>{kanji.grade}年生</span>}
             {kanji.jlpt_level && <span>JLPT N{kanji.jlpt_level}</span>}
-            {kanji.stroke_count && <span>{kanji.stroke_count} strokes</span>}
+            {kanji.stroke_count && <span>{kanji.stroke_count}画</span>}
           </div>
         </div>
       </Card>
@@ -120,72 +120,72 @@ export function KanjiDetailPage() {
       <div className="flex items-center gap-2 flex-wrap">
         {!alreadyLearned && (
           <Button onClick={() => queueMutation.mutate()} disabled={queueMutation.isPending}>
-            {queueMutation.isPending ? 'Adding…' : 'Add to Queue'}
+            {queueMutation.isPending ? '追加中…' : '学習キューに追加'}
           </Button>
         )}
         {alreadyLearned && isBurned && !confirmResurrect && (
           <Button onClick={() => setConfirmResurrect(true)}
             className="border border-destructive/40 bg-destructive/10 text-destructive hover:bg-destructive/20 hover:text-destructive">
-            Resurrect
+            復活
           </Button>
         )}
         {alreadyLearned && !confirmUnlearn && (
           <Button variant="outline" onClick={() => setConfirmUnlearn(true)}>
-            Unlearn
+            学習を取り消す
           </Button>
         )}
         {confirmResurrect && (
           <span className="flex items-center gap-2 text-sm">
-            <span className="text-muted-foreground">Resurrect {kanji.character} to Apprentice I?</span>
+            <span className="text-muted-foreground">{kanji.character}を見習いIに復活しますか？</span>
             <Button size="sm" onClick={() => resurrectMutation.mutate()} disabled={resurrectMutation.isPending}
-              className="border border-destructive/40 bg-destructive/10 text-destructive hover:bg-destructive/20 hover:text-destructive">Yes</Button>
-            <Button size="sm" variant="outline" onClick={() => setConfirmResurrect(false)}>Cancel</Button>
+              className="border border-destructive/40 bg-destructive/10 text-destructive hover:bg-destructive/20 hover:text-destructive">はい</Button>
+            <Button size="sm" variant="outline" onClick={() => setConfirmResurrect(false)}>キャンセル</Button>
           </span>
         )}
         {confirmUnlearn && (
           <span className="flex items-center gap-2 text-sm">
-            <span className="text-destructive">Unlearn {kanji.character}? Deletes progress + reviews.</span>
-            <Button size="sm" variant="destructive" onClick={() => unlearnMutation.mutate()} disabled={unlearnMutation.isPending}>Yes</Button>
-            <Button size="sm" variant="outline" onClick={() => setConfirmUnlearn(false)}>Cancel</Button>
+            <span className="text-destructive">{kanji.character}の学習を取り消しますか？進捗と復習が削除されます。</span>
+            <Button size="sm" variant="destructive" onClick={() => unlearnMutation.mutate()} disabled={unlearnMutation.isPending}>はい</Button>
+            <Button size="sm" variant="outline" onClick={() => setConfirmUnlearn(false)}>キャンセル</Button>
           </span>
         )}
       </div>
       {actionMsg && (
-        <p className={`text-sm ${actionMsg.includes('!') ? 'text-success' : 'text-destructive'}`}>{actionMsg}</p>
+        <p className={`text-sm ${actionMsg.includes('！') ? 'text-success' : 'text-destructive'}`}>{actionMsg}</p>
       )}
 
       {/* Radicals */}
       {kanji.components && kanji.components.length > 0 && (
-        <Section title="Radical Combination">
+        <Section title="部首の組み合わせ">
           <RadicalList components={kanji.components} size="sm" />
         </Section>
       )}
 
       {/* Meaning */}
-      <Section title="Meaning">
+      <Section title="意味">
         <p className="text-lg">{kanji.meanings.join(', ')}</p>
       </Section>
 
       {/* Readings */}
-      <Section title="Readings">
+      <Section title="読み">
         <div className="grid grid-cols-2 gap-4 text-sm">
           <div>
-            <span className="text-muted-foreground text-xs block mb-0.5">On'yomi</span>
+            <span className="text-muted-foreground text-xs block mb-0.5">音読み</span>
             <span lang="ja" className="text-lg">
-              {kanji.readings_on.map(katakanaToHiragana).join('、') || 'None'}
+              {kanji.readings_on.map(katakanaToHiragana).join('、') || 'なし'}
             </span>
           </div>
           <div>
-            <span className="text-muted-foreground text-xs block mb-0.5">Kun'yomi</span>
-            <span lang="ja" className="text-lg">{kanji.readings_kun.join('、') || 'None'}</span>
+            <span className="text-muted-foreground text-xs block mb-0.5">訓読み</span>
+            <span lang="ja" className="text-lg">{kanji.readings_kun.join('、') || 'なし'}</span>
           </div>
         </div>
       </Section>
 
       {/* Found in Vocabulary */}
-      <Section title="Found in Vocabulary">
+      <Section title="この漢字を含む語彙">
         {foundIn.isLoading ? (
-          <p className="text-sm text-muted-foreground animate-pulse">Loading…</p>
+          <p className="text-sm text-muted-foreground animate-pulse">読み込み中…</p>
         ) : foundIn.data && foundIn.data.length > 0 ? (
           <div className="flex flex-wrap gap-2">
             {foundIn.data.map((v) => (
@@ -201,7 +201,7 @@ export function KanjiDetailPage() {
             ))}
           </div>
         ) : (
-          <p className="text-sm text-muted-foreground">No vocabulary uses this kanji yet.</p>
+          <p className="text-sm text-muted-foreground">この漢字を使う語彙はまだありません。</p>
         )}
       </Section>
 

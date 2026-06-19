@@ -19,7 +19,7 @@ function StatTile({ to, count, label }: { to: string; count: number; label: stri
     >
       {active && (
         <span className="absolute top-3 right-3 font-mono text-[10px] tracking-wider text-muted-foreground uppercase">
-          Ready
+          準備完了
         </span>
       )}
       <span
@@ -55,11 +55,11 @@ export function DashboardPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold">Welcome back, {user?.username}!</h1>
+      <h1 className="text-2xl font-bold">おかえりなさい、{user?.username}！</h1>
 
       <div className="grid grid-cols-2 gap-4">
-        <StatTile to="/lessons" count={lessonCount} label="Lessons" />
-        <StatTile to="/reviews" count={reviewCount} label="Reviews" />
+        <StatTile to="/lessons" count={lessonCount} label="レッスン" />
+        <StatTile to="/reviews" count={reviewCount} label="復習" />
       </div>
 
       {wkConfigured && (
@@ -72,11 +72,11 @@ export function DashboardPage() {
           <div className="flex items-baseline gap-3">
             <span className="font-[family-name:var(--font-mincho)] text-3xl tabular-nums">{wkDue}</span>
             <span className="text-sm text-muted-foreground">
-              {wkDue === 1 ? 'review' : 'reviews'} due on WaniKani
+              WaniKaniの復習
             </span>
           </div>
           <span className="flex items-center gap-1.5 font-mono text-xs tracking-wider text-muted-foreground uppercase">
-            Open WaniKani
+            WaniKaniを開く
             <ExternalLink className="size-3.5" />
           </span>
         </a>

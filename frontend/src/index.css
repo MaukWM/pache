@@ -103,13 +103,15 @@
   --color-srs-burned: #c8a000;
   --color-success: #16a34a;
 
-  /* Type roles: mono chrome · mincho subject characters · quiet sans body */
-  --font-mono: ui-monospace, "SF Mono", "SFMono-Regular", "Cascadia Mono",
-    Menlo, "Roboto Mono", monospace;
-  --font-sans: system-ui, -apple-system, "Helvetica Neue", "Segoe UI", Arial, sans-serif;
-  --font-ja: "Hiragino Kaku Gothic ProN", "Hiragino Sans", "Yu Gothic",
-    "Noto Sans JP", sans-serif;
+  /* Type roles. Mincho is the Japanese face everywhere — it's appended as the
+     JA fallback in the Latin stacks too, so any Japanese glyph (kana or kanji)
+     renders in mincho even inside mono/sans chrome, while Latin stays mono/sans. */
   --font-mincho: "Hiragino Mincho ProN", "YuMincho", "Yu Mincho", "Noto Serif JP", serif;
+  --font-mono: ui-monospace, "SF Mono", "SFMono-Regular", "Cascadia Mono",
+    Menlo, "Roboto Mono", "Hiragino Mincho ProN", "YuMincho", monospace;
+  --font-sans: system-ui, -apple-system, "Helvetica Neue", "Segoe UI", Arial,
+    "Hiragino Mincho ProN", "YuMincho", sans-serif;
+  --font-ja: var(--font-mincho);
 }
 
 @layer base {
@@ -131,9 +133,9 @@
     background-size: 32px 32px;
   }
 
-  /* Japanese text uses the gothic face by default. */
+  /* Japanese text uses the mincho face. */
   [lang="ja"] {
-    font-family: var(--font-ja);
+    font-family: var(--font-mincho);
   }
 
   /* Page titles read as terminal headers: mono, uppercase, tracked.

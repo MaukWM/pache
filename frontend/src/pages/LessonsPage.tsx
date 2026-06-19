@@ -175,7 +175,7 @@ export function LessonsPage() {
               setSelectedIds((prev) => { const next = new Set(prev); next.delete(key); return next; });
             }}
             className="absolute -top-2 -right-2 z-10 grid size-5 place-items-center bg-destructive font-mono text-[10px] text-destructive-foreground opacity-0 transition-opacity group-hover:opacity-100"
-            title="Remove from queue"
+            title="キューから削除"
           >
             &times;
           </button>
@@ -184,16 +184,16 @@ export function LessonsPage() {
     };
 
     return (
-      <QuizShell exitTo="/" right={items.length > 0 ? `${unlocked.length} ready` : undefined}>
+      <QuizShell exitTo="/" right={items.length > 0 ? `${unlocked.length}件 準備完了` : undefined}>
         <div className="mx-auto w-full max-w-4xl space-y-6 px-4 py-8">
           <div className="flex flex-wrap items-center justify-between gap-4">
-            <h1 className="font-mono text-2xl font-bold tracking-wide uppercase">Lessons</h1>
+            <h1 className="font-mono text-2xl font-bold tracking-wide uppercase">レッスン</h1>
             {unlocked.length > 0 && (
               <div className="flex items-center gap-2">
                 <Button variant="outline" onClick={selectAll}>
-                  {selectedIds.size === unlocked.length ? 'Deselect All' : 'Select All'}
+                  {selectedIds.size === unlocked.length ? '選択を解除' : 'すべて選択'}
                 </Button>
-                <Button onClick={startSession}>Start Lessons ({selectedCount})</Button>
+                <Button onClick={startSession}>レッスン開始 ({selectedCount})</Button>
               </div>
             )}
           </div>
@@ -201,21 +201,21 @@ export function LessonsPage() {
           {/* Hint */}
           {unlocked.length > 0 && selectedIds.size === 0 && (
             <p className="text-sm text-muted-foreground">
-              Tap items to select a subset, or start all {unlocked.length} at once.
+              項目をタップして選択するか、{unlocked.length}件すべてを開始します。
             </p>
           )}
           {selectedIds.size > 0 && (
             <p className="text-sm text-muted-foreground">
-              {selectedIds.size} of {unlocked.length} selected
+              {unlocked.length}件中{selectedIds.size}件を選択
             </p>
           )}
 
           {queue.isLoading ? (
-            <div className="animate-pulse text-muted-foreground">Loading queue...</div>
+            <div className="animate-pulse text-muted-foreground">読み込み中...</div>
           ) : items.length === 0 ? (
             <Card className="gap-2 p-10 text-center text-muted-foreground">
-              <p className="mb-2 text-lg font-bold">No lessons queued</p>
-              <p>Add items from the Kanji or Vocab pages to your queue, then come back here to study them.</p>
+              <p className="mb-2 text-lg font-bold">レッスンキューは空です</p>
+              <p>漢字ページまたは語彙ページから項目をキューに追加し、ここに戻って学習しましょう。</p>
             </Card>
           ) : (
             <>
@@ -223,7 +223,7 @@ export function LessonsPage() {
               {unlockedKanji.length > 0 && (
                 <div className="space-y-2">
                   <p className="font-mono text-xs font-semibold tracking-wider text-muted-foreground uppercase">
-                    Kanji ({unlockedKanji.length})
+                    漢字 ({unlockedKanji.length})
                   </p>
                   <div className="flex flex-wrap gap-3">{unlockedKanji.map(renderCell)}</div>
                 </div>
@@ -234,7 +234,7 @@ export function LessonsPage() {
               {unlockedVocab.length > 0 && (
                 <div className="space-y-2">
                   <p className="font-mono text-xs font-semibold tracking-wider text-muted-foreground uppercase">
-                    Vocab ({unlockedVocab.length})
+                    語彙 ({unlockedVocab.length})
                   </p>
                   <div className="flex flex-wrap gap-3">{unlockedVocab.map(renderCell)}</div>
                 </div>
@@ -244,7 +244,7 @@ export function LessonsPage() {
               {lockedItems.length > 0 && (
                 <div className="space-y-2 pt-2">
                   <p className="font-mono text-xs font-semibold tracking-wider text-muted-foreground uppercase">
-                    Locked — waiting on kanji ({lockedItems.length})
+                    ロック中 — 漢字待ち ({lockedItems.length})
                   </p>
                   <div className="flex flex-wrap gap-3">
                     {lockedItems.map((item) => {
@@ -252,8 +252,8 @@ export function LessonsPage() {
                       const key = itemKey(item);
                       const blockedBy = item.locked_by ?? [];
                       const tip = blockedBy.length
-                        ? `Locked until these kanji reach Guru: ${blockedBy.join('、')}`
-                        : 'Locked until its kanji reach Guru';
+                        ? `次の漢字が「Guru」に達するまでロックされています: ${blockedBy.join('、')}`
+                        : '漢字が「Guru」に達するまでロックされています';
 
                       return (
                         <div key={key} className="group relative cursor-not-allowed opacity-40" title={tip}>
@@ -264,7 +264,7 @@ export function LessonsPage() {
                               removeMutation.mutate({ item_type: item.item_type, item_id: item.item_id });
                             }}
                             className="absolute -top-2 -right-2 z-10 grid size-5 place-items-center bg-destructive font-mono text-[10px] text-destructive-foreground opacity-0 transition-opacity group-hover:opacity-100"
-                            title="Remove from queue"
+                            title="キューから削除"
                           >
                             &times;
                           </button>
@@ -317,10 +317,10 @@ export function LessonsPage() {
   const atStart = currentIndex === 0 && tabOrder.indexOf(activeTab) === 0;
 
   const tabLabels: Record<Tab, string> = {
-    composition: 'Kanji Composition',
-    meaning: 'Meaning',
-    reading: isKanji ? 'Readings' : 'Reading',
-    info: 'Info',
+    composition: '漢字構成',
+    meaning: '意味',
+    reading: isKanji ? '読み' : '読み方',
+    info: '情報',
   };
   const tabs: { id: Tab; label: string }[] = tabOrder.map((id) => ({
     id,
@@ -368,14 +368,12 @@ export function LessonsPage() {
         {activeTab === 'composition' && (
           <div className="space-y-4">
             <h3 className="text-muted-foreground text-xs uppercase tracking-wide mb-2">
-              Kanji Composition
+              漢字構成
             </h3>
             <p className="text-sm text-muted-foreground">
-              This vocabulary is composed of{' '}
-              {kanjiComposition.length === 1
-                ? 'one kanji'
-                : `${kanjiComposition.length} kanji`}
-              :
+              この語彙は{kanjiComposition.length === 1
+                ? '1つの漢字'
+                : `${kanjiComposition.length}つの漢字`}で構成されています:
             </p>
             <div className="flex gap-4 flex-wrap">
               {kanjiComposition.map((k) => (
@@ -383,7 +381,7 @@ export function LessonsPage() {
                   key={k.character}
                   to={`/kanji/${encodeURIComponent(k.character)}`}
                   className="-mx-1 flex items-center gap-2 px-1 py-0.5 transition-colors hover:bg-accent"
-                  title={`View ${k.character}`}
+                  title={`${k.character} を表示`}
                 >
                   <GlyphCell type="kanji" character={k.character} size="sm" />
                   <span className="text-sm">{k.meanings[0]}</span>
@@ -391,8 +389,8 @@ export function LessonsPage() {
               ))}
             </div>
             <p className="text-sm text-muted-foreground pt-2">
-              Does the combination of the kanji meanings relate to the vocabulary meaning?
-              Can you guess the reading from the kanji?
+              これらの漢字の意味の組み合わせは、語彙の意味と関係していますか。
+              漢字から読み方を推測できますか。
             </p>
           </div>
         )}
@@ -400,12 +398,12 @@ export function LessonsPage() {
         {activeTab === 'meaning' && (
           <div className="space-y-4">
             <div>
-              <h3 className="text-muted-foreground text-xs uppercase tracking-wide mb-2">Meanings</h3>
-              <p className="text-lg">{meanings.join(', ')}</p>
+              <h3 className="text-muted-foreground text-xs uppercase tracking-wide mb-2">意味</h3>
+              <p className="text-lg">{meanings.join('、')}</p>
             </div>
             {isKanji && components.length > 0 && (
               <div>
-                <h3 className="text-muted-foreground text-xs uppercase tracking-wide mb-2">Radicals</h3>
+                <h3 className="text-muted-foreground text-xs uppercase tracking-wide mb-2">部首</h3>
                 <RadicalList components={components} />
               </div>
             )}
@@ -418,21 +416,21 @@ export function LessonsPage() {
               <>
                 {readingsOn && readingsOn.length > 0 && (
                   <div>
-                    <h3 className="text-muted-foreground text-xs uppercase tracking-wide mb-2">On'yomi</h3>
+                    <h3 className="text-muted-foreground text-xs uppercase tracking-wide mb-2">音読み</h3>
                     <p className="text-lg">{readingsOn.join('、')}</p>
                   </div>
                 )}
                 {readingsKun && readingsKun.length > 0 && (
                   <div>
-                    <h3 className="text-muted-foreground text-xs uppercase tracking-wide mb-2">Kun'yomi</h3>
+                    <h3 className="text-muted-foreground text-xs uppercase tracking-wide mb-2">訓読み</h3>
                     <p className="text-lg">{readingsKun.join('、')}</p>
                   </div>
                 )}
               </>
             ) : (
               <div>
-                <h3 className="text-muted-foreground text-xs uppercase tracking-wide mb-2">Reading</h3>
-                <p className="text-lg">{readings?.join('、') || 'None'}</p>
+                <h3 className="text-muted-foreground text-xs uppercase tracking-wide mb-2">読み方</h3>
+                <p className="text-lg">{readings?.join('、') || 'なし'}</p>
               </div>
             )}
           </div>
@@ -441,11 +439,11 @@ export function LessonsPage() {
         {activeTab === 'info' && (
           <div className="space-y-2 text-sm">
             <div className="flex gap-2">
-              <span className="text-muted-foreground">Type:</span>
-              <span className="capitalize">{item.item_type}</span>
+              <span className="text-muted-foreground">種類:</span>
+              <span>{item.item_type === 'kanji' ? '漢字' : '語彙'}</span>
             </div>
             <div className="flex gap-2">
-              <span className="text-muted-foreground">Added:</span>
+              <span className="text-muted-foreground">追加日:</span>
               <span>{new Date(item.added_at).toLocaleDateString()}</span>
             </div>
           </div>
@@ -456,10 +454,10 @@ export function LessonsPage() {
         <div className="flex items-center justify-between pt-6">
           <Button variant="outline" onClick={goBack} disabled={atStart} className="disabled:opacity-30">
             <kbd className="mr-1.5 bg-muted px-1.5 py-0.5 font-mono text-[10px] text-foreground">&larr;</kbd>
-            Back
+            戻る
           </Button>
           <Button onClick={goForward}>
-            {isLastStep ? 'Finish' : 'Next'}
+            {isLastStep ? '完了' : '次へ'}
             <kbd className="ml-1.5 bg-primary-foreground/20 px-1.5 py-0.5 font-mono text-[10px]">&rarr;</kbd>
           </Button>
         </div>
