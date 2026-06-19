@@ -82,6 +82,24 @@ export interface WanikaniStatus {
   reviews_due: number | null;
 }
 
+export interface WanikaniForecast {
+  configured: boolean;
+  available_now: number;
+  upcoming: string[]; // ISO available_at timestamps within the next 7 days
+}
+
+export interface WanikaniSpreadStage {
+  srs_stage: number;
+  radical: number;
+  kanji: number;
+  vocab: number;
+}
+
+export interface WanikaniSpread {
+  configured: boolean;
+  stages: WanikaniSpreadStage[];
+}
+
 export const api = {
   login: (username: string, password: string) =>
     request<LoginResponse>('/auth/login', {
@@ -145,6 +163,14 @@ export const api = {
   // WaniKani live review status
   getWanikaniStatus: () =>
     request<WanikaniStatus>('/me/wanikani/status'),
+
+  // WaniKani live review forecast (next 7 days)
+  getWanikaniForecast: () =>
+    request<WanikaniForecast>('/me/wanikani/forecast'),
+
+  // WaniKani live SRS distribution (item spread)
+  getWanikaniSpread: () =>
+    request<WanikaniSpread>('/me/wanikani/spread'),
 
   // Reviews
   getReviews: async (): Promise<ReviewItem[]> => {

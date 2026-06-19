@@ -41,6 +41,9 @@
   --srs-master: #294ddb;
   --srs-enlightened: #0093dd;
   --srs-burned: #c8a000;
+
+  /* Forecast: WaniKani source segment (ours uses plain --foreground ink). */
+  --forecast-wk: #e07b00;
 }
 
 .dark {
@@ -72,6 +75,9 @@
   --srs-master: #4a63c0;
   --srs-enlightened: #3c87b6;
   --srs-burned: #998334;
+
+  /* Softer amber so it doesn't glare on dark paper. */
+  --forecast-wk: #d98a2b;
 }
 
 @theme inline {

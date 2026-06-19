@@ -1,6 +1,6 @@
 """WaniKani import service."""
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 import httpx
 from fastapi import HTTPException, status
@@ -199,6 +199,114 @@ class WaniKaniService:
             )
 
         return int(resp.json().get("total_count", 0))
+
+    async def get_srs_spread(self) -> dict[int, dict[str, int]]:
+        """Live WaniKani SRS distribution.
+
+        Returns ``{srs_stage: {"radical": n, "kanji": n, "vocab": n}}`` for every
+        started assignment (srs_stage 1–9). WK's kana/standard vocab both fold into
+        "vocab". Pages through all assignments, so it's the heaviest WK call.
+        """
+        counts: dict[int, dict[str, int]] = {}
+        url: str | None = f"{WK_API_BASE}/assignments"
+        params: dict | None = {"started": "true", "hidden": "false"}
+
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            while url:
+                try:
+                    resp = await client.get(url, params=params, headers=self.headers)
+                except httpx.RequestError as e:
+                    raise HTTPException(
+                        status_code=status.HTTP_502_BAD_GATEWAY,
+                        detail=f"WaniKani API unavailable: {e}",
+                    )
+                if resp.status_code == 401:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="Invalid WaniKani API key",
+                    )
+                if resp.status_code != 200:
+                    raise HTTPException(
+                        status_code=status.HTTP_502_BAD_GATEWAY,
+                        detail=f"WaniKani API error: {resp.status_code}",
+                    )
+                data = resp.json()
+                for item in data["data"]:
+                    d = item["data"]
+                    stage = d.get("srs_stage")
+                    if stage is None or stage < 1:
+                        continue
+                    bucket = counts.setdefault(stage, {"radical": 0, "kanji": 0, "vocab": 0})
+                    subject_type = d.get("subject_type")
+                    if subject_type == "radical":
+                        bucket["radical"] += 1
+                    elif subject_type == "kanji":
+                        bucket["kanji"] += 1
+                    else:  # vocabulary / kana_vocabulary
+                        bucket["vocab"] += 1
+                url = data["pages"]["next_url"]
+                params = None  # next_url already carries the query
+
+        return counts
+
+    async def get_review_forecast(self, days: int = 7) -> tuple[int, list[str]]:
+        """Live WaniKani review forecast for the next ``days``.
+
+        Returns ``(available_now, upcoming)`` where ``available_now`` is the count
+        of reviews ready right now and ``upcoming`` is the list of ``available_at``
+        timestamps for assignments coming due within the window. The frontend
+        buckets these (by local hour/day) so they can stack against our own.
+        """
+        now = datetime.now(UTC).replace(microsecond=0)
+        horizon = now + timedelta(days=days)
+        upcoming: list[str] = []
+
+        async with httpx.AsyncClient(timeout=20.0) as client:
+            # Page through assignments becoming available within the window.
+            url: str | None = f"{WK_API_BASE}/assignments"
+            params: dict | None = {
+                "available_after": now.isoformat(),
+                "available_before": horizon.isoformat(),
+            }
+            while url:
+                try:
+                    resp = await client.get(url, params=params, headers=self.headers)
+                except httpx.RequestError as e:
+                    raise HTTPException(
+                        status_code=status.HTTP_502_BAD_GATEWAY,
+                        detail=f"WaniKani API unavailable: {e}",
+                    )
+                if resp.status_code == 401:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="Invalid WaniKani API key",
+                    )
+                if resp.status_code != 200:
+                    raise HTTPException(
+                        status_code=status.HTTP_502_BAD_GATEWAY,
+                        detail=f"WaniKani API error: {resp.status_code}",
+                    )
+                data = resp.json()
+                for item in data["data"]:
+                    available_at = item["data"].get("available_at")
+                    if available_at:
+                        upcoming.append(available_at)
+                url = data["pages"]["next_url"]
+                params = None  # next_url already carries the query
+
+            # Reviews ready right now (total_count, no pagination needed).
+            resp_now = await client.get(
+                f"{WK_API_BASE}/assignments",
+                params={"immediately_available_for_review": "true"},
+                headers=self.headers,
+            )
+            available_now = (
+                int(resp_now.json().get("total_count", 0))
+                if resp_now.status_code == 200
+                else 0
+            )
+
+        return available_now, upcoming
 
     async def _fetch_subject_characters(
         self, client: httpx.AsyncClient, subject_ids: list[int]
