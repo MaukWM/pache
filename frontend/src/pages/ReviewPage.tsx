@@ -4,6 +4,7 @@ import { api, type ReviewItem } from '../lib/api';
 import { QuizCard, type CardType } from '../components/QuizCard';
 import { QuizShell } from '../components/QuizShell';
 import { evaluateAnswer } from '../lib/quiz';
+import { Button } from '@/components/ui/button';
 
 type ReviewMode = 'scrambled' | 'paired';
 
@@ -129,7 +130,7 @@ export function ReviewPage() {
   if (reviewsQuery.isLoading) {
     return (
       <QuizShell exitTo="/">
-        <div className="flex-1 flex items-center justify-center text-text-muted animate-pulse text-lg">
+        <div className="flex-1 flex items-center justify-center text-muted-foreground animate-pulse text-lg">
           Loading reviews...
         </div>
       </QuizShell>
@@ -144,7 +145,7 @@ export function ReviewPage() {
         <QuizShell exitTo="/">
           <div className="flex-1 flex flex-col items-center justify-center space-y-4 text-center">
             <h2 className="text-2xl font-bold">No reviews due</h2>
-            <p className="text-text-muted">Come back later when items are ready for review.</p>
+            <p className="text-muted-foreground">Come back later when items are ready for review.</p>
           </div>
         </QuizShell>
       );
@@ -155,34 +156,30 @@ export function ReviewPage() {
       <div className="flex-1 flex flex-col items-center justify-center space-y-6">
         <h2 className="text-2xl font-bold">{reviewItems.length} items to review</h2>
         <div className="flex gap-3">
-          <button
+          <Button
+            variant={mode === 'paired' ? 'default' : 'outline'}
             onClick={() => setMode('paired')}
-            className={`px-4 py-2 rounded-lg text-sm font-bold transition-colors ${
-              mode === 'paired' ? 'bg-wk-kanji text-white' : 'bg-surface border border-border'
-            }`}
           >
             Paired
-          </button>
-          <button
+          </Button>
+          <Button
+            variant={mode === 'scrambled' ? 'default' : 'outline'}
             onClick={() => setMode('scrambled')}
-            className={`px-4 py-2 rounded-lg text-sm font-bold transition-colors ${
-              mode === 'scrambled' ? 'bg-wk-kanji text-white' : 'bg-surface border border-border'
-            }`}
           >
             Scrambled
-          </button>
+          </Button>
         </div>
-        <button
+        <Button
+          size="lg"
           onClick={() => {
             const q = buildQueue(reviewItems, mode);
             setCards(q);
             setTotalItems(reviewItems.length);
             setStarted(true);
           }}
-          className="px-8 py-3 rounded-lg bg-wk-kanji text-white font-bold text-lg hover:bg-accent-hover transition-colors"
         >
           Start Reviews
-        </button>
+        </Button>
       </div>
       </QuizShell>
     );
@@ -195,8 +192,9 @@ export function ReviewPage() {
       <div className="flex-1 flex flex-col items-center justify-center space-y-6">
         <div className="text-6xl">&#10003;</div>
         <h2 className="text-2xl font-bold">All done!</h2>
-        <p className="text-text-muted">{completedCorrect} correct, {completedIncorrect} incorrect</p>
-        <button
+        <p className="text-muted-foreground">{completedCorrect} correct, {completedIncorrect} incorrect</p>
+        <Button
+          size="lg"
           onClick={() => {
             setCards([]);
             setStarted(false);
@@ -207,10 +205,9 @@ export function ReviewPage() {
             setTotalItems(0);
             queryClient.invalidateQueries({ queryKey: ['reviews'] });
           }}
-          className="px-6 py-3 rounded-lg bg-wk-kanji text-white font-bold text-lg hover:bg-accent-hover transition-colors"
         >
           Done
-        </button>
+        </Button>
       </div>
       </QuizShell>
     );
@@ -312,17 +309,17 @@ export function ReviewPage() {
         <span className="flex items-center gap-3">
           <span>{completedCorrect + completedIncorrect} / {totalItems}</span>
           <span className="text-success">{completedCorrect}✓</span>
-          {completedIncorrect > 0 && <span className="text-error">{completedIncorrect}✗</span>}
+          {completedIncorrect > 0 && <span className="text-destructive">{completedIncorrect}✗</span>}
         </span>
       }
     >
       {/* Progress bar — WK style with counts */}
-      <div className="h-2 bg-border overflow-hidden flex shrink-0">
+      <div className="h-2 bg-secondary overflow-hidden flex shrink-0">
         {completedCorrect > 0 && (
           <div className="h-full bg-success transition-all" style={{ width: `${correctPct}%` }} />
         )}
         {completedIncorrect > 0 && (
-          <div className="h-full bg-error transition-all" style={{ width: `${incorrectPct}%` }} />
+          <div className="h-full bg-destructive transition-all" style={{ width: `${incorrectPct}%` }} />
         )}
       </div>
 

@@ -1,3 +1,5 @@
+import { cn } from '@/lib/utils';
+
 interface ItemCardProps {
   type: 'kanji' | 'vocab' | 'radical';
   character?: string;
@@ -26,7 +28,13 @@ export function ItemCard({ type, character, word, meanings, reading, onClick, si
   return (
     <button
       onClick={onClick}
-      className={`${TYPE_COLORS[type]} ${SIZES[size]} rounded-lg text-white font-bold flex flex-col items-center justify-center shadow-md hover:shadow-lg hover:scale-105 transition-all cursor-pointer group relative`}
+      lang="ja"
+      className={cn(
+        TYPE_COLORS[type],
+        SIZES[size],
+        'rounded-lg text-white font-bold flex flex-col items-center justify-center shadow-md transition-all cursor-pointer group relative',
+        'hover:shadow-lg hover:scale-105 focus-visible:ring-[3px] focus-visible:ring-ring/40 outline-none',
+      )}
     >
       <span className="leading-none">{display}</span>
       {size !== 'sm' && (
@@ -34,7 +42,7 @@ export function ItemCard({ type, character, word, meanings, reading, onClick, si
           {reading || meanings[0] || ''}
         </span>
       )}
-      <div className="absolute -bottom-8 left-1/2 -translate-x-1/2 bg-text text-white text-xs rounded px-2 py-1 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-10">
+      <div className="absolute -bottom-8 left-1/2 -translate-x-1/2 bg-foreground text-background text-xs rounded px-2 py-1 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-10">
         {meanings.join(', ')}
       </div>
     </button>

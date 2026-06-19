@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { Search, X } from 'lucide-react';
 import {
   api,
   type KanjiItem,
@@ -10,6 +11,12 @@ import {
 } from '../lib/api';
 import { SRS_STAGE_COLORS, SRS_STAGE_NAMES } from '../lib/srs';
 import { SubjectCard } from '../components/SubjectCard';
+import { cn } from '@/lib/utils';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Badge } from '@/components/ui/badge';
+import { Card } from '@/components/ui/card';
 
 // Extract kanji characters from a string
 function extractKanji(text: string): string[] {
@@ -76,7 +83,7 @@ function LinkedKanji({ word, kanji }: { word: string; kanji: KanjiItem[] }) {
 
   return (
     <div>
-      <label className="text-xs text-text-muted block mb-1">Linked Kanji (auto-detected)</label>
+      <Label className="mb-1 block text-xs text-muted-foreground">Linked Kanji (auto-detected)</Label>
       <div className="flex gap-2 flex-wrap">
         {kanji.map((k) => {
           const stage = progressMap.data?.[`kanji-${k.id}`];
@@ -93,7 +100,7 @@ function LinkedKanji({ word, kanji }: { word: string; kanji: KanjiItem[] }) {
                   {SRS_STAGE_NAMES[stage]}
                 </span>
               ) : (
-                <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-border text-text-muted whitespace-nowrap">
+                <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground whitespace-nowrap">
                   New
                 </span>
               )}
@@ -102,17 +109,17 @@ function LinkedKanji({ word, kanji }: { word: string; kanji: KanjiItem[] }) {
         })}
         {missing.map((ch) => (
           <div key={ch} className="flex flex-col items-center gap-1" title="Not in the kanji pool">
-            <div className="w-9 h-9 rounded-lg flex items-center justify-center font-bold border-2 border-dashed border-border text-text-muted">
+            <div className="w-9 h-9 rounded-lg flex items-center justify-center font-bold border-2 border-dashed border-border text-muted-foreground">
               {ch}
             </div>
-            <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-border text-text-muted whitespace-nowrap">
+            <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground whitespace-nowrap">
               Not in pool
             </span>
           </div>
         ))}
       </div>
       {hasNew && (
-        <p className="text-[11px] text-text-muted mt-1.5">
+        <p className="text-[11px] text-muted-foreground mt-1.5">
           Adding to queue also queues the “New” kanji above, so you learn them first.
         </p>
       )}
@@ -176,15 +183,15 @@ export function VocabPage() {
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">Vocabulary</h1>
         <div className="flex items-center gap-3">
-          <span className="text-sm text-text-muted">
+          <span className="text-sm text-muted-foreground">
             {items.length} item{items.length !== 1 ? 's' : ''}
           </span>
-          <button
+          <Button
+            variant={showCreate ? 'outline' : 'default'}
             onClick={() => setShowCreate(!showCreate)}
-            className="px-4 py-2 rounded-lg bg-wk-vocab text-white font-bold text-sm hover:opacity-90 transition-opacity"
           >
             {showCreate ? 'Cancel' : '+ New Vocab'}
-          </button>
+          </Button>
         </div>
       </div>
 
@@ -211,23 +218,21 @@ export function VocabPage() {
           onChange={setCreatorFilter}
           options={allCreators}
         />
-        <button
+        <Button
+          variant={hideKnown ? 'secondary' : 'outline'}
           onClick={() => setHideKnown(!hideKnown)}
-          className={`px-3 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-colors ${
-            hideKnown ? 'bg-wk-vocab text-white' : 'border border-border bg-surface hover:bg-border'
-          }`}
         >
           Hide Known
-        </button>
+        </Button>
       </div>
 
       {/* Vocab grid — compact blocks */}
       {vocab.isLoading ? (
-        <div className="text-text-muted animate-pulse">Loading...</div>
+        <div className="text-muted-foreground animate-pulse">Loading...</div>
       ) : items.length === 0 ? (
-        <div className="bg-surface rounded-xl p-10 text-center text-text-muted">
+        <Card className="p-10 text-center text-muted-foreground">
           No vocabulary yet. Be the first to add some!
-        </div>
+        </Card>
       ) : (
         <div className="flex flex-wrap gap-2">
           {items.map((item) => (
@@ -290,53 +295,45 @@ export function EditVocabForm({
     <div className="px-5 py-4 space-y-3">
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className="text-xs text-text-muted block mb-1">Word</label>
-          <input type="text" value={word} onChange={(e) => setWord(e.target.value)}
-            className="w-full px-3 py-2 rounded-lg border border-border bg-surface-alt text-lg focus:outline-none focus:ring-2 focus:ring-wk-vocab" />
+          <Label className="mb-1 block text-xs text-muted-foreground">Word</Label>
+          <Input type="text" value={word} onChange={(e) => setWord(e.target.value)} className="h-auto py-2 text-lg" />
         </div>
         <div>
-          <label className="text-xs text-text-muted block mb-1">Reading(s) — comma-separated</label>
-          <input type="text" value={readings} onChange={(e) => setReadings(e.target.value)}
-            className="w-full px-3 py-2 rounded-lg border border-border bg-surface-alt focus:outline-none focus:ring-2 focus:ring-wk-vocab" />
+          <Label className="mb-1 block text-xs text-muted-foreground">Reading(s) — comma-separated</Label>
+          <Input type="text" value={readings} onChange={(e) => setReadings(e.target.value)} />
         </div>
       </div>
 
       <div>
-        <label className="text-xs text-text-muted block mb-1">Meanings — comma-separated</label>
-        <input type="text" value={meanings} onChange={(e) => setMeanings(e.target.value)}
-          className="w-full px-3 py-2 rounded-lg border border-border bg-surface-alt focus:outline-none focus:ring-2 focus:ring-wk-vocab" />
+        <Label className="mb-1 block text-xs text-muted-foreground">Meanings — comma-separated</Label>
+        <Input type="text" value={meanings} onChange={(e) => setMeanings(e.target.value)} />
       </div>
 
       <LinkedKanji word={word} kanji={detectedKanji} />
 
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className="text-xs text-text-muted block mb-1">Tags</label>
+          <Label className="mb-1 block text-xs text-muted-foreground">Tags</Label>
           <TagInput value={tags} onChange={setTags} options={allTags} />
         </div>
         <div>
-          <label className="text-xs text-text-muted block mb-1">Comment</label>
-          <input type="text" value={comment} onChange={(e) => setComment(e.target.value)}
-            className="w-full px-3 py-2 rounded-lg border border-border bg-surface-alt text-sm focus:outline-none focus:ring-2 focus:ring-wk-vocab" />
+          <Label className="mb-1 block text-xs text-muted-foreground">Comment</Label>
+          <Input type="text" value={comment} onChange={(e) => setComment(e.target.value)} className="text-sm" />
         </div>
       </div>
 
-      {error && <p className="text-error text-sm">{error}</p>}
+      {error && <p className="text-destructive text-sm">{error}</p>}
 
       <div className="flex gap-2">
-        <button
+        <Button
           onClick={() => { if (canSave) { setError(''); mutation.mutate(); } }}
           disabled={!canSave || mutation.isPending}
-          className="px-5 py-2 rounded-lg bg-wk-vocab text-white font-bold hover:opacity-90 transition-opacity disabled:opacity-50"
         >
           {mutation.isPending ? 'Saving...' : 'Save Changes'}
-        </button>
-        <button
-          onClick={onDone}
-          className="px-5 py-2 rounded-lg bg-surface border border-border font-bold hover:bg-border transition-colors"
-        >
+        </Button>
+        <Button variant="outline" onClick={onDone}>
           Cancel
-        </button>
+        </Button>
       </div>
     </div>
   );
@@ -362,7 +359,7 @@ function FilterDropdown({
 
   return (
     <div className="relative">
-      <input
+      <Input
         type="text"
         placeholder={placeholder}
         value={input}
@@ -373,18 +370,18 @@ function FilterDropdown({
         }}
         onFocus={() => setOpen(true)}
         onBlur={() => setTimeout(() => setOpen(false), 150)}
-        className="px-3 py-2 rounded-lg border border-border bg-surface text-sm focus:outline-none focus:ring-2 focus:ring-wk-vocab w-48"
+        className="w-48 pr-7 text-sm"
       />
       {value && (
         <button
           onClick={() => { setInput(''); onChange(''); }}
-          className="absolute right-2 top-1/2 -translate-y-1/2 text-text-muted hover:text-text text-sm"
+          className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
         >
-          &times;
+          <X className="size-4" />
         </button>
       )}
       {open && filtered.length > 0 && (
-        <div className="absolute top-full left-0 mt-1 w-full bg-surface border border-border rounded-lg shadow-lg z-20 max-h-48 overflow-y-auto">
+        <div className="absolute top-full left-0 mt-1 w-full bg-popover border border-border rounded-md shadow-md z-20 max-h-48 overflow-y-auto p-1">
           {filtered.map((opt) => (
             <button
               key={opt}
@@ -394,7 +391,7 @@ function FilterDropdown({
                 onChange(opt);
                 setOpen(false);
               }}
-              className="w-full text-left px-3 py-1.5 text-sm hover:bg-border transition-colors"
+              className="w-full text-left px-2 py-1.5 text-sm rounded-sm hover:bg-accent hover:text-accent-foreground transition-colors"
             >
               {opt}
             </button>
@@ -448,11 +445,12 @@ function TagInput({
 
   return (
     <div className="relative">
-      <div className="flex flex-wrap items-center gap-1.5 px-2 py-1.5 rounded-lg border border-border bg-surface-alt focus-within:ring-2 focus-within:ring-wk-vocab">
+      <div className="flex flex-wrap items-center gap-1.5 px-2 py-1.5 rounded-md border border-input bg-card focus-within:border-ring focus-within:ring-[3px] focus-within:ring-ring/40">
         {value.map((tag) => (
-          <span
+          <Badge
             key={tag}
-            className="flex items-center gap-1 bg-wk-vocab/10 text-wk-vocab px-2 py-0.5 rounded-full text-sm font-medium"
+            variant="secondary"
+            className="gap-1 bg-wk-vocab/10 text-wk-vocab font-medium"
           >
             {tag}
             <button
@@ -460,9 +458,9 @@ function TagInput({
               onClick={() => removeTag(tag)}
               className="hover:text-wk-vocab/60 leading-none"
             >
-              &times;
+              <X className="size-3" />
             </button>
-          </span>
+          </Badge>
         ))}
         <input
           type="text"
@@ -488,14 +486,14 @@ function TagInput({
         />
       </div>
       {open && available.length > 0 && (
-        <div className="absolute top-full left-0 mt-1 w-full bg-surface border border-border rounded-lg shadow-lg z-20 max-h-48 overflow-y-auto">
+        <div className="absolute top-full left-0 mt-1 w-full bg-popover border border-border rounded-md shadow-md z-20 max-h-48 overflow-y-auto p-1">
           {available.map((opt) => (
             <button
               key={opt}
               type="button"
               onMouseDown={(e) => e.preventDefault()}
               onClick={() => addTag(opt)}
-              className="w-full text-left px-3 py-1.5 text-sm hover:bg-border transition-colors"
+              className="w-full text-left px-2 py-1.5 text-sm rounded-sm hover:bg-accent hover:text-accent-foreground transition-colors"
             >
               {opt}
             </button>
@@ -648,259 +646,262 @@ function CreateVocabForm({ onCreated }: { onCreated: () => void }) {
   };
 
   return (
-    <form onSubmit={handleSubmit} className="bg-surface rounded-xl p-5 shadow-sm space-y-3">
+    <form onSubmit={handleSubmit} className="bg-card text-card-foreground flex flex-col gap-3 rounded-xl border p-5 shadow-sm">
       <h2 className="font-bold text-lg">Add Vocabulary</h2>
 
-      {/* Dictionary search — pick a result to prefill the fields below */}
-      <div>
-        <label className="text-xs text-text-muted block mb-1">Search dictionary (Japanese or English)</label>
-        <div className="relative">
-          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted">🔍</span>
-          <input
-            type="text"
-            placeholder="e.g. 食べ, たべる, or eat"
-            value={dictQuery}
-            onChange={(e) => setDictQuery(e.target.value)}
-            className="w-full pl-9 pr-3 py-2 rounded-lg border border-border bg-surface-alt focus:outline-none focus:ring-2 focus:ring-wk-vocab"
-          />
-        </div>
-
-        {debouncedQuery.length > 0 && (
-          <div className="mt-1 border border-border rounded-lg bg-surface max-h-64 overflow-y-auto divide-y divide-border">
-            {dictResults.isLoading && (
-              <p className="px-3 py-2 text-sm text-text-muted animate-pulse">Searching...</p>
-            )}
-            {dictResults.data?.length === 0 && (
-              <p className="px-3 py-2 text-sm text-text-muted">No dictionary matches.</p>
-            )}
-            {dictResults.data?.map((r, i) => {
-              // Fall back to a single synthetic sense for entries without a
-              // per-sense breakdown (back-compat).
-              const senses: DictionarySense[] = r.senses?.length
-                ? r.senses
-                : [{ glosses: r.meanings, pos: r.pos }];
-              return (
-                <div key={`${r.word}-${i}`} className="px-3 py-2">
-                  <div className="flex items-center gap-3 mb-1">
-                    <span className="text-lg font-bold shrink-0" lang="ja">{r.word}</span>
-                    <span className="text-sm text-text-muted shrink-0" lang="ja">{r.readings.slice(0, 2).join('、')}</span>
-                    {r.is_common && !r.already_exists && (
-                      <span className="text-[10px] font-bold text-success shrink-0">● common</span>
-                    )}
-                    {r.already_exists && (
-                      <span className="text-[10px] font-bold text-text-muted shrink-0">✓ in pool</span>
-                    )}
-                  </div>
-                  <div className="space-y-0.5">
-                    {senses.map((s, si) => {
-                      const selected =
-                        selectedSenses.word === r.word && selectedSenses.indices.includes(si);
-                      return (
-                        <button
-                          key={si}
-                          type="button"
-                          disabled={r.already_exists}
-                          onClick={(e) => applySense(r, senses, si, e.shiftKey)}
-                          title="Click to use this sense · Shift-click to combine senses"
-                          className={`w-full text-left text-sm rounded px-2 py-1 flex gap-2 transition-colors ${
-                            r.already_exists
-                              ? 'opacity-50 cursor-not-allowed'
-                              : selected
-                                ? 'bg-wk-vocab/15 text-wk-vocab font-medium cursor-pointer'
-                                : 'hover:bg-border/50 cursor-pointer'
-                          }`}
-                        >
-                          {senses.length > 1 && (
-                            <span className="shrink-0 tabular-nums text-text-muted">
-                              {selected ? '✓' : `${si + 1}.`}
-                            </span>
-                          )}
-                          <span className="flex-1 min-w-0">{s.glosses.join('; ')}</span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                  {senses.length > 1 && !r.already_exists && (
-                    <p className="text-[10px] text-text-muted mt-1">
-                      Shift-click to combine senses · click again to remove.
-                    </p>
-                  )}
-                </div>
-              );
-            })}
+        {/* Dictionary search — pick a result to prefill the fields below */}
+        <div>
+          <Label className="mb-1 block text-xs text-muted-foreground">Search dictionary (Japanese or English)</Label>
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+            <Input
+              type="text"
+              placeholder="e.g. 食べ, たべる, or eat"
+              value={dictQuery}
+              onChange={(e) => setDictQuery(e.target.value)}
+              className="pl-9"
+            />
           </div>
-        )}
-      </div>
 
-      <div className="grid grid-cols-2 gap-3">
-        <div>
-          <label className="text-xs text-text-muted block mb-1">Word</label>
-          <input
-            type="text"
-            placeholder="e.g. 食べ物"
-            value={word}
-            onChange={(e) => setWord(e.target.value)}
-            className="w-full px-3 py-2 rounded-lg border border-border bg-surface-alt text-lg focus:outline-none focus:ring-2 focus:ring-wk-vocab"
-            required
-          />
-        </div>
-        <div>
-          <label className="text-xs text-text-muted block mb-1">Reading(s) — comma-separated</label>
-          <input
-            type="text"
-            placeholder="e.g. たべもの"
-            value={readings}
-            onChange={(e) => setReadings(e.target.value)}
-            className="w-full px-3 py-2 rounded-lg border border-border bg-surface-alt focus:outline-none focus:ring-2 focus:ring-wk-vocab"
-            required
-          />
-        </div>
-      </div>
-
-      <div>
-        <label className="text-xs text-text-muted block mb-1">Meanings — comma-separated</label>
-        <input
-          type="text"
-          placeholder="e.g. food, provisions"
-          value={meanings}
-          onChange={(e) => setMeanings(e.target.value)}
-          className="w-full px-3 py-2 rounded-lg border border-border bg-surface-alt focus:outline-none focus:ring-2 focus:ring-wk-vocab"
-          required
-        />
-      </div>
-
-      {/* Auto-detected kanji */}
-      <LinkedKanji word={word} kanji={detectedKanji} />
-
-      <div className="grid grid-cols-2 gap-3">
-        <div>
-          <label className="text-xs text-text-muted block mb-1">Tags (optional)</label>
-          <TagInput value={tags} onChange={setTags} options={allTags} />
-        </div>
-        <div>
-          <label className="text-xs text-text-muted block mb-1">Comment (optional)</label>
-          <input
-            type="text"
-            placeholder="Where did you find this word?"
-            value={comment}
-            onChange={(e) => setComment(e.target.value)}
-            className="w-full px-3 py-2 rounded-lg border border-border bg-surface-alt text-sm focus:outline-none focus:ring-2 focus:ring-wk-vocab"
-          />
-        </div>
-      </div>
-
-      {/* Example sentences (optional) */}
-      <div>
-        <label className="text-xs text-text-muted block mb-1">Example sentences (optional)</label>
-        <div className="space-y-2">
-          {sentences.map((s, i) => (
-            <div key={i} className="flex gap-2">
-              <div className="flex-1 space-y-1">
-                <input
-                  type="text"
-                  value={s.ja}
-                  onChange={(e) => updateSentence(i, 'ja', e.target.value)}
-                  placeholder="Japanese..."
-                  lang="ja"
-                  className="w-full px-2.5 py-1.5 rounded border border-border bg-surface-alt text-sm focus:outline-none focus:ring-1 focus:ring-wk-vocab"
-                />
-                <input
-                  type="text"
-                  value={s.en}
-                  onChange={(e) => updateSentence(i, 'en', e.target.value)}
-                  placeholder="English..."
-                  className="w-full px-2.5 py-1.5 rounded border border-border bg-surface-alt text-sm focus:outline-none focus:ring-1 focus:ring-wk-vocab"
-                />
-              </div>
-              <button
-                type="button"
-                onClick={() => removeSentence(i)}
-                className="self-start text-text-muted hover:text-error text-lg leading-none px-1"
-                title="Remove sentence"
-              >
-                &times;
-              </button>
+          {debouncedQuery.length > 0 && (
+            <div className="mt-1 border border-border rounded-md bg-popover max-h-64 overflow-y-auto divide-y divide-border">
+              {dictResults.isLoading && (
+                <p className="px-3 py-2 text-sm text-muted-foreground animate-pulse">Searching...</p>
+              )}
+              {dictResults.data?.length === 0 && (
+                <p className="px-3 py-2 text-sm text-muted-foreground">No dictionary matches.</p>
+              )}
+              {dictResults.data?.map((r, i) => {
+                // Fall back to a single synthetic sense for entries without a
+                // per-sense breakdown (back-compat).
+                const senses: DictionarySense[] = r.senses?.length
+                  ? r.senses
+                  : [{ glosses: r.meanings, pos: r.pos }];
+                return (
+                  <div key={`${r.word}-${i}`} className="px-3 py-2">
+                    <div className="flex items-center gap-3 mb-1">
+                      <span className="text-lg font-bold shrink-0" lang="ja">{r.word}</span>
+                      <span className="text-sm text-muted-foreground shrink-0" lang="ja">{r.readings.slice(0, 2).join('、')}</span>
+                      {r.is_common && !r.already_exists && (
+                        <span className="text-[10px] font-bold text-success shrink-0">● common</span>
+                      )}
+                      {r.already_exists && (
+                        <span className="text-[10px] font-bold text-muted-foreground shrink-0">✓ in pool</span>
+                      )}
+                    </div>
+                    <div className="space-y-0.5">
+                      {senses.map((s, si) => {
+                        const selected =
+                          selectedSenses.word === r.word && selectedSenses.indices.includes(si);
+                        return (
+                          <button
+                            key={si}
+                            type="button"
+                            disabled={r.already_exists}
+                            onClick={(e) => applySense(r, senses, si, e.shiftKey)}
+                            title="Click to use this sense · Shift-click to combine senses"
+                            className={cn(
+                              'w-full text-left text-sm rounded px-2 py-1 flex gap-2 transition-colors',
+                              r.already_exists
+                                ? 'opacity-50 cursor-not-allowed'
+                                : selected
+                                  ? 'bg-accent text-accent-foreground font-medium cursor-pointer'
+                                  : 'hover:bg-accent cursor-pointer',
+                            )}
+                          >
+                            {senses.length > 1 && (
+                              <span className="shrink-0 tabular-nums text-muted-foreground">
+                                {selected ? '✓' : `${si + 1}.`}
+                              </span>
+                            )}
+                            <span className="flex-1 min-w-0">{s.glosses.join('; ')}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                    {senses.length > 1 && !r.already_exists && (
+                      <p className="text-[10px] text-muted-foreground mt-1">
+                        Shift-click to combine senses · click again to remove.
+                      </p>
+                    )}
+                  </div>
+                );
+              })}
             </div>
-          ))}
-          <button
-            type="button"
-            onClick={addSentence}
-            className="text-sm text-wk-vocab font-bold hover:underline"
-          >
-            + Add sentence
-          </button>
-        </div>
-      </div>
-
-      {/* Find & link existing pool sentences containing this word */}
-      <div>
-        <div className="flex items-center gap-3 mb-1">
-          <label className="text-xs text-text-muted">Link existing sentences (optional)</label>
-          <button
-            type="button"
-            onClick={() => setShowLinks((v) => !v)}
-            disabled={!word.trim()}
-            className="text-sm text-wk-vocab font-bold hover:underline disabled:opacity-40 disabled:no-underline"
-          >
-            {showLinks ? 'Hide' : 'Find links'}
-          </button>
-          {linkIds.size > 0 && (
-            <span className="text-xs text-text-muted">{linkIds.size} selected</span>
           )}
         </div>
 
-        {showLinks && word.trim() && (
-          <div className="space-y-1">
-            {linkSuggestions.isLoading && (
-              <p className="text-xs text-text-muted animate-pulse">Searching…</p>
-            )}
-            {linkSuggestions.data?.length === 0 && (
-              <p className="text-xs text-text-muted">No existing sentences contain "{word.trim()}".</p>
-            )}
-            {linkSuggestions.data?.map((s: Sentence) => {
-              const selected = linkIds.has(s.id);
-              return (
-                <button
-                  key={s.id}
-                  type="button"
-                  onClick={() => toggleLink(s.id)}
-                  className={`w-full text-left rounded-lg px-3 py-1.5 text-sm flex items-center gap-2 transition-colors ${
-                    selected ? 'bg-wk-vocab/15 ring-1 ring-wk-vocab' : 'bg-surface-alt hover:bg-border/50'
-                  }`}
-                >
-                  <span className={`shrink-0 ${selected ? 'text-wk-vocab' : 'text-text-muted'}`}>
-                    {selected ? '☑' : '☐'}
-                  </span>
-                  <span className="flex-1 min-w-0">
-                    <span lang="ja">{s.ja}</span>
-                    <span className="text-text-muted text-xs ml-2">{s.en}</span>
-                  </span>
-                </button>
-              );
-            })}
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <Label className="mb-1 block text-xs text-muted-foreground">Word</Label>
+            <Input
+              type="text"
+              placeholder="e.g. 食べ物"
+              value={word}
+              onChange={(e) => setWord(e.target.value)}
+              className="h-auto py-2 text-lg"
+              required
+            />
           </div>
-        )}
-      </div>
+          <div>
+            <Label className="mb-1 block text-xs text-muted-foreground">Reading(s) — comma-separated</Label>
+            <Input
+              type="text"
+              placeholder="e.g. たべもの"
+              value={readings}
+              onChange={(e) => setReadings(e.target.value)}
+              required
+            />
+          </div>
+        </div>
 
-      {error && <p className="text-error text-sm">{error}</p>}
+        <div>
+          <Label className="mb-1 block text-xs text-muted-foreground">Meanings — comma-separated</Label>
+          <Input
+            type="text"
+            placeholder="e.g. food, provisions"
+            value={meanings}
+            onChange={(e) => setMeanings(e.target.value)}
+            required
+          />
+        </div>
 
-      <div className="flex gap-2">
-        <button
-          type="submit"
-          disabled={mutation.isPending || !word.trim() || !readings.trim() || !meanings.trim()}
-          className="px-5 py-2 rounded-lg bg-wk-vocab text-white font-bold hover:opacity-90 transition-opacity disabled:opacity-50"
-        >
-          {mutation.isPending ? 'Saving...' : 'Create & Add to Queue'}
-        </button>
-        <button
-          type="button"
-          onClick={() => submit(false)}
-          disabled={mutation.isPending || !word.trim() || !readings.trim() || !meanings.trim()}
-          className="px-5 py-2 rounded-lg bg-surface border border-border font-bold hover:bg-border transition-colors disabled:opacity-50"
-        >
-          Create only
-        </button>
-      </div>
+        {/* Auto-detected kanji */}
+        <LinkedKanji word={word} kanji={detectedKanji} />
+
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <Label className="mb-1 block text-xs text-muted-foreground">Tags (optional)</Label>
+            <TagInput value={tags} onChange={setTags} options={allTags} />
+          </div>
+          <div>
+            <Label className="mb-1 block text-xs text-muted-foreground">Comment (optional)</Label>
+            <Input
+              type="text"
+              placeholder="Where did you find this word?"
+              value={comment}
+              onChange={(e) => setComment(e.target.value)}
+              className="text-sm"
+            />
+          </div>
+        </div>
+
+        {/* Example sentences (optional) */}
+        <div>
+          <Label className="mb-1 block text-xs text-muted-foreground">Example sentences (optional)</Label>
+          <div className="space-y-2">
+            {sentences.map((s, i) => (
+              <div key={i} className="flex gap-2">
+                <div className="flex-1 space-y-1">
+                  <Input
+                    type="text"
+                    value={s.ja}
+                    onChange={(e) => updateSentence(i, 'ja', e.target.value)}
+                    placeholder="Japanese..."
+                    lang="ja"
+                    className="h-auto py-1.5 text-sm"
+                  />
+                  <Input
+                    type="text"
+                    value={s.en}
+                    onChange={(e) => updateSentence(i, 'en', e.target.value)}
+                    placeholder="English..."
+                    className="h-auto py-1.5 text-sm"
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={() => removeSentence(i)}
+                  className="self-start text-muted-foreground hover:text-destructive text-lg leading-none px-1"
+                  title="Remove sentence"
+                >
+                  &times;
+                </button>
+              </div>
+            ))}
+            <Button
+              type="button"
+              variant="link"
+              size="sm"
+              onClick={addSentence}
+              className="h-auto p-0 text-wk-vocab font-bold"
+            >
+              + Add sentence
+            </Button>
+          </div>
+        </div>
+
+        {/* Find & link existing pool sentences containing this word */}
+        <div>
+          <div className="flex items-center gap-3 mb-1">
+            <Label className="text-xs text-muted-foreground">Link existing sentences (optional)</Label>
+            <Button
+              type="button"
+              variant="link"
+              size="sm"
+              onClick={() => setShowLinks((v) => !v)}
+              disabled={!word.trim()}
+              className="h-auto p-0 text-wk-vocab font-bold"
+            >
+              {showLinks ? 'Hide' : 'Find links'}
+            </Button>
+            {linkIds.size > 0 && (
+              <span className="text-xs text-muted-foreground">{linkIds.size} selected</span>
+            )}
+          </div>
+
+          {showLinks && word.trim() && (
+            <div className="space-y-1">
+              {linkSuggestions.isLoading && (
+                <p className="text-xs text-muted-foreground animate-pulse">Searching…</p>
+              )}
+              {linkSuggestions.data?.length === 0 && (
+                <p className="text-xs text-muted-foreground">No existing sentences contain "{word.trim()}".</p>
+              )}
+              {linkSuggestions.data?.map((s: Sentence) => {
+                const selected = linkIds.has(s.id);
+                return (
+                  <button
+                    key={s.id}
+                    type="button"
+                    onClick={() => toggleLink(s.id)}
+                    className={cn(
+                      'w-full text-left rounded-md px-3 py-1.5 text-sm flex items-center gap-2 transition-colors',
+                      selected ? 'bg-accent text-accent-foreground ring-1 ring-primary' : 'bg-muted hover:bg-accent',
+                    )}
+                  >
+                    <span className={cn('shrink-0', selected ? 'text-primary' : 'text-muted-foreground')}>
+                      {selected ? '☑' : '☐'}
+                    </span>
+                    <span className="flex-1 min-w-0">
+                      <span lang="ja">{s.ja}</span>
+                      <span className="text-muted-foreground text-xs ml-2">{s.en}</span>
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {error && <p className="text-destructive text-sm">{error}</p>}
+
+        <div className="flex gap-2">
+          <Button
+            type="submit"
+            disabled={mutation.isPending || !word.trim() || !readings.trim() || !meanings.trim()}
+          >
+            {mutation.isPending ? 'Saving...' : 'Create & Add to Queue'}
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => submit(false)}
+            disabled={mutation.isPending || !word.trim() || !readings.trim() || !meanings.trim()}
+          >
+            Create only
+          </Button>
+        </div>
     </form>
   );
 }

@@ -3,6 +3,18 @@ import { useQuery } from '@tanstack/react-query';
 import { api, type KanjiItem } from '../lib/api';
 import { SubjectCard } from '../components/SubjectCard';
 import { romajiToKana } from '../lib/romaji';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Separator } from '@/components/ui/separator';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { cn } from '@/lib/utils';
 
 const CHUNK_SIZE = 250;
 const INITIAL_LOAD = 250;
@@ -186,7 +198,7 @@ export function KanjiPage() {
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-4">
         <h1 className="text-2xl font-bold">Kanji</h1>
-        <span className="text-sm text-text-muted">
+        <span className="text-sm text-muted-foreground">
           {hideKnown
             ? `${(sortedAll.length - Object.keys(progressMap.data || {}).length).toLocaleString()} unknown / ${sortedAll.length.toLocaleString()}`
             : `${sortedAll.length.toLocaleString()} kanji`}
@@ -195,48 +207,56 @@ export function KanjiPage() {
 
       {/* Search + Sort + Filter */}
       <div className="flex gap-3">
-        <input
+        <Input
           type="text"
           placeholder="Search by character, meaning, or reading..."
           value={search}
           onChange={(e) => { setSearch(e.target.value); setVisibleCount(INITIAL_LOAD); }}
-          className="flex-1 px-4 py-2.5 rounded-lg border border-border bg-surface focus:outline-none focus:ring-2 focus:ring-wk-kanji"
+          className="flex-1"
         />
-        <button
+        <Button
+          type="button"
+          variant={hideKnown ? 'default' : 'outline'}
           onClick={() => { setHideKnown(!hideKnown); setVisibleCount(INITIAL_LOAD); }}
-          className={`px-3 py-2.5 rounded-lg text-sm font-medium whitespace-nowrap transition-colors ${
-            hideKnown ? 'bg-wk-kanji text-white' : 'border border-border bg-surface hover:bg-border'
-          }`}
+          className={cn('whitespace-nowrap', hideKnown && 'bg-wk-kanji text-white hover:bg-wk-kanji/90')}
         >
           Hide Known
-        </button>
-        <select
+        </Button>
+        <Select
           value={sort}
-          onChange={(e) => { setSort(e.target.value as SortMode); setVisibleCount(INITIAL_LOAD); }}
-          className="px-3 py-2.5 rounded-lg border border-border bg-surface text-sm focus:outline-none focus:ring-2 focus:ring-wk-kanji"
+          onValueChange={(v) => { setSort(v as SortMode); setVisibleCount(INITIAL_LOAD); }}
         >
-          {SORT_OPTIONS.map((opt) => (
-            <option key={opt.value} value={opt.value}>
-              {opt.label}
-            </option>
-          ))}
-        </select>
+          <SelectTrigger className="w-auto">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {SORT_OPTIONS.map((opt) => (
+              <SelectItem key={opt.value} value={opt.value}>
+                {opt.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
       {kanji.isLoading ? (
-        <div className="text-text-muted animate-pulse text-center py-10">Loading kanji...</div>
+        <div className="flex flex-wrap gap-2 pt-4">
+          {Array.from({ length: 24 }).map((_, i) => (
+            <Skeleton key={i} className="h-[88px] w-[78px] rounded-lg" />
+          ))}
+        </div>
       ) : (
         <div className="space-y-1">
           {chunks.map((chunk) => (
             <div key={chunk.label}>
               {/* Section divider */}
               <div className="flex items-center gap-3 py-2">
-                <div className="flex-1 h-px bg-border" />
-                <span className="text-xs text-text-muted font-medium">
+                <Separator className="flex-1" />
+                <span className="text-xs text-muted-foreground font-medium whitespace-nowrap">
                   {chunk.label}
                   {hideKnown && chunk.items.length === 0 && ' ✓'}
                 </span>
-                <div className="flex-1 h-px bg-border" />
+                <Separator className="flex-1" />
               </div>
 
               {/* Grid */}
@@ -258,13 +278,13 @@ export function KanjiPage() {
 
           {/* Infinite scroll sentinel */}
           {hasMore && (
-            <div ref={sentinelRef} className="text-center py-4 text-text-muted text-sm">
+            <div ref={sentinelRef} className="text-center py-4 text-muted-foreground text-sm">
               Loading more...
             </div>
           )}
 
           {!hasMore && filtered.length > CHUNK_SIZE && (
-            <div className="text-center py-4 text-text-muted text-xs">
+            <div className="text-center py-4 text-muted-foreground text-xs">
               All {sortedAll.length.toLocaleString()} kanji loaded
             </div>
           )}

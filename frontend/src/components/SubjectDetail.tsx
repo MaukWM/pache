@@ -6,6 +6,7 @@ import type { ReactNode } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../lib/api';
 import { SRS_STAGE_COLORS, SRS_STAGE_NAMES } from '../lib/srs';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
 export function Section({
   title,
@@ -17,13 +18,15 @@ export function Section({
   children: ReactNode;
 }) {
   return (
-    <section className="bg-surface rounded-xl p-5 shadow-sm">
-      <div className="flex items-center justify-between mb-3">
-        <h2 className="text-xs font-bold uppercase tracking-wide text-text-muted">{title}</h2>
+    <Card className="gap-3 p-5">
+      <CardHeader className="flex flex-row items-center justify-between p-0">
+        <CardTitle className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
+          {title}
+        </CardTitle>
         {action}
-      </div>
-      {children}
-    </section>
+      </CardHeader>
+      <CardContent className="p-0">{children}</CardContent>
+    </Card>
   );
 }
 
@@ -48,7 +51,7 @@ export function ProgressionSection({
   return (
     <Section title="Your Progression">
       {!item ? (
-        <p className="text-sm text-text-muted">Not started yet — add it to your lesson queue.</p>
+        <p className="text-sm text-muted-foreground">Not started yet — add it to your lesson queue.</p>
       ) : (
         <div className="space-y-2 text-sm">
           <span
@@ -57,15 +60,15 @@ export function ProgressionSection({
           >
             {SRS_STAGE_NAMES[item.srs_stage]}
           </span>
-          <div className="grid grid-cols-2 gap-x-6 gap-y-1 text-text-muted">
+          <div className="grid grid-cols-2 gap-x-6 gap-y-1 text-muted-foreground">
             <span>Unlocked</span>
-            <span className="text-text">{fmtDate(item.unlocked_at)}</span>
+            <span className="text-foreground">{fmtDate(item.unlocked_at)}</span>
             <span>Next review</span>
-            <span className="text-text">{item.burned_at ? 'Burned' : fmtDate(item.next_review_at)}</span>
+            <span className="text-foreground">{item.burned_at ? 'Burned' : fmtDate(item.next_review_at)}</span>
             {item.burned_at && (
               <>
                 <span>Burned</span>
-                <span className="text-text">{fmtDate(item.burned_at)}</span>
+                <span className="text-foreground">{fmtDate(item.burned_at)}</span>
               </>
             )}
           </div>

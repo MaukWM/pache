@@ -1,3 +1,5 @@
+import { cn } from '@/lib/utils';
+
 interface RadicalListProps {
   components: string[];
   size?: 'sm' | 'md';
@@ -18,7 +20,11 @@ export function RadicalList({ components, size = 'md' }: RadicalListProps) {
       {components.map((c, i) => (
         <span
           key={`${c}-${i}`}
-          className={`${chip} bg-wk-radical text-white rounded-md flex items-center justify-center font-bold leading-none shadow-sm`}
+          lang="ja"
+          className={cn(
+            chip,
+            'bg-wk-radical text-white rounded-md flex items-center justify-center font-bold leading-none shadow-sm',
+          )}
         >
           {c}
         </span>

@@ -3,6 +3,10 @@ import { useQuery } from '@tanstack/react-query';
 import { api } from '../lib/api';
 import { SRS_STAGE_NAMES, SRS_STAGE_COLORS, getSrsGroup } from '../lib/srs';
 import { SrsStageBar } from '../components/SrsStageBar';
+import { cn } from '@/lib/utils';
+import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
+import { Separator } from '@/components/ui/separator';
 
 const STAGE_FILTERS = [
   { label: 'All', value: '' },
@@ -49,50 +53,44 @@ export function ProgressPage() {
       <SrsStageBar counts={srsCounts} />
 
       {/* Filters */}
-      <div className="flex gap-2 flex-wrap">
+      <div className="flex flex-wrap items-center gap-2">
         {STAGE_FILTERS.map((f) => (
-          <button
+          <Button
             key={f.value}
+            size="sm"
+            variant={stageFilter === f.value ? 'default' : 'outline'}
+            className="rounded-full"
             onClick={() => setStageFilter(f.value)}
-            className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
-              stageFilter === f.value
-                ? 'bg-wk-kanji text-white'
-                : 'bg-surface text-text-muted hover:bg-border'
-            }`}
           >
             {f.label}
-          </button>
+          </Button>
         ))}
-        <div className="w-px bg-border mx-1" />
-        <button
+        <Separator orientation="vertical" className="mx-1 h-6" />
+        <Button
+          size="sm"
+          variant={typeFilter === 'kanji' ? 'default' : 'outline'}
+          className={cn('rounded-full', typeFilter === 'kanji' && 'bg-wk-kanji hover:bg-wk-kanji/90')}
           onClick={() => setTypeFilter(typeFilter === 'kanji' ? '' : 'kanji')}
-          className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
-            typeFilter === 'kanji'
-              ? 'bg-wk-kanji text-white'
-              : 'bg-surface text-text-muted hover:bg-border'
-          }`}
         >
           Kanji
-        </button>
-        <button
+        </Button>
+        <Button
+          size="sm"
+          variant={typeFilter === 'vocab' ? 'default' : 'outline'}
+          className={cn('rounded-full', typeFilter === 'vocab' && 'bg-wk-vocab hover:bg-wk-vocab/90')}
           onClick={() => setTypeFilter(typeFilter === 'vocab' ? '' : 'vocab')}
-          className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
-            typeFilter === 'vocab'
-              ? 'bg-wk-vocab text-white'
-              : 'bg-surface text-text-muted hover:bg-border'
-          }`}
         >
           Vocab
-        </button>
+        </Button>
       </div>
 
       {/* Items */}
       {progress.isLoading ? (
-        <div className="text-text-muted animate-pulse">Loading...</div>
+        <div className="animate-pulse text-muted-foreground">Loading...</div>
       ) : items.length === 0 ? (
-        <div className="bg-surface rounded-xl p-8 text-center text-text-muted">
+        <Card className="items-center p-8 text-center text-muted-foreground">
           No items match the current filter.
-        </div>
+        </Card>
       ) : (
         <div className="grid gap-2">
           {items.map((item) => {
@@ -102,28 +100,32 @@ export function ProgressPage() {
             const stageColor = SRS_STAGE_COLORS[item.srs_stage];
 
             return (
-              <div
+              <Card
                 key={`${item.item_type}-${item.item_id}`}
-                className="bg-surface rounded-lg p-3 shadow-sm flex items-center gap-3"
+                className="flex-row items-center gap-3 p-3"
               >
                 <div
-                  className={`${bgColor} w-10 h-10 rounded-lg flex items-center justify-center text-white font-bold shrink-0`}
+                  className={cn(
+                    'flex size-10 shrink-0 items-center justify-center rounded-lg font-bold text-white',
+                    bgColor,
+                  )}
+                  lang="ja"
                 >
                   {display}
                 </div>
-                <div className="flex-1 min-w-0">
-                  <span className="font-bold">{display}</span>
-                  <span className="text-text-muted text-sm ml-2">
+                <div className="min-w-0 flex-1">
+                  <span className="font-bold" lang="ja">{display}</span>
+                  <span className="ml-2 text-sm text-muted-foreground">
                     {item.item_details.meanings?.join(', ')}
                   </span>
                 </div>
                 <div
-                  className="text-xs font-bold px-2.5 py-1 rounded-full text-white shrink-0"
+                  className="shrink-0 rounded-full px-2.5 py-1 text-xs font-bold text-white"
                   style={{ backgroundColor: stageColor }}
                 >
                   {SRS_STAGE_NAMES[item.srs_stage]}
                 </div>
-              </div>
+              </Card>
             );
           })}
         </div>

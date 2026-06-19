@@ -86,9 +86,13 @@ async def seed_kanji(db: AsyncSession, kanji_data_list: list[dict]) -> tuple[int
         existing = result.scalar_one_or_none()
 
         if existing is not None:
-            # Backfill components on existing rows that predate this column.
+            # Backfill columns on existing rows that predate them (e.g. frequency
+            # was added after the initial seed, leaving older rows NULL).
             if not existing.components and kanji_data["components"]:
                 existing.components = kanji_data["components"]
+            for field in ("frequency", "grade", "jlpt_level", "stroke_count"):
+                if getattr(existing, field) is None and kanji_data[field] is not None:
+                    setattr(existing, field, kanji_data[field])
             skipped_count += 1
             continue
 

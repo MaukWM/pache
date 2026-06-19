@@ -1,40 +1,148 @@
 @import "tailwindcss";
+@import "tw-animate-css";
 
-@theme {
-  /* WaniKani-inspired palette */
+@custom-variant dark (&:is(.dark *));
+
+/* ==================================================================== *
+ * 原稿用紙 (genkō yōshi) — inked.
+ * The app sits on Japanese manuscript-grid paper. Sharp corners only
+ * (the grid is squares). Two inks: pink=kanji, purple=vocab. Everything
+ * else is sumi ink + paper + monospace precision.
+ * ==================================================================== */
+
+:root {
+  --radius: 0px; /* sharp everywhere — see the radius reset in @layer base */
+
+  /* light = cool technical paper (dark is the default; this is the alt) */
+  --background: #e8e9ec;
+  --foreground: #16171c;
+  --card: #f4f5f6;
+  --card-foreground: #16171c;
+  --popover: #ffffff;
+  --popover-foreground: #16171c;
+  --primary: #16171c;
+  --primary-foreground: #f4f5f6;
+  --secondary: #dcdee2;
+  --secondary-foreground: #2a2c34;
+  --muted: #dcdee2;
+  --muted-foreground: #5d6069;
+  --accent: #d6d8de;
+  --accent-foreground: #16171c;
+  --destructive: #d11a1a;
+  --destructive-foreground: #ffffff;
+  --border: #c5c8cf;
+  --input: #c5c8cf;
+  --ring: #16171c;
+  --grid-line: rgba(20, 24, 40, 0.06);
+}
+
+.dark {
+  --background: #0b0c10;
+  --foreground: #e7e8ee;
+  --card: #101218;
+  --card-foreground: #e7e8ee;
+  --popover: #14161d;
+  --popover-foreground: #e7e8ee;
+  --primary: #e7e8ee;          /* paper-white button on ink — brutalist inverse */
+  --primary-foreground: #0b0c10;
+  --secondary: #1a1c24;
+  --secondary-foreground: #d4d6df;
+  --muted: #16181f;
+  --muted-foreground: #888c9b;
+  --accent: #1d2029;
+  --accent-foreground: #e7e8ee;
+  --destructive: #ff4d4d;
+  --destructive-foreground: #0b0c10;
+  --border: #24262f;
+  --input: #24262f;
+  --ring: #e7e8ee;
+  --grid-line: rgba(150, 162, 188, 0.05);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  /* sharp — every radius collapses to 0 */
+  --radius-sm: 0px;
+  --radius-md: 0px;
+  --radius-lg: 0px;
+  --radius-xl: 0px;
+
+  /* WaniKani subject palette (functional). pink/purple are the two inks. */
   --color-wk-radical: #00aaff;
   --color-wk-kanji: #ff00aa;
-  --color-wk-vocab: #aa00ff;
-  /* WaniKani subject-card accents (dark borders + burned fill) */
   --color-wk-kanji-dark: #b9007b;
+  --color-wk-vocab: #aa00ff;
   --color-wk-vocab-dark: #8600b9;
   --color-wk-burned: #6b7079;
   --color-wk-burned-dark: #333333;
 
-  /* SRS stage colors */
+  /* SRS stage colors (functional) */
   --color-srs-apprentice: #dd0093;
   --color-srs-guru: #882d9e;
   --color-srs-master: #294ddb;
   --color-srs-enlightened: #0093dd;
-   --color-srs-burned: #c8a000;
+  --color-srs-burned: #c8a000;
+  --color-success: #16a34a;
 
-  /* UI colors — soft light mode */
-  --color-bg: #eef0f2;
-  --color-surface: #f8f8fa;
-  --color-surface-alt: #f0f1f4;
-  --color-text: #3a3a4a;
-  --color-text-muted: #8a8a9a;
-  --color-border: #d8dae0;
-  --color-accent: #ff00aa;
-  --color-accent-hover: #e0008f;
-  --color-success: #88cc00;
-  --color-error: #ff4444;
+  /* Type roles: mono chrome · mincho subject characters · quiet sans body */
+  --font-mono: ui-monospace, "SF Mono", "SFMono-Regular", "Cascadia Mono",
+    Menlo, "Roboto Mono", monospace;
+  --font-sans: system-ui, -apple-system, "Helvetica Neue", "Segoe UI", Arial, sans-serif;
+  --font-ja: "Hiragino Kaku Gothic ProN", "Hiragino Sans", "Yu Gothic",
+    "Noto Sans JP", sans-serif;
+  --font-mincho: "Hiragino Mincho ProN", "YuMincho", "Yu Mincho", "Noto Serif JP", serif;
 }
 
-body {
-  background-color: var(--color-bg);
-  color: var(--color-text);
-  font-family: 'Noto Sans JP', 'Helvetica Neue', Arial, sans-serif;
+@layer base {
+  /* Sharp corners app-wide — the genkō-yōshi grid is squares, no rounding.
+     Deliberate global decision; overrides every rounded-* utility. */
+  *, *::before, *::after {
+    border-radius: 0 !important;
+    border-color: var(--color-border);
+  }
+
+  body {
+    background-color: var(--color-background);
+    color: var(--color-foreground);
+    font-family: var(--font-sans);
+    /* genkō-yōshi: faint manuscript grid behind everything */
+    background-image:
+      linear-gradient(var(--grid-line) 1px, transparent 1px),
+      linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
+    background-size: 32px 32px;
+  }
+
+  /* Japanese text uses the gothic face by default. */
+  [lang="ja"] {
+    font-family: var(--font-ja);
+  }
+
+  /* Page titles read as terminal headers: mono, uppercase, tracked.
+     Scoped to <main> so it never touches JA brand marks or nav. */
+  main h1 {
+    font-family: var(--font-mono);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
 }
 
 /* Shake the answer input when a valid-but-wrong-type reading is entered. */

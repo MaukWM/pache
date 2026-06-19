@@ -5,6 +5,9 @@ import { api, type QueueItem } from '../lib/api';
 import { RadicalList } from '../components/RadicalList';
 import { LessonQuiz } from '../components/LessonQuiz';
 import { QuizShell } from '../components/QuizShell';
+import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
+import { cn } from '@/lib/utils';
 
 type Tab = 'composition' | 'meaning' | 'reading' | 'info';
 
@@ -144,41 +147,38 @@ export function LessonsPage() {
           <h1 className="text-2xl font-bold">Lessons</h1>
           {unlocked.length > 0 && (
             <div className="flex items-center gap-2">
-              <button
-                onClick={selectAll}
-                className="px-3 py-2 rounded-lg bg-surface border border-border text-sm font-medium hover:bg-border transition-colors"
-              >
+              <Button variant="outline" onClick={selectAll}>
                 {selectedIds.size === unlocked.length ? 'Deselect All' : 'Select All'}
-              </button>
-              <button
+              </Button>
+              <Button
                 onClick={startSession}
-                className="px-5 py-2 rounded-lg bg-wk-radical text-white font-bold hover:opacity-90 transition-opacity"
+                className="bg-wk-radical text-white hover:bg-wk-radical/90"
               >
                 Start Lessons ({selectedCount})
-              </button>
+              </Button>
             </div>
           )}
         </div>
 
         {/* Hint */}
         {unlocked.length > 0 && selectedIds.size === 0 && (
-          <p className="text-sm text-text-muted">
+          <p className="text-sm text-muted-foreground">
             Tap items to select a subset, or start all {unlocked.length} at once.
           </p>
         )}
         {selectedIds.size > 0 && (
-          <p className="text-sm text-text-muted">
+          <p className="text-sm text-muted-foreground">
             {selectedIds.size} of {unlocked.length} selected
           </p>
         )}
 
         {queue.isLoading ? (
-          <div className="text-text-muted animate-pulse">Loading queue...</div>
+          <div className="text-muted-foreground animate-pulse">Loading queue...</div>
         ) : items.length === 0 ? (
-          <div className="bg-surface rounded-xl p-10 text-center text-text-muted">
+          <Card className="gap-2 p-10 text-center text-muted-foreground">
             <p className="text-lg font-bold mb-2">No lessons queued</p>
             <p>Add items from the Kanji or Vocab pages to your queue, then come back here to study them.</p>
-          </div>
+          </Card>
         ) : (
           <>
             {unlocked.length > 0 && (
@@ -194,11 +194,13 @@ export function LessonsPage() {
                     <div key={key} className="relative group">
                       <button
                         onClick={() => toggleSelect(item)}
-                        className={`${baseBg} rounded-lg px-4 py-2.5 text-white font-bold text-xl transition-all hover:brightness-110 ${
+                        className={cn(
+                          baseBg,
+                          'rounded-lg px-4 py-2.5 text-white font-bold text-xl transition-all hover:brightness-110',
                           isSelected
                             ? 'scale-95 opacity-100 shadow-lg outline outline-3 outline-offset-2 outline-white'
-                            : selectedIds.size > 0 ? 'opacity-50' : ''
-                        }`}
+                            : selectedIds.size > 0 ? 'opacity-50' : '',
+                        )}
                         title={item.item_details?.meanings?.join(', ')}
                       >
                         {display}
@@ -214,7 +216,7 @@ export function LessonsPage() {
                           removeMutation.mutate({ item_type: item.item_type, item_id: item.item_id });
                           setSelectedIds((prev) => { const next = new Set(prev); next.delete(key); return next; });
                         }}
-                        className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-error text-white text-xs flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow z-10"
+                        className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-destructive text-destructive-foreground text-xs flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow z-10"
                         title="Remove from queue"
                       >
                         &times;
@@ -228,7 +230,7 @@ export function LessonsPage() {
             {/* Locked: vocab waiting on its kanji to reach Guru — shown for look-ahead. */}
             {lockedItems.length > 0 && (
               <div className="space-y-2 pt-2">
-                <p className="text-xs font-bold uppercase tracking-wide text-text-muted">
+                <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
                   Locked — waiting on kanji ({lockedItems.length})
                 </p>
                 <div className="flex flex-wrap gap-2.5">
@@ -253,7 +255,7 @@ export function LessonsPage() {
                             e.stopPropagation();
                             removeMutation.mutate({ item_type: item.item_type, item_id: item.item_id });
                           }}
-                          className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-error text-white text-xs flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow z-10"
+                          className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-destructive text-destructive-foreground text-xs flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow z-10"
                           title="Remove from queue"
                         >
                           &times;
@@ -329,14 +331,15 @@ export function LessonsPage() {
       </div>
 
       {/* Tabs — full width */}
-      <div className="bg-surface-alt flex border-b border-border shrink-0">
+      <div className="bg-muted flex border-b border-border shrink-0">
         {tabs.map((tab) => (
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
-            className={`flex-1 py-3 text-sm font-medium transition-colors relative ${
-              activeTab === tab.id ? 'text-text' : 'text-text-muted hover:text-text'
-            }`}
+            className={cn(
+              'flex-1 py-3 text-sm font-medium transition-colors relative',
+              activeTab === tab.id ? 'text-foreground' : 'text-muted-foreground hover:text-foreground',
+            )}
           >
             {tab.label}
             {activeTab === tab.id && (
@@ -351,10 +354,10 @@ export function LessonsPage() {
         <div className="min-h-[200px]">
         {activeTab === 'composition' && (
           <div className="space-y-4">
-            <h3 className="text-text-muted text-xs uppercase tracking-wide mb-2">
+            <h3 className="text-muted-foreground text-xs uppercase tracking-wide mb-2">
               Kanji Composition
             </h3>
-            <p className="text-sm text-text-muted">
+            <p className="text-sm text-muted-foreground">
               This vocabulary is composed of{' '}
               {kanjiComposition.length === 1
                 ? 'one kanji'
@@ -366,7 +369,7 @@ export function LessonsPage() {
                 <Link
                   key={k.character}
                   to={`/kanji/${encodeURIComponent(k.character)}`}
-                  className="flex items-center gap-2 rounded-lg hover:bg-surface-alt px-1 py-0.5 -mx-1 transition-colors"
+                  className="flex items-center gap-2 rounded-lg hover:bg-accent px-1 py-0.5 -mx-1 transition-colors"
                   title={`View ${k.character}`}
                 >
                   <div className="bg-wk-kanji border-2 border-wk-kanji-dark w-11 h-11 rounded-lg flex items-center justify-center text-white text-xl font-bold" lang="ja">
@@ -376,7 +379,7 @@ export function LessonsPage() {
                 </Link>
               ))}
             </div>
-            <p className="text-sm text-text-muted pt-2">
+            <p className="text-sm text-muted-foreground pt-2">
               Does the combination of the kanji meanings relate to the vocabulary meaning?
               Can you guess the reading from the kanji?
             </p>
@@ -386,12 +389,12 @@ export function LessonsPage() {
         {activeTab === 'meaning' && (
           <div className="space-y-4">
             <div>
-              <h3 className="text-text-muted text-xs uppercase tracking-wide mb-2">Meanings</h3>
+              <h3 className="text-muted-foreground text-xs uppercase tracking-wide mb-2">Meanings</h3>
               <p className="text-lg">{meanings.join(', ')}</p>
             </div>
             {isKanji && components.length > 0 && (
               <div>
-                <h3 className="text-text-muted text-xs uppercase tracking-wide mb-2">Radicals</h3>
+                <h3 className="text-muted-foreground text-xs uppercase tracking-wide mb-2">Radicals</h3>
                 <RadicalList components={components} />
               </div>
             )}
@@ -404,20 +407,20 @@ export function LessonsPage() {
               <>
                 {readingsOn && readingsOn.length > 0 && (
                   <div>
-                    <h3 className="text-text-muted text-xs uppercase tracking-wide mb-2">On'yomi</h3>
+                    <h3 className="text-muted-foreground text-xs uppercase tracking-wide mb-2">On'yomi</h3>
                     <p className="text-lg">{readingsOn.join('、')}</p>
                   </div>
                 )}
                 {readingsKun && readingsKun.length > 0 && (
                   <div>
-                    <h3 className="text-text-muted text-xs uppercase tracking-wide mb-2">Kun'yomi</h3>
+                    <h3 className="text-muted-foreground text-xs uppercase tracking-wide mb-2">Kun'yomi</h3>
                     <p className="text-lg">{readingsKun.join('、')}</p>
                   </div>
                 )}
               </>
             ) : (
               <div>
-                <h3 className="text-text-muted text-xs uppercase tracking-wide mb-2">Reading</h3>
+                <h3 className="text-muted-foreground text-xs uppercase tracking-wide mb-2">Reading</h3>
                 <p className="text-lg">{readings?.join('、') || 'None'}</p>
               </div>
             )}
@@ -427,11 +430,11 @@ export function LessonsPage() {
         {activeTab === 'info' && (
           <div className="space-y-2 text-sm">
             <div className="flex gap-2">
-              <span className="text-text-muted">Type:</span>
+              <span className="text-muted-foreground">Type:</span>
               <span className="capitalize">{item.item_type}</span>
             </div>
             <div className="flex gap-2">
-              <span className="text-text-muted">Added:</span>
+              <span className="text-muted-foreground">Added:</span>
               <span>{new Date(item.added_at).toLocaleDateString()}</span>
             </div>
           </div>
@@ -440,21 +443,14 @@ export function LessonsPage() {
 
         {/* Navigation */}
         <div className="flex items-center justify-between pt-6">
-          <button
-            onClick={goBack}
-            disabled={atStart}
-            className="px-5 py-2.5 rounded-lg bg-surface border border-border font-bold text-sm disabled:opacity-30 hover:bg-border transition-colors"
-          >
-            <kbd className="mr-1.5 px-1.5 py-0.5 rounded bg-border text-text text-[10px] font-mono">&larr;</kbd>
+          <Button variant="outline" onClick={goBack} disabled={atStart} className="disabled:opacity-30">
+            <kbd className="mr-1.5 px-1.5 py-0.5 rounded bg-muted text-foreground text-[10px] font-mono">&larr;</kbd>
             Back
-          </button>
-          <button
-            onClick={goForward}
-            className="px-5 py-2.5 rounded-lg bg-wk-radical text-white font-bold text-sm hover:opacity-90 transition-opacity"
-          >
+          </Button>
+          <Button onClick={goForward} className="bg-wk-radical text-white hover:bg-wk-radical/90">
             {isLastStep ? 'Finish' : 'Next'}
             <kbd className="ml-1.5 px-1.5 py-0.5 rounded bg-white/25 text-white text-[10px] font-mono">&rarr;</kbd>
-          </button>
+          </Button>
         </div>
       </div>
     </QuizShell>

@@ -1,7 +1,10 @@
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
+import { ExternalLink } from 'lucide-react';
 import { api } from '../lib/api';
 import { useAuth } from '../lib/auth';
+import { cn } from '@/lib/utils';
+import { Card } from '@/components/ui/card';
 
 export function DashboardPage() {
   const { user } = useAuth();
@@ -34,40 +37,47 @@ export function DashboardPage() {
       <div className="grid grid-cols-2 gap-4">
         <Link
           to="/lessons"
-          className={`rounded-xl p-8 text-white text-center shadow-md hover:shadow-lg transition-all hover:scale-[1.02] ${
-            lessonCount > 0 ? 'bg-wk-kanji' : 'bg-text-muted'
-          }`}
+          className={cn(
+            'rounded-xl p-8 text-center text-white shadow-md transition-all hover:scale-[1.02] hover:shadow-lg',
+            lessonCount > 0 ? 'bg-wk-kanji' : 'bg-muted-foreground',
+          )}
         >
           <div className="text-5xl font-black">{lessonCount}</div>
-          <div className="text-sm font-medium mt-2 opacity-90">Lessons</div>
+          <div className="mt-2 text-sm font-medium opacity-90">Lessons</div>
         </Link>
 
         <Link
           to="/reviews"
-          className={`rounded-xl p-8 text-white text-center shadow-md hover:shadow-lg transition-all hover:scale-[1.02] ${
-            reviewCount > 0 ? 'bg-wk-radical' : 'bg-text-muted'
-          }`}
+          className={cn(
+            'rounded-xl p-8 text-center text-white shadow-md transition-all hover:scale-[1.02] hover:shadow-lg',
+            reviewCount > 0 ? 'bg-wk-radical' : 'bg-muted-foreground',
+          )}
         >
           <div className="text-5xl font-black">{reviewCount}</div>
-          <div className="text-sm font-medium mt-2 opacity-90">Reviews</div>
+          <div className="mt-2 text-sm font-medium opacity-90">Reviews</div>
         </Link>
       </div>
 
       {wkConfigured && (
-        <a
-          href="https://www.wanikani.com/subjects/review"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="flex items-center justify-between rounded-xl border border-border bg-surface p-5 shadow-sm hover:shadow-md transition-all hover:scale-[1.01]"
-        >
-          <div className="flex items-baseline gap-3">
-            <span className="text-3xl font-black text-wk-kanji">{wkDue}</span>
-            <span className="text-sm font-medium text-text-muted">
-              {wkDue === 1 ? 'review' : 'reviews'} due on WaniKani
+        <Card className="p-0 transition-all hover:scale-[1.01] hover:shadow-md">
+          <a
+            href="https://www.wanikani.com/subjects/review"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center justify-between p-5"
+          >
+            <div className="flex items-baseline gap-3">
+              <span className="text-3xl font-black text-wk-kanji">{wkDue}</span>
+              <span className="text-sm font-medium text-muted-foreground">
+                {wkDue === 1 ? 'review' : 'reviews'} due on WaniKani
+              </span>
+            </div>
+            <span className="flex items-center gap-1 text-sm font-semibold text-wk-kanji">
+              Open WaniKani
+              <ExternalLink className="size-4" />
             </span>
-          </div>
-          <span className="text-sm font-semibold text-wk-kanji">Open WaniKani ↗</span>
-        </a>
+          </a>
+        </Card>
       )}
     </div>
   );

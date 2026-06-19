@@ -1,14 +1,12 @@
-// WaniKani-style subject card: a bordered white tile with the character/word in
-// a colored box on top, then its primary reading and meaning. Color follows WK:
-// kanji = pink, vocab = purple; a dashed outline when not yet learned, and a
-// charcoal fill once burned.
-//
-// The card sizes itself to its content (placed in a flex-wrap grid) and never
-// wraps the character text — long words like 殖産興業 stretch the card onto one
-// line instead of wrapping inside it, mirroring WaniKani.
+// Genkō-yōshi (原稿用紙) practice cell: each subject character sits in a square
+// manuscript-grid cell with a faint center crosshair — the guide marks you'd
+// find on real Japanese writing paper. Pink ink = kanji, purple = vocab.
+// States mirror SRS: dashed faint = not started, solid ink = learning, grey = burned.
 
 import { Link } from 'react-router-dom';
+import { cn } from '@/lib/utils';
 import { katakanaToHiragana } from '../lib/romaji';
+import { SRS_STAGE_COLORS } from '../lib/srs';
 
 export interface SubjectCardProps {
   type: 'kanji' | 'vocab';
@@ -18,8 +16,6 @@ export interface SubjectCardProps {
   /** SRS stage 1–9, or undefined when the user hasn't started the item. */
   srsStage?: number;
   selected?: boolean;
-  /** Route to the item's detail page. Rendered as a link so ctrl/cmd/middle
-   *  click opens it in a new tab natively. */
   to: string;
 }
 
@@ -33,48 +29,66 @@ export function SubjectCard({
   to,
 }: SubjectCardProps) {
   const isKanji = type === 'kanji';
-  // Kanji on'yomi is stored as katakana; show it as hiragana like WaniKani.
   const displayReading = isKanji && reading ? katakanaToHiragana(reading) : reading;
   const learned = srsStage != null;
-  const burned = srsStage != null && srsStage >= 9;
+  const burned = learned && srsStage! >= 9;
 
-  // The colored character box, mirroring WaniKani's three visual states.
-  let boxClass: string;
-  if (burned) {
-    boxClass = 'bg-wk-burned text-white border-solid border-wk-burned-dark';
-  } else if (learned) {
-    boxClass = isKanji
-      ? 'bg-wk-kanji text-white border-solid border-wk-kanji-dark'
-      : 'bg-wk-vocab text-white border-solid border-wk-vocab-dark';
-  } else {
-    boxClass = isKanji
-      ? 'bg-transparent text-wk-kanji border-dashed border-wk-kanji'
-      : 'bg-transparent text-wk-vocab border-dashed border-wk-vocab';
-  }
+  // Char ink drives currentColor (and the crosshair): kanji renders in plain ink
+  // (foreground), vocab keeps its purple. Literal class strings so Tailwind keeps them.
+  const inkText = isKanji ? 'text-foreground' : 'text-wk-vocab';
+  const inkHoverBorder = isKanji ? 'group-hover:border-foreground/40' : 'group-hover:border-wk-vocab';
+
+  // Border = SRS stage color. Three distinct backgrounds:
+  //   not started → bare (the manuscript grid shows through the dashed cell)
+  //   learning    → solid card fill
+  //   burned      → gold stage tint, so finished items stand clearly apart
+  const stageColor = learned ? SRS_STAGE_COLORS[srsStage!] : undefined;
+  const cellStyle = stageColor
+    ? burned
+      ? { borderColor: stageColor, backgroundColor: `${stageColor}29` }
+      : { borderColor: stageColor }
+    : undefined;
 
   return (
     <Link
       to={to}
       title={`${character}${meaning ? ` — ${meaning}` : ''}`}
-      className={`inline-flex flex-col items-center gap-1.5 px-3.5 py-3 rounded-lg border bg-surface transition-all hover:shadow-sm hover:-translate-y-0.5 cursor-pointer ${
-        selected
-          ? 'border-2 ' + (isKanji ? 'border-wk-kanji' : 'border-wk-vocab')
-          : 'border-border'
-      }`}
+      className="group inline-flex flex-col items-stretch gap-1.5"
     >
       <span
         lang="ja"
-        className={`px-3 py-1.5 rounded-md border-2 text-2xl font-bold leading-tight whitespace-nowrap ${boxClass}`}
+        style={cellStyle}
+        className={cn(
+          'relative grid h-16 min-w-16 place-items-center border-2 px-3 transition-colors',
+          inkText,
+          !learned && cn('border-border border-dashed', inkHoverBorder),
+          learned && 'border-solid',
+          learned && !burned && 'bg-card group-hover:bg-accent',
+          selected && 'ring-2 ring-current ring-offset-2 ring-offset-background',
+        )}
       >
-        {character}
+        {/* genkō-yōshi center crosshair — inherits the cell ink via currentColor */}
+        <span className="pointer-events-none absolute inset-x-2 top-1/2 h-px -translate-y-1/2 bg-current opacity-15 transition-opacity group-hover:opacity-30" />
+        <span className="pointer-events-none absolute inset-y-2 left-1/2 w-px -translate-x-1/2 bg-current opacity-15 transition-opacity group-hover:opacity-30" />
+        <span
+          className={cn(
+            'relative font-[family-name:var(--font-mincho)] text-3xl leading-none font-medium whitespace-nowrap',
+            !learned && 'opacity-80',
+          )}
+        >
+          {character}
+        </span>
       </span>
-      <span className="flex flex-col items-center leading-tight text-center">
+
+      <span className="flex flex-col items-center text-center leading-tight">
         {displayReading && (
-          <span lang="ja" className="text-sm text-text-muted whitespace-nowrap">
+          <span lang="ja" className="text-sm whitespace-nowrap text-muted-foreground">
             {displayReading}
           </span>
         )}
-        {meaning && <span className="text-sm text-text max-w-[12rem] truncate">{meaning}</span>}
+        {meaning && (
+          <span className="max-w-[12rem] truncate text-xs text-foreground/80">{meaning}</span>
+        )}
       </span>
     </Link>
   );

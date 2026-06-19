@@ -1,4 +1,5 @@
 import { getSrsGroupColor } from '../lib/srs';
+import { Card } from '@/components/ui/card';
 
 interface SrsStageBarProps {
   counts: Record<string, number>;
@@ -10,15 +11,15 @@ export function SrsStageBar({ counts }: SrsStageBarProps) {
 
   if (total === 0) {
     return (
-      <div className="bg-surface rounded-xl p-6 text-center text-text-muted">
+      <Card className="items-center p-6 text-center text-sm text-muted-foreground">
         No items in SRS yet. Complete some lessons to get started!
-      </div>
+      </Card>
     );
   }
 
   return (
-    <div className="bg-surface rounded-xl p-5 shadow-sm">
-      <div className="flex rounded-lg overflow-hidden h-8 mb-4">
+    <Card className="gap-4 p-5">
+      <div className="mb-1 flex h-8 overflow-hidden rounded-lg">
         {groups.map((group) => {
           const count = counts[group] || 0;
           if (count === 0) return null;
@@ -26,7 +27,7 @@ export function SrsStageBar({ counts }: SrsStageBarProps) {
           return (
             <div
               key={group}
-              className="flex items-center justify-center text-white text-xs font-bold transition-all"
+              className="flex items-center justify-center text-xs font-bold text-white transition-all"
               style={{ width: `${pct}%`, backgroundColor: getSrsGroupColor(group) }}
               title={`${group}: ${count}`}
             >
@@ -39,7 +40,7 @@ export function SrsStageBar({ counts }: SrsStageBarProps) {
         {groups.map((group) => (
           <div key={group} className="text-center">
             <div
-              className="text-xs font-bold uppercase tracking-wide"
+              className="text-xs font-bold tracking-wide uppercase"
               style={{ color: getSrsGroupColor(group) }}
             >
               {group}
@@ -48,6 +49,6 @@ export function SrsStageBar({ counts }: SrsStageBarProps) {
           </div>
         ))}
       </div>
-    </div>
+    </Card>
   );
 }

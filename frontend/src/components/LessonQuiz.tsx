@@ -3,6 +3,8 @@ import { type QueueItem } from '../lib/api';
 import { evaluateAnswer } from '../lib/quiz';
 import { QuizCard, type CardType } from './QuizCard';
 import { QuizShell } from './QuizShell';
+import { Button } from '@/components/ui/button';
+import { Progress } from '@/components/ui/progress';
 
 interface Card {
   item: QueueItem;
@@ -149,21 +151,14 @@ export function LessonQuiz({
           <div className="flex-1 flex flex-col items-center justify-center py-20 space-y-4 text-center">
             <div className="text-5xl">&#9888;&#65039;</div>
             <h2 className="text-2xl font-bold">Couldn't save your lessons</h2>
-            <p className="max-w-md text-error">{error.message}</p>
+            <p className="max-w-md text-destructive">{error.message}</p>
             <div className="flex gap-3">
-              <button
-                onClick={onPassed}
-                disabled={submitting}
-                className="px-5 py-2 rounded-lg bg-wk-radical text-white font-bold hover:opacity-90 transition-opacity disabled:opacity-50"
-              >
+              <Button onClick={onPassed} disabled={submitting} size="lg">
                 {submitting ? 'Retrying…' : 'Try again'}
-              </button>
-              <button
-                onClick={onExit}
-                className="px-5 py-2 rounded-lg bg-surface border border-border font-medium hover:bg-border transition-colors"
-              >
+              </Button>
+              <Button onClick={onExit} variant="outline" size="lg">
                 Back to lessons
-              </button>
+              </Button>
             </div>
           </div>
         </QuizShell>
@@ -174,7 +169,7 @@ export function LessonQuiz({
         <div className="flex-1 flex flex-col items-center justify-center py-20 space-y-4">
           <div className="text-5xl">&#127881;</div>
           <h2 className="text-2xl font-bold">Quiz passed!</h2>
-          <p className="text-text-muted">
+          <p className="text-muted-foreground">
             {submitting ? 'Locking in your lessons…' : 'Done!'}
           </p>
         </div>
@@ -229,9 +224,10 @@ export function LessonQuiz({
       }
     >
       {/* Progress bar */}
-      <div className="h-2 bg-border overflow-hidden flex shrink-0">
-        <div className="h-full bg-success transition-all" style={{ width: `${progressPct}%` }} />
-      </div>
+      <Progress
+        value={progressPct}
+        className="h-2 shrink-0 rounded-none bg-muted [&_[data-slot=progress-indicator]]:bg-success"
+      />
 
       {/* Quiz fills the full width, band anchored to the top (WaniKani-style) */}
       <div className="flex-1">

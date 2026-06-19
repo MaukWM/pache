@@ -6,6 +6,10 @@ import { RadicalList } from '../components/RadicalList';
 import { SubjectCard } from '../components/SubjectCard';
 import { Section, ProgressionSection } from '../components/SubjectDetail';
 import { katakanaToHiragana } from '../lib/romaji';
+import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
+import { Skeleton } from '@/components/ui/skeleton';
+import { ArrowLeft } from 'lucide-react';
 
 export function KanjiDetailPage() {
   const { char } = useParams<{ char: string }>();
@@ -70,12 +74,18 @@ export function KanjiDetailPage() {
   });
 
   if (kanjiQuery.isLoading) {
-    return <div className="text-text-muted animate-pulse py-10 text-center">Loading…</div>;
+    return (
+      <div className="max-w-3xl mx-auto space-y-4">
+        <Skeleton className="h-5 w-16" />
+        <Skeleton className="h-36 w-full rounded-xl" />
+        <Skeleton className="h-10 w-40" />
+      </div>
+    );
   }
   if (!kanji) {
     return (
       <div className="space-y-3 text-center py-10">
-        <p className="text-text-muted">Kanji not found.</p>
+        <p className="text-muted-foreground">Kanji not found.</p>
         <Link to="/kanji" className="text-wk-kanji font-bold">← Back to Kanji</Link>
       </div>
     );
@@ -83,68 +93,67 @@ export function KanjiDetailPage() {
 
   return (
     <div className="max-w-3xl mx-auto space-y-4">
-      <button onClick={() => navigate(-1)} className="text-sm text-text-muted hover:text-text">
-        ← Back
-      </button>
+      <Button variant="ghost" size="sm" onClick={() => navigate(-1)} className="text-muted-foreground -ml-2">
+        <ArrowLeft className="size-4" />
+        Back
+      </Button>
 
       {/* Hero */}
-      <div className="bg-surface rounded-xl p-6 shadow-sm flex items-center gap-5">
+      <Card className="p-6 flex flex-row items-center gap-5">
         <div className="bg-wk-kanji border-2 border-wk-kanji-dark w-24 h-24 rounded-xl flex items-center justify-center text-white text-5xl font-bold shrink-0" lang="ja">
           {kanji.character}
         </div>
         <div className="min-w-0">
           <h1 className="text-3xl font-bold">{kanji.meanings[0]}</h1>
           {kanji.meanings.length > 1 && (
-            <p className="text-text-muted">{kanji.meanings.slice(1).join(', ')}</p>
+            <p className="text-muted-foreground">{kanji.meanings.slice(1).join(', ')}</p>
           )}
-          <div className="flex gap-4 flex-wrap text-sm text-text-muted mt-1">
+          <div className="flex gap-4 flex-wrap text-sm text-muted-foreground mt-1">
             {kanji.frequency && <span>Freq #{kanji.frequency}</span>}
             {kanji.grade && <span>Grade {kanji.grade}</span>}
             {kanji.jlpt_level && <span>JLPT N{kanji.jlpt_level}</span>}
             {kanji.stroke_count && <span>{kanji.stroke_count} strokes</span>}
           </div>
         </div>
-      </div>
+      </Card>
 
       {/* Actions */}
       <div className="flex items-center gap-2 flex-wrap">
         {!alreadyLearned && (
-          <button onClick={() => queueMutation.mutate()} disabled={queueMutation.isPending}
-            className="px-4 py-2 rounded-lg bg-wk-kanji text-white font-bold text-sm hover:bg-accent-hover transition-colors disabled:opacity-50">
+          <Button onClick={() => queueMutation.mutate()} disabled={queueMutation.isPending}
+            className="bg-wk-kanji text-white hover:bg-wk-kanji/90">
             {queueMutation.isPending ? 'Adding…' : 'Add to Queue'}
-          </button>
+          </Button>
         )}
         {alreadyLearned && isBurned && !confirmResurrect && (
-          <button onClick={() => setConfirmResurrect(true)}
-            className="px-4 py-2 rounded-lg bg-wk-radical text-white font-bold text-sm hover:opacity-90">
+          <Button onClick={() => setConfirmResurrect(true)}
+            className="bg-wk-radical text-white hover:bg-wk-radical/90">
             Resurrect
-          </button>
+          </Button>
         )}
         {alreadyLearned && !confirmUnlearn && (
-          <button onClick={() => setConfirmUnlearn(true)}
-            className="px-4 py-2 rounded-lg bg-surface border border-border text-sm font-bold hover:bg-border">
+          <Button variant="outline" onClick={() => setConfirmUnlearn(true)}>
             Unlearn
-          </button>
+          </Button>
         )}
         {confirmResurrect && (
           <span className="flex items-center gap-2 text-sm">
-            <span className="text-text-muted">Resurrect {kanji.character} to Apprentice I?</span>
-            <button onClick={() => resurrectMutation.mutate()} disabled={resurrectMutation.isPending}
-              className="px-3 py-1.5 rounded-lg bg-wk-radical text-white font-bold disabled:opacity-50">Yes</button>
-            <button onClick={() => setConfirmResurrect(false)} className="px-3 py-1.5 rounded-lg border border-border font-bold hover:bg-border">Cancel</button>
+            <span className="text-muted-foreground">Resurrect {kanji.character} to Apprentice I?</span>
+            <Button size="sm" onClick={() => resurrectMutation.mutate()} disabled={resurrectMutation.isPending}
+              className="bg-wk-radical text-white hover:bg-wk-radical/90">Yes</Button>
+            <Button size="sm" variant="outline" onClick={() => setConfirmResurrect(false)}>Cancel</Button>
           </span>
         )}
         {confirmUnlearn && (
           <span className="flex items-center gap-2 text-sm">
-            <span className="text-error">Unlearn {kanji.character}? Deletes progress + reviews.</span>
-            <button onClick={() => unlearnMutation.mutate()} disabled={unlearnMutation.isPending}
-              className="px-3 py-1.5 rounded-lg bg-error text-white font-bold disabled:opacity-50">Yes</button>
-            <button onClick={() => setConfirmUnlearn(false)} className="px-3 py-1.5 rounded-lg border border-border font-bold hover:bg-border">Cancel</button>
+            <span className="text-destructive">Unlearn {kanji.character}? Deletes progress + reviews.</span>
+            <Button size="sm" variant="destructive" onClick={() => unlearnMutation.mutate()} disabled={unlearnMutation.isPending}>Yes</Button>
+            <Button size="sm" variant="outline" onClick={() => setConfirmUnlearn(false)}>Cancel</Button>
           </span>
         )}
       </div>
       {actionMsg && (
-        <p className={`text-sm ${actionMsg.includes('!') ? 'text-success' : 'text-error'}`}>{actionMsg}</p>
+        <p className={`text-sm ${actionMsg.includes('!') ? 'text-success' : 'text-destructive'}`}>{actionMsg}</p>
       )}
 
       {/* Radicals */}
@@ -163,13 +172,13 @@ export function KanjiDetailPage() {
       <Section title="Readings">
         <div className="grid grid-cols-2 gap-4 text-sm">
           <div>
-            <span className="text-text-muted text-xs block mb-0.5">On'yomi</span>
+            <span className="text-muted-foreground text-xs block mb-0.5">On'yomi</span>
             <span lang="ja" className="text-lg">
               {kanji.readings_on.map(katakanaToHiragana).join('、') || 'None'}
             </span>
           </div>
           <div>
-            <span className="text-text-muted text-xs block mb-0.5">Kun'yomi</span>
+            <span className="text-muted-foreground text-xs block mb-0.5">Kun'yomi</span>
             <span lang="ja" className="text-lg">{kanji.readings_kun.join('、') || 'None'}</span>
           </div>
         </div>
@@ -178,7 +187,7 @@ export function KanjiDetailPage() {
       {/* Found in Vocabulary */}
       <Section title="Found in Vocabulary">
         {foundIn.isLoading ? (
-          <p className="text-sm text-text-muted animate-pulse">Loading…</p>
+          <p className="text-sm text-muted-foreground animate-pulse">Loading…</p>
         ) : foundIn.data && foundIn.data.length > 0 ? (
           <div className="flex flex-wrap gap-2">
             {foundIn.data.map((v) => (
@@ -194,7 +203,7 @@ export function KanjiDetailPage() {
             ))}
           </div>
         ) : (
-          <p className="text-sm text-text-muted">No vocabulary uses this kanji yet.</p>
+          <p className="text-sm text-muted-foreground">No vocabulary uses this kanji yet.</p>
         )}
       </Section>
 

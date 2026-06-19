@@ -5,6 +5,10 @@ import { api } from '../lib/api';
 import { SubjectCard } from '../components/SubjectCard';
 import { Section, ProgressionSection } from '../components/SubjectDetail';
 import { EditVocabForm, queueVocabAndKanji } from './VocabPage';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Badge } from '@/components/ui/badge';
+import { Card } from '@/components/ui/card';
 
 export function VocabDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -109,12 +113,12 @@ export function VocabDetailPage() {
   };
 
   if (vocabQuery.isLoading) {
-    return <div className="text-text-muted animate-pulse py-10 text-center">Loading…</div>;
+    return <div className="text-muted-foreground animate-pulse py-10 text-center">Loading…</div>;
   }
   if (!item) {
     return (
       <div className="space-y-3 text-center py-10">
-        <p className="text-text-muted">Vocabulary not found.</p>
+        <p className="text-muted-foreground">Vocabulary not found.</p>
         <Link to="/vocab" className="text-wk-vocab font-bold">← Back to Vocabulary</Link>
       </div>
     );
@@ -123,76 +127,75 @@ export function VocabDetailPage() {
   if (editing) {
     return (
       <div className="max-w-3xl mx-auto space-y-4">
-        <button onClick={() => setEditing(false)} className="text-sm text-text-muted hover:text-text">← Cancel edit</button>
-        <div className="bg-surface rounded-xl shadow-sm overflow-hidden">
+        <Button variant="ghost" size="sm" onClick={() => setEditing(false)} className="text-muted-foreground">← Cancel edit</Button>
+        <Card className="overflow-hidden p-0">
           <EditVocabForm item={item} queryClient={queryClient} onDone={() => { setEditing(false); refetchVocab(); }} />
-        </div>
+        </Card>
       </div>
     );
   }
 
   return (
     <div className="max-w-3xl mx-auto space-y-4">
-      <button onClick={() => navigate(-1)} className="text-sm text-text-muted hover:text-text">← Back</button>
+      <Button variant="ghost" size="sm" onClick={() => navigate(-1)} className="text-muted-foreground">← Back</Button>
 
       {/* Hero */}
-      <div className="bg-surface rounded-xl p-6 shadow-sm flex items-center gap-5">
+      <Card className="p-6 flex-row items-center gap-5">
         <div className="bg-wk-vocab border-2 border-wk-vocab-dark px-5 py-3 rounded-xl flex items-center justify-center text-white text-4xl font-bold shrink-0 whitespace-nowrap" lang="ja">
           {item.word}
         </div>
         <div className="min-w-0">
           <h1 className="text-3xl font-bold">{item.meanings[0]}</h1>
           {item.meanings.length > 1 && (
-            <p className="text-text-muted">{item.meanings.slice(1).join(', ')}</p>
+            <p className="text-muted-foreground">{item.meanings.slice(1).join(', ')}</p>
           )}
-          <p lang="ja" className="text-text-muted mt-1">{item.readings.join('、')}</p>
+          <p lang="ja" className="text-muted-foreground mt-1">{item.readings.join('、')}</p>
           <div className="flex items-center gap-2 flex-wrap mt-2 text-xs">
             {item.tags?.map((t) => (
-              <span key={t.id} className="bg-wk-vocab/10 text-wk-vocab px-2 py-0.5 rounded-full font-medium">{t.name}</span>
+              <Badge key={t.id} variant="secondary" className="bg-wk-vocab/10 text-wk-vocab font-medium">{t.name}</Badge>
             ))}
-            {item.creator_comment && <span className="text-text-muted italic">"{item.creator_comment}"</span>}
-            {item.creator_username && <span className="text-text-muted">by {item.creator_username}</span>}
+            {item.creator_comment && <span className="text-muted-foreground italic">"{item.creator_comment}"</span>}
+            {item.creator_username && <span className="text-muted-foreground">by {item.creator_username}</span>}
           </div>
         </div>
-      </div>
+      </Card>
 
       {/* Actions */}
       <div className="flex items-center gap-2 flex-wrap">
         {!alreadyLearned && (
-          <button onClick={() => queueMutation.mutate()} disabled={queueMutation.isPending}
-            className="px-4 py-2 rounded-lg bg-wk-vocab text-white font-bold text-sm hover:opacity-90 disabled:opacity-50">
+          <Button onClick={() => queueMutation.mutate()} disabled={queueMutation.isPending}>
             {queueMutation.isPending ? 'Adding…' : 'Add to Queue'}
-          </button>
+          </Button>
         )}
         {alreadyLearned && isBurned && !confirmResurrect && (
-          <button onClick={() => setConfirmResurrect(true)} className="px-4 py-2 rounded-lg bg-wk-radical text-white font-bold text-sm hover:opacity-90">Resurrect</button>
+          <Button onClick={() => setConfirmResurrect(true)} className="bg-wk-radical text-white hover:bg-wk-radical/90">Resurrect</Button>
         )}
         {alreadyLearned && !confirmUnlearn && (
-          <button onClick={() => setConfirmUnlearn(true)} className="px-4 py-2 rounded-lg bg-surface border border-border text-sm font-bold hover:bg-border">Unlearn</button>
+          <Button variant="outline" onClick={() => setConfirmUnlearn(true)}>Unlearn</Button>
         )}
         <div className="ml-auto flex items-center gap-2">
-          <button onClick={() => setEditing(true)} className="px-4 py-2 rounded-lg bg-surface border border-border text-sm font-bold hover:bg-border">Edit</button>
-          <button onClick={handleDelete} disabled={deleteMut.isPending}
-            className="px-4 py-2 rounded-lg border border-error/40 text-error text-sm font-bold hover:bg-error/10 disabled:opacity-50">
+          <Button variant="outline" onClick={() => setEditing(true)}>Edit</Button>
+          <Button variant="outline" onClick={handleDelete} disabled={deleteMut.isPending}
+            className="border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive">
             {deleteMut.isPending ? 'Deleting…' : 'Delete'}
-          </button>
+          </Button>
         </div>
       </div>
       {confirmResurrect && (
         <div className="flex items-center gap-2 text-sm">
-          <span className="text-text-muted">Resurrect {item.word} to Apprentice I?</span>
-          <button onClick={() => resurrectMutation.mutate()} disabled={resurrectMutation.isPending} className="px-3 py-1.5 rounded-lg bg-wk-radical text-white font-bold disabled:opacity-50">Yes</button>
-          <button onClick={() => setConfirmResurrect(false)} className="px-3 py-1.5 rounded-lg border border-border font-bold hover:bg-border">Cancel</button>
+          <span className="text-muted-foreground">Resurrect {item.word} to Apprentice I?</span>
+          <Button size="sm" onClick={() => resurrectMutation.mutate()} disabled={resurrectMutation.isPending} className="bg-wk-radical text-white hover:bg-wk-radical/90">Yes</Button>
+          <Button size="sm" variant="outline" onClick={() => setConfirmResurrect(false)}>Cancel</Button>
         </div>
       )}
       {confirmUnlearn && (
         <div className="flex items-center gap-2 text-sm">
-          <span className="text-error">Unlearn {item.word}? Deletes progress + reviews.</span>
-          <button onClick={() => unlearnMutation.mutate()} disabled={unlearnMutation.isPending} className="px-3 py-1.5 rounded-lg bg-error text-white font-bold disabled:opacity-50">Yes</button>
-          <button onClick={() => setConfirmUnlearn(false)} className="px-3 py-1.5 rounded-lg border border-border font-bold hover:bg-border">Cancel</button>
+          <span className="text-destructive">Unlearn {item.word}? Deletes progress + reviews.</span>
+          <Button size="sm" variant="destructive" onClick={() => unlearnMutation.mutate()} disabled={unlearnMutation.isPending}>Yes</Button>
+          <Button size="sm" variant="outline" onClick={() => setConfirmUnlearn(false)}>Cancel</Button>
         </div>
       )}
-      {actionMsg && <p className={`text-sm ${actionMsg.includes('!') ? 'text-success' : 'text-error'}`}>{actionMsg}</p>}
+      {actionMsg && <p className={`text-sm ${actionMsg.includes('!') ? 'text-success' : 'text-destructive'}`}>{actionMsg}</p>}
 
       {/* Kanji Composition */}
       {item.kanji && item.kanji.length > 0 && (
@@ -228,14 +231,14 @@ export function VocabDetailPage() {
         title="Context"
         action={
           <div className="flex gap-2">
-            <button onClick={() => { setShowAddSentence(!showAddSentence); setShowSuggest(false); }}
-              className="text-xs font-bold text-text-muted hover:text-wk-vocab">
+            <Button variant="ghost" size="sm" onClick={() => { setShowAddSentence(!showAddSentence); setShowSuggest(false); }}
+              className="h-auto px-1 py-0 text-xs font-bold text-muted-foreground hover:text-wk-vocab hover:bg-transparent">
               {showAddSentence ? 'Cancel' : '+ Sentence'}
-            </button>
-            <button onClick={() => { setShowSuggest(!showSuggest); setShowAddSentence(false); }}
-              className="text-xs font-bold text-text-muted hover:text-wk-vocab">
+            </Button>
+            <Button variant="ghost" size="sm" onClick={() => { setShowSuggest(!showSuggest); setShowAddSentence(false); }}
+              className="h-auto px-1 py-0 text-xs font-bold text-muted-foreground hover:text-wk-vocab hover:bg-transparent">
               {showSuggest ? 'Cancel' : 'Find Links'}
-            </button>
+            </Button>
           </div>
         }
       >
@@ -244,56 +247,54 @@ export function VocabDetailPage() {
             editingSentenceId === s.id ? (
               <div key={s.id} className="flex gap-2">
                 <div className="flex-1 space-y-1">
-                  <input type="text" value={editJa} onChange={(e) => setEditJa(e.target.value)} lang="ja"
-                    className="w-full px-2.5 py-1.5 rounded border border-border bg-surface-alt text-sm focus:outline-none focus:ring-1 focus:ring-wk-vocab" />
-                  <input type="text" value={editEn} onChange={(e) => setEditEn(e.target.value)}
-                    className="w-full px-2.5 py-1.5 rounded border border-border bg-surface-alt text-sm focus:outline-none focus:ring-1 focus:ring-wk-vocab" />
+                  <Input type="text" value={editJa} onChange={(e) => setEditJa(e.target.value)} lang="ja"
+                    className="h-auto py-1.5 text-sm" />
+                  <Input type="text" value={editEn} onChange={(e) => setEditEn(e.target.value)}
+                    className="h-auto py-1.5 text-sm" />
                 </div>
                 <div className="flex flex-col gap-1 self-end">
-                  <button onClick={() => updateSentenceMut.mutate({ sid: s.id, ja: editJa.trim(), en: editEn.trim() })}
-                    disabled={!editJa.trim() || !editEn.trim() || updateSentenceMut.isPending}
-                    className="px-3 rounded bg-wk-vocab text-white text-xs font-bold py-1.5 disabled:opacity-50">Save</button>
-                  <button onClick={() => setEditingSentenceId(null)} className="px-3 rounded border border-border text-xs font-bold py-1 hover:bg-border">Cancel</button>
+                  <Button size="sm" onClick={() => updateSentenceMut.mutate({ sid: s.id, ja: editJa.trim(), en: editEn.trim() })}
+                    disabled={!editJa.trim() || !editEn.trim() || updateSentenceMut.isPending}>Save</Button>
+                  <Button size="sm" variant="outline" onClick={() => setEditingSentenceId(null)}>Cancel</Button>
                 </div>
               </div>
             ) : (
-              <div key={s.id} className="bg-surface-alt rounded-lg px-3 py-2 text-sm group relative">
+              <div key={s.id} className="bg-muted rounded-lg px-3 py-2 text-sm group relative">
                 <p lang="ja">{s.ja}</p>
-                <p className="text-text-muted text-xs">{s.en}</p>
+                <p className="text-muted-foreground text-xs">{s.en}</p>
                 <div className="absolute top-1 right-2 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                   <button onClick={() => { setEditingSentenceId(s.id); setEditJa(s.ja); setEditEn(s.en); }}
-                    className="text-text-muted hover:text-wk-vocab text-xs" title="Edit sentence">&#9998;</button>
-                  <button onClick={() => unlinkMut.mutate(s.id)} className="text-text-muted hover:text-error text-xs" title="Unlink sentence">&times;</button>
+                    className="text-muted-foreground hover:text-wk-vocab text-xs" title="Edit sentence">&#9998;</button>
+                  <button onClick={() => unlinkMut.mutate(s.id)} className="text-muted-foreground hover:text-destructive text-xs" title="Unlink sentence">&times;</button>
                 </div>
               </div>
             ),
           )}
           {item.sentences.length === 0 && !showAddSentence && !showSuggest && (
-            <p className="text-sm text-text-muted">No example sentences yet.</p>
+            <p className="text-sm text-muted-foreground">No example sentences yet.</p>
           )}
           {showAddSentence && (
             <div className="flex gap-2">
               <div className="flex-1 space-y-1">
-                <input type="text" value={newJa} onChange={(e) => setNewJa(e.target.value)} placeholder="Japanese..." lang="ja"
-                  className="w-full px-2.5 py-1.5 rounded border border-border bg-surface-alt text-sm focus:outline-none focus:ring-1 focus:ring-wk-vocab" />
-                <input type="text" value={newEn} onChange={(e) => setNewEn(e.target.value)} placeholder="English..."
-                  className="w-full px-2.5 py-1.5 rounded border border-border bg-surface-alt text-sm focus:outline-none focus:ring-1 focus:ring-wk-vocab" />
+                <Input type="text" value={newJa} onChange={(e) => setNewJa(e.target.value)} placeholder="Japanese..." lang="ja"
+                  className="h-auto py-1.5 text-sm" />
+                <Input type="text" value={newEn} onChange={(e) => setNewEn(e.target.value)} placeholder="English..."
+                  className="h-auto py-1.5 text-sm" />
               </div>
-              <button onClick={() => createSentenceMut.mutate()} disabled={!newJa.trim() || !newEn.trim() || createSentenceMut.isPending}
-                className="px-3 self-end rounded bg-wk-vocab text-white text-xs font-bold py-1.5 disabled:opacity-50">Add</button>
+              <Button size="sm" className="self-end" onClick={() => createSentenceMut.mutate()} disabled={!newJa.trim() || !newEn.trim() || createSentenceMut.isPending}>Add</Button>
             </div>
           )}
           {showSuggest && (
             <div className="space-y-1">
-              {suggestions.isLoading && <p className="text-xs text-text-muted animate-pulse">Searching...</p>}
-              {suggestions.data?.length === 0 && <p className="text-xs text-text-muted">No matches found.</p>}
+              {suggestions.isLoading && <p className="text-xs text-muted-foreground animate-pulse">Searching...</p>}
+              {suggestions.data?.length === 0 && <p className="text-xs text-muted-foreground">No matches found.</p>}
               {suggestions.data?.map((s) => (
-                <div key={s.id} className="bg-surface-alt rounded-lg px-3 py-1.5 text-sm flex items-center gap-2">
+                <div key={s.id} className="bg-muted rounded-lg px-3 py-1.5 text-sm flex items-center gap-2">
                   <div className="flex-1 min-w-0">
                     <span lang="ja">{s.ja}</span>
-                    <span className="text-text-muted text-xs ml-2">{s.en}</span>
+                    <span className="text-muted-foreground text-xs ml-2">{s.en}</span>
                   </div>
-                  <button onClick={() => linkMut.mutate(s.id)} className="text-xs text-wk-vocab font-bold hover:underline shrink-0">Link</button>
+                  <Button variant="link" size="sm" onClick={() => linkMut.mutate(s.id)} className="h-auto p-0 text-xs text-wk-vocab font-bold shrink-0">Link</Button>
                 </div>
               ))}
             </div>

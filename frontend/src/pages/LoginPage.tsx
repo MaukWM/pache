@@ -1,5 +1,15 @@
 import { useState } from 'react';
 import { useAuth } from '../lib/auth';
+import { Button } from '@/components/ui/button';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 
 export function LoginPage() {
   const { login } = useAuth();
@@ -28,50 +38,59 @@ export function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-bg flex items-center justify-center">
-      <div className="bg-surface rounded-2xl shadow-lg p-10 w-full max-w-sm text-center">
-        <div className="mb-6">
-          <div className="w-20 h-20 bg-wk-kanji rounded-full mx-auto flex items-center justify-center mb-4">
-            <span className="text-white text-3xl font-bold">漢</span>
+    <div className="flex min-h-screen items-center justify-center bg-background px-4">
+      <Card className="w-full max-w-sm">
+        <CardHeader className="items-center text-center">
+          <div className="mx-auto mb-2 flex size-16 items-center justify-center rounded-full bg-wk-kanji">
+            <span lang="ja" className="text-3xl font-bold text-white">
+              漢
+            </span>
           </div>
-          <h1 className="text-2xl font-bold text-text">iwkisgwitnwk2</h1>
-          <p className="text-text-muted text-sm mt-1">
-            Social kanji learning for friends
+          <CardTitle className="text-2xl">iwkisgwitnwk2</CardTitle>
+          <CardDescription>Social kanji learning for friends</CardDescription>
+        </CardHeader>
+
+        <CardContent>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="username">Username</Label>
+              <Input
+                id="username"
+                type="text"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                placeholder="Enter your username"
+                autoFocus
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="password">Password</Label>
+              <Input
+                id="password"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Password"
+              />
+            </div>
+
+            <Button
+              type="submit"
+              disabled={loading || !username.trim() || !password}
+              className="w-full"
+            >
+              {loading ? 'Logging in...' : 'Log In'}
+            </Button>
+
+            {error && <p className="text-sm text-destructive">{error}</p>}
+          </form>
+
+          <p className="mt-6 text-center text-xs text-muted-foreground">
+            No account? Ask an admin to create one for you.
           </p>
-        </div>
-
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <input
-            type="text"
-            value={username}
-            onChange={(e) => setUsername(e.target.value)}
-            placeholder="Enter your username"
-            autoFocus
-            className="w-full px-4 py-3 rounded-lg border border-border bg-surface-alt text-text text-center text-lg focus:outline-none focus:ring-2 focus:ring-wk-kanji focus:border-transparent placeholder:text-text-muted/50"
-          />
-          <input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            placeholder="Password"
-            className="w-full px-4 py-3 rounded-lg border border-border bg-surface-alt text-text text-center text-lg focus:outline-none focus:ring-2 focus:ring-wk-kanji focus:border-transparent placeholder:text-text-muted/50"
-          />
-          <button
-            type="submit"
-            disabled={loading || !username.trim() || !password}
-            className="w-full py-3 rounded-lg bg-wk-kanji text-white font-bold text-lg hover:bg-accent-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {loading ? 'Logging in...' : 'Log In'}
-          </button>
-          {error && (
-            <p className="text-error text-sm">{error}</p>
-          )}
-        </form>
-
-        <p className="text-text-muted text-xs mt-6">
-          No account? Ask an admin to create one for you.
-        </p>
-      </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }

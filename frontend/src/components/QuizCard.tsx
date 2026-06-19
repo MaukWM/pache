@@ -1,8 +1,14 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
+import { ChevronRight } from 'lucide-react';
 import { RadicalList } from './RadicalList';
 import { romajiToHiraganaLive, katakanaToHiragana } from '../lib/romaji';
 import type { KanjiComposition } from '../lib/api';
+import { cn } from '@/lib/utils';
+import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Separator } from '@/components/ui/separator';
 
 // A collapsible info section in the F-key inspection panel (WaniKani-style).
 // The relevant section auto-opens; the other (e.g. meaning while quizzing the
@@ -18,9 +24,9 @@ function InfoSection({
 }) {
   return (
     <details open={open} className="group border-b border-border">
-      <summary className="flex items-center justify-between cursor-pointer list-none select-none py-2 text-sm font-bold uppercase tracking-wide text-text-muted hover:text-text">
+      <summary className="flex cursor-pointer list-none items-center justify-between py-2 text-sm font-bold tracking-wide text-muted-foreground uppercase select-none hover:text-foreground">
         <span>{title}</span>
-        <span className="text-[10px] transition-transform group-open:rotate-90">▶</span>
+        <ChevronRight className="size-3.5 transition-transform group-open:rotate-90" />
       </summary>
       <div className="pb-3">{children}</div>
     </details>
@@ -110,22 +116,26 @@ export function QuizCard({
   const vocabCreator = details.creator_username;
 
   const headerBg = isKanji ? 'bg-wk-kanji' : 'bg-wk-vocab';
-  const labelBg = cardType === 'reading' ? 'bg-[#303030] text-white' : 'bg-white text-text';
-  const inputStyle = !answered
-    ? 'border-transparent bg-white text-text'
+  const labelBg =
+    cardType === 'reading' ? 'bg-[#303030] text-white' : 'bg-card text-foreground';
+  // The answer field flips to a solid correct/incorrect color once answered.
+  const inputStateClass = !answered
+    ? ''
     : correct
-      ? 'border-transparent bg-[#88cc00] text-white'
-      : 'border-transparent bg-[#ff4444] text-white';
+      ? 'border-success bg-success text-white placeholder:text-white/70'
+      : 'border-destructive bg-destructive text-white placeholder:text-white/70';
 
   return (
     <>
       {/* Character */}
-      <div className={`${headerBg} p-12 text-white text-center`}>
-        <div className="text-9xl font-bold">{display}</div>
+      <div className={cn(headerBg, 'p-12 text-center text-white')}>
+        <div lang="ja" className="text-9xl font-bold">
+          {display}
+        </div>
       </div>
 
       {/* Reading/Meaning bar */}
-      <div className={`${labelBg} py-2 text-center transition-colors duration-200`}>
+      <div className={cn(labelBg, 'py-2 text-center transition-colors duration-200')}>
         <span className="text-sm tracking-wide capitalize">
           {itemType}{' '}
           <span className="font-black">{cardType === 'reading' ? 'Reading' : 'Meaning'}</span>
@@ -133,9 +143,9 @@ export function QuizCard({
       </div>
 
       {/* Input */}
-      <div className="bg-surface">
-        <div className="max-w-2xl mx-auto p-4">
-          <input
+      <div className="bg-card">
+        <div className="mx-auto max-w-2xl p-4">
+          <Input
             ref={inputRef}
             type="text"
             value={input}
@@ -147,31 +157,32 @@ export function QuizCard({
             placeholder={cardType === 'reading' ? '答え' : 'Your Response'}
             disabled={answered}
             lang={cardType === 'reading' ? 'ja' : 'en'}
-            className={`w-full px-4 py-3 text-center text-2xl rounded-lg border-2 transition-colors focus:outline-none ${inputStyle} ${shaking ? 'animate-shake' : ''}`}
+            className={cn(
+              'h-auto rounded-lg border-2 py-3 text-center !text-2xl transition-colors disabled:opacity-100',
+              inputStateClass,
+              shaking && 'animate-shake',
+            )}
             autoComplete="off"
             autoCapitalize="none"
             autoCorrect="off"
             spellCheck={false}
           />
-          {inputError && <p className="text-center text-sm text-error mt-2">{inputError}</p>}
+          {inputError && <p className="mt-2 text-center text-sm text-destructive">{inputError}</p>}
           {warning && !inputError && (
-            <p className="text-center text-sm text-[#c08400] mt-2 font-medium">{warning}</p>
+            <p className="mt-2 text-center text-sm font-medium text-[#c08400]">{warning}</p>
           )}
         </div>
 
         {answered && (
-          <div className="max-w-2xl mx-auto px-4 pb-5 space-y-3">
+          <div className="mx-auto max-w-2xl space-y-3 px-4 pb-5">
             <div className="flex items-center justify-center gap-4">
-              <span className={`font-bold text-lg ${correct ? 'text-success' : 'text-error'}`}>
+              <span className={cn('text-lg font-bold', correct ? 'text-success' : 'text-destructive')}>
                 {correct ? 'Correct!' : 'Incorrect'}
               </span>
-              <button
-                onClick={onToggleInfo}
-                className="text-xs text-text-muted hover:text-text px-2 py-1 rounded bg-surface-alt border border-border transition-colors"
-              >
+              <Button variant="outline" size="sm" onClick={onToggleInfo} className="text-muted-foreground">
                 {showInfo ? 'Hide Info' : 'Item Info'}{' '}
-                <kbd className="ml-1 px-1 py-0.5 rounded bg-border text-[10px] font-mono">F</kbd>
-              </button>
+                <kbd className="ml-1 rounded bg-muted px-1 py-0.5 font-mono text-[10px]">F</kbd>
+              </Button>
             </div>
 
             {showInfo && (
@@ -180,7 +191,7 @@ export function QuizCard({
                 <InfoSection title="Meaning" open={cardType === 'meaning'}>
                   <p className="text-xl">{meanings[0]}</p>
                   {meanings.length > 1 && (
-                    <p className="text-sm text-text-muted mt-0.5">{meanings.slice(1).join(', ')}</p>
+                    <p className="mt-0.5 text-sm text-muted-foreground">{meanings.slice(1).join(', ')}</p>
                   )}
                 </InfoSection>
 
@@ -190,13 +201,13 @@ export function QuizCard({
                     <div className="flex gap-8">
                       {readingsOn.length > 0 && (
                         <div>
-                          <span className="text-text-muted text-xs block">On'yomi</span>
+                          <span className="block text-xs text-muted-foreground">On'yomi</span>
                           <span lang="ja" className="text-xl">{readingsOn.map(katakanaToHiragana).join('、')}</span>
                         </div>
                       )}
                       {readingsKun.length > 0 && (
                         <div>
-                          <span className="text-text-muted text-xs block">Kun'yomi</span>
+                          <span className="block text-xs text-muted-foreground">Kun'yomi</span>
                           <span lang="ja" className="text-xl">{readingsKun.join('、')}</span>
                         </div>
                       )}
@@ -214,15 +225,15 @@ export function QuizCard({
                 )}
                 {!isKanji && kanjiComposition.length > 0 && (
                   <InfoSection title="Kanji Composition">
-                    <div className="flex gap-4 flex-wrap">
+                    <div className="flex flex-wrap gap-4">
                       {kanjiComposition.map((k) => (
                         <Link
                           key={k.character}
                           to={`/kanji/${encodeURIComponent(k.character)}`}
-                          className="flex items-center gap-2 rounded hover:bg-surface-alt px-1 -mx-1 transition-colors"
+                          className="-mx-1 flex items-center gap-2 rounded px-1 transition-colors hover:bg-accent"
                           title={`View ${k.character}`}
                         >
-                          <div className="bg-wk-kanji border-2 border-wk-kanji-dark w-9 h-9 rounded-lg flex items-center justify-center text-white font-bold" lang="ja">
+                          <div className="flex size-9 items-center justify-center rounded-lg border-2 border-wk-kanji-dark bg-wk-kanji font-bold text-white" lang="ja">
                             {k.character}
                           </div>
                           <span className="text-sm">{k.meanings[0]}</span>
@@ -236,24 +247,29 @@ export function QuizCard({
 
             {/* Tags & comment — always shown for vocab */}
             {!isKanji && (vocabTags.length > 0 || vocabComment || vocabCreator) && (
-              <div className="flex items-center gap-2 flex-wrap text-xs text-text-muted">
+              <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                 {vocabTags.map((tag) => (
-                  <span key={tag} className="bg-wk-vocab/10 text-wk-vocab px-2 py-0.5 rounded-full font-medium">
+                  <Badge
+                    key={tag}
+                    variant="secondary"
+                    className="rounded-full bg-wk-vocab/10 text-wk-vocab"
+                  >
                     {tag}
-                  </span>
+                  </Badge>
                 ))}
                 {vocabComment && <span className="italic">"{vocabComment}"</span>}
                 {vocabCreator && <span>by {vocabCreator}</span>}
               </div>
             )}
 
-            <div className="text-center text-xs text-text-muted space-x-3">
+            <div className="flex items-center justify-center gap-4 text-center text-xs text-muted-foreground">
               <span>
-                <kbd className="px-1.5 py-0.5 rounded bg-border text-text text-[10px] font-mono">Enter</kbd>{' '}
+                <kbd className="rounded bg-muted px-1.5 py-0.5 font-mono text-[10px] text-foreground">Enter</kbd>{' '}
                 {correct ? continueLabel : wrongLabel}
               </span>
+              <Separator orientation="vertical" className="!h-3.5" />
               <span>
-                <kbd className="px-1.5 py-0.5 rounded bg-border text-text text-[10px] font-mono">Backspace</kbd>{' '}
+                <kbd className="rounded bg-muted px-1.5 py-0.5 font-mono text-[10px] text-foreground">Backspace</kbd>{' '}
                 {correct ? 'undo' : 'retype'}
               </span>
             </div>
