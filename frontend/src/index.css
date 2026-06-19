@@ -34,6 +34,13 @@
   --input: #c5c8cf;
   --ring: #16171c;
   --grid-line: rgba(20, 24, 40, 0.06);
+
+  /* SRS stage colors — full-strength on light paper. */
+  --srs-apprentice: #dd0093;
+  --srs-guru: #882d9e;
+  --srs-master: #294ddb;
+  --srs-enlightened: #0093dd;
+  --srs-burned: #c8a000;
 }
 
 .dark {
@@ -57,6 +64,14 @@
   --input: #24262f;
   --ring: #e7e8ee;
   --grid-line: rgba(150, 162, 188, 0.05);
+
+  /* SRS stage colors — desaturated & dimmed so they don't glare on dark paper
+     (borders and the burned fill tint both read from these). */
+  --srs-apprentice: #c0497f;
+  --srs-guru: #855a96;
+  --srs-master: #4a63c0;
+  --srs-enlightened: #3c87b6;
+  --srs-burned: #998334;
 }
 
 @theme inline {
@@ -95,12 +110,12 @@
   --color-wk-burned: #6b7079;
   --color-wk-burned-dark: #333333;
 
-  /* SRS stage colors (functional) */
-  --color-srs-apprentice: #dd0093;
-  --color-srs-guru: #882d9e;
-  --color-srs-master: #294ddb;
-  --color-srs-enlightened: #0093dd;
-  --color-srs-burned: #c8a000;
+  /* SRS stage colors (functional) — theme-aware via the --srs-* vars above. */
+  --color-srs-apprentice: var(--srs-apprentice);
+  --color-srs-guru: var(--srs-guru);
+  --color-srs-master: var(--srs-master);
+  --color-srs-enlightened: var(--srs-enlightened);
+  --color-srs-burned: var(--srs-burned);
   --color-success: #16a34a;
 
   /* Type roles. Mincho is the Japanese face everywhere — it's appended as the

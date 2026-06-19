@@ -12,17 +12,19 @@ export const SRS_STAGE_NAMES: Record<number, string> = {
   9: 'バーンド',
 };
 
+// Colors resolve to the --srs-* CSS vars (defined in index.css), so they
+// automatically soften in dark mode. Safe in inline styles and color-mix().
 export const SRS_STAGE_COLORS: Record<number, string> = {
   0: '#999999',
-  1: '#dd0093',
-  2: '#dd0093',
-  3: '#dd0093',
-  4: '#dd0093',
-  5: '#882d9e',
-  6: '#882d9e',
-  7: '#294ddb',
-  8: '#0093dd',
-  9: '#c8a000',
+  1: 'var(--srs-apprentice)',
+  2: 'var(--srs-apprentice)',
+  3: 'var(--srs-apprentice)',
+  4: 'var(--srs-apprentice)',
+  5: 'var(--srs-guru)',
+  6: 'var(--srs-guru)',
+  7: 'var(--srs-master)',
+  8: 'var(--srs-enlightened)',
+  9: 'var(--srs-burned)',
 };
 
 export const SRS_GROUP_NAMES = ['アプレンティス', 'グル', 'マスター', 'エンライテンド', 'バーンド'] as const;
@@ -38,11 +40,11 @@ export function getSrsGroup(stage: number): string {
 
 export function getSrsGroupColor(group: string): string {
   switch (group) {
-    case 'アプレンティス': return '#dd0093';
-    case 'グル': return '#882d9e';
-    case 'マスター': return '#294ddb';
-    case 'エンライテンド': return '#0093dd';
-    case 'バーンド': return '#c8a000';
+    case 'アプレンティス': return 'var(--srs-apprentice)';
+    case 'グル': return 'var(--srs-guru)';
+    case 'マスター': return 'var(--srs-master)';
+    case 'エンライテンド': return 'var(--srs-enlightened)';
+    case 'バーンド': return 'var(--srs-burned)';
     default: return '#999999';
   }
 }

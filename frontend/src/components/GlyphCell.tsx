@@ -38,7 +38,11 @@ export function GlyphCell({
   const stageColor = learned ? SRS_STAGE_COLORS[srsStage!] : undefined;
   const style = stageColor
     ? burned
-      ? { borderColor: stageColor, backgroundColor: `${stageColor}29` }
+      ? {
+          borderColor: stageColor,
+          // ~16% tint of the (theme-softened) burned color over the card.
+          backgroundColor: `color-mix(in srgb, ${stageColor} 16%, transparent)`,
+        }
       : { borderColor: stageColor }
     : undefined;
 
