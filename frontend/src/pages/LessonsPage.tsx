@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
+import { X } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api, type QueueItem } from '../lib/api';
 import { RadicalList } from '../components/RadicalList';
@@ -10,6 +11,15 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
+
+// Remove-from-queue badge: a quiet paper square (sharp corners, ink border) that
+// surfaces on cell hover and inks in (bg-foreground) when you hover the badge
+// itself — mirroring the ✓ check badge. Stays in the sumi-ink palette; the X
+// icon + tooltip carry the "remove" meaning, so no red is needed.
+const removeBadgeClass =
+  'absolute -top-2 -right-2 z-10 grid size-5 place-items-center border border-border ' +
+  'bg-background text-muted-foreground opacity-0 transition-colors transition-opacity ' +
+  'group-hover:opacity-100 hover:border-foreground hover:bg-foreground hover:text-background';
 
 type Tab = 'composition' | 'meaning' | 'reading';
 
@@ -176,10 +186,11 @@ export function LessonsPage() {
               removeMutation.mutate({ item_type: item.item_type, item_id: item.item_id });
               setSelectedIds((prev) => { const next = new Set(prev); next.delete(key); return next; });
             }}
-            className="absolute -top-2 -right-2 z-10 grid size-5 place-items-center bg-destructive font-mono text-[10px] text-destructive-foreground opacity-0 transition-opacity group-hover:opacity-100"
+            className={removeBadgeClass}
             title="キューから削除"
+            aria-label="キューから削除"
           >
-            &times;
+            <X className="size-3" strokeWidth={2.5} />
           </button>
         </div>
       );
@@ -265,10 +276,11 @@ export function LessonsPage() {
                               e.stopPropagation();
                               removeMutation.mutate({ item_type: item.item_type, item_id: item.item_id });
                             }}
-                            className="absolute -top-2 -right-2 z-10 grid size-5 place-items-center bg-destructive font-mono text-[10px] text-destructive-foreground opacity-0 transition-opacity group-hover:opacity-100"
+                            className={removeBadgeClass}
                             title="キューから削除"
+                            aria-label="キューから削除"
                           >
-                            &times;
+                            <X className="size-3" strokeWidth={2.5} />
                           </button>
                         </div>
                       );
