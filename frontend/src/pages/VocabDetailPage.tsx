@@ -3,6 +3,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../lib/api';
 import { SubjectCard } from '../components/SubjectCard';
+import { GlyphCell } from '../components/GlyphCell';
 import { Section, ProgressionSection } from '../components/SubjectDetail';
 import { EditVocabForm, queueVocabAndKanji } from './VocabPage';
 import { Button } from '@/components/ui/button';
@@ -140,10 +141,8 @@ export function VocabDetailPage() {
       <Button variant="ghost" size="sm" onClick={() => navigate(-1)} className="text-muted-foreground">← Back</Button>
 
       {/* Hero */}
-      <Card className="p-6 flex-row items-center gap-5">
-        <div className="bg-wk-vocab border-2 border-wk-vocab-dark px-5 py-3 rounded-xl flex items-center justify-center text-white text-4xl font-bold shrink-0 whitespace-nowrap" lang="ja">
-          {item.word}
-        </div>
+      <Card className="flex-row items-center gap-5 p-6">
+        <GlyphCell type="vocab" character={item.word} srsStage={currentStage} size="lg" />
         <div className="min-w-0">
           <h1 className="text-3xl font-bold">{item.meanings[0]}</h1>
           {item.meanings.length > 1 && (
@@ -168,7 +167,7 @@ export function VocabDetailPage() {
           </Button>
         )}
         {alreadyLearned && isBurned && !confirmResurrect && (
-          <Button onClick={() => setConfirmResurrect(true)} className="bg-wk-radical text-white hover:bg-wk-radical/90">Resurrect</Button>
+          <Button onClick={() => setConfirmResurrect(true)} className="border border-destructive/40 bg-destructive/10 text-destructive hover:bg-destructive/20 hover:text-destructive">Resurrect</Button>
         )}
         {alreadyLearned && !confirmUnlearn && (
           <Button variant="outline" onClick={() => setConfirmUnlearn(true)}>Unlearn</Button>
@@ -184,7 +183,7 @@ export function VocabDetailPage() {
       {confirmResurrect && (
         <div className="flex items-center gap-2 text-sm">
           <span className="text-muted-foreground">Resurrect {item.word} to Apprentice I?</span>
-          <Button size="sm" onClick={() => resurrectMutation.mutate()} disabled={resurrectMutation.isPending} className="bg-wk-radical text-white hover:bg-wk-radical/90">Yes</Button>
+          <Button size="sm" onClick={() => resurrectMutation.mutate()} disabled={resurrectMutation.isPending} className="border border-destructive/40 bg-destructive/10 text-destructive hover:bg-destructive/20 hover:text-destructive">Yes</Button>
           <Button size="sm" variant="outline" onClick={() => setConfirmResurrect(false)}>Cancel</Button>
         </div>
       )}

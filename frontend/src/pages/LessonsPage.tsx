@@ -3,10 +3,12 @@ import { Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api, type QueueItem } from '../lib/api';
 import { RadicalList } from '../components/RadicalList';
+import { GlyphCell } from '../components/GlyphCell';
 import { LessonQuiz } from '../components/LessonQuiz';
 import { QuizShell } from '../components/QuizShell';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
+import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
 
 type Tab = 'composition' | 'meaning' | 'reading' | 'info';
@@ -137,138 +139,145 @@ export function LessonsPage() {
     setActiveTab(tabOrderFor(toStudy[0])[0]);
   };
 
-  // Queue overview
+  // Queue overview — immersive (no navbar), home button via QuizShell.
   if (!sessionActive) {
     const selectedCount = selectedIds.size || unlocked.length;
+    const unlockedKanji = unlocked.filter((i) => i.item_type === 'kanji');
+    const unlockedVocab = unlocked.filter((i) => i.item_type === 'vocab');
+
+    const renderCell = (item: QueueItem) => {
+      const display = item.item_details?.character || item.item_details?.word || '?';
+      const key = itemKey(item);
+      const isSelected = selectedIds.has(key);
+      return (
+        <div key={key} className="group relative">
+          <button
+            onClick={() => toggleSelect(item)}
+            className={cn('block transition-opacity', !isSelected && selectedIds.size > 0 && 'opacity-50')}
+            title={item.item_details?.meanings?.join(', ')}
+          >
+            <GlyphCell
+              type={item.item_type as 'kanji' | 'vocab'}
+              character={display}
+              selected={isSelected}
+              size="md"
+            />
+          </button>
+          {isSelected && (
+            <span className="absolute -top-2 -left-2 z-10 grid size-5 place-items-center bg-foreground font-mono text-[10px] text-background">
+              &#10003;
+            </span>
+          )}
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              removeMutation.mutate({ item_type: item.item_type, item_id: item.item_id });
+              setSelectedIds((prev) => { const next = new Set(prev); next.delete(key); return next; });
+            }}
+            className="absolute -top-2 -right-2 z-10 grid size-5 place-items-center bg-destructive font-mono text-[10px] text-destructive-foreground opacity-0 transition-opacity group-hover:opacity-100"
+            title="Remove from queue"
+          >
+            &times;
+          </button>
+        </div>
+      );
+    };
 
     return (
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-bold">Lessons</h1>
-          {unlocked.length > 0 && (
-            <div className="flex items-center gap-2">
-              <Button variant="outline" onClick={selectAll}>
-                {selectedIds.size === unlocked.length ? 'Deselect All' : 'Select All'}
-              </Button>
-              <Button
-                onClick={startSession}
-                className="bg-wk-radical text-white hover:bg-wk-radical/90"
-              >
-                Start Lessons ({selectedCount})
-              </Button>
-            </div>
+      <QuizShell exitTo="/" right={items.length > 0 ? `${unlocked.length} ready` : undefined}>
+        <div className="mx-auto w-full max-w-4xl space-y-6 px-4 py-8">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <h1 className="font-mono text-2xl font-bold tracking-wide uppercase">Lessons</h1>
+            {unlocked.length > 0 && (
+              <div className="flex items-center gap-2">
+                <Button variant="outline" onClick={selectAll}>
+                  {selectedIds.size === unlocked.length ? 'Deselect All' : 'Select All'}
+                </Button>
+                <Button onClick={startSession}>Start Lessons ({selectedCount})</Button>
+              </div>
+            )}
+          </div>
+
+          {/* Hint */}
+          {unlocked.length > 0 && selectedIds.size === 0 && (
+            <p className="text-sm text-muted-foreground">
+              Tap items to select a subset, or start all {unlocked.length} at once.
+            </p>
+          )}
+          {selectedIds.size > 0 && (
+            <p className="text-sm text-muted-foreground">
+              {selectedIds.size} of {unlocked.length} selected
+            </p>
+          )}
+
+          {queue.isLoading ? (
+            <div className="animate-pulse text-muted-foreground">Loading queue...</div>
+          ) : items.length === 0 ? (
+            <Card className="gap-2 p-10 text-center text-muted-foreground">
+              <p className="mb-2 text-lg font-bold">No lessons queued</p>
+              <p>Add items from the Kanji or Vocab pages to your queue, then come back here to study them.</p>
+            </Card>
+          ) : (
+            <>
+              {/* Grouped by type with a divider so kanji vs vocab read clearly. */}
+              {unlockedKanji.length > 0 && (
+                <div className="space-y-2">
+                  <p className="font-mono text-xs font-semibold tracking-wider text-muted-foreground uppercase">
+                    Kanji ({unlockedKanji.length})
+                  </p>
+                  <div className="flex flex-wrap gap-3">{unlockedKanji.map(renderCell)}</div>
+                </div>
+              )}
+
+              {unlockedKanji.length > 0 && unlockedVocab.length > 0 && <Separator />}
+
+              {unlockedVocab.length > 0 && (
+                <div className="space-y-2">
+                  <p className="font-mono text-xs font-semibold tracking-wider text-muted-foreground uppercase">
+                    Vocab ({unlockedVocab.length})
+                  </p>
+                  <div className="flex flex-wrap gap-3">{unlockedVocab.map(renderCell)}</div>
+                </div>
+              )}
+
+              {/* Locked: vocab waiting on its kanji to reach Guru — shown for look-ahead. */}
+              {lockedItems.length > 0 && (
+                <div className="space-y-2 pt-2">
+                  <p className="font-mono text-xs font-semibold tracking-wider text-muted-foreground uppercase">
+                    Locked — waiting on kanji ({lockedItems.length})
+                  </p>
+                  <div className="flex flex-wrap gap-3">
+                    {lockedItems.map((item) => {
+                      const display = item.item_details?.word || item.item_details?.character || '?';
+                      const key = itemKey(item);
+                      const blockedBy = item.locked_by ?? [];
+                      const tip = blockedBy.length
+                        ? `Locked until these kanji reach Guru: ${blockedBy.join('、')}`
+                        : 'Locked until its kanji reach Guru';
+
+                      return (
+                        <div key={key} className="group relative cursor-not-allowed opacity-40" title={tip}>
+                          <GlyphCell type={item.item_type as 'kanji' | 'vocab'} character={display} size="md" />
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              removeMutation.mutate({ item_type: item.item_type, item_id: item.item_id });
+                            }}
+                            className="absolute -top-2 -right-2 z-10 grid size-5 place-items-center bg-destructive font-mono text-[10px] text-destructive-foreground opacity-0 transition-opacity group-hover:opacity-100"
+                            title="Remove from queue"
+                          >
+                            &times;
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </>
           )}
         </div>
-
-        {/* Hint */}
-        {unlocked.length > 0 && selectedIds.size === 0 && (
-          <p className="text-sm text-muted-foreground">
-            Tap items to select a subset, or start all {unlocked.length} at once.
-          </p>
-        )}
-        {selectedIds.size > 0 && (
-          <p className="text-sm text-muted-foreground">
-            {selectedIds.size} of {unlocked.length} selected
-          </p>
-        )}
-
-        {queue.isLoading ? (
-          <div className="text-muted-foreground animate-pulse">Loading queue...</div>
-        ) : items.length === 0 ? (
-          <Card className="gap-2 p-10 text-center text-muted-foreground">
-            <p className="text-lg font-bold mb-2">No lessons queued</p>
-            <p>Add items from the Kanji or Vocab pages to your queue, then come back here to study them.</p>
-          </Card>
-        ) : (
-          <>
-            {unlocked.length > 0 && (
-              <div className="flex flex-wrap gap-2.5">
-                {unlocked.map((item) => {
-                  const isKanji = item.item_type === 'kanji';
-                  const display = item.item_details?.character || item.item_details?.word || '?';
-                  const key = itemKey(item);
-                  const isSelected = selectedIds.has(key);
-                  const baseBg = isKanji ? 'bg-wk-kanji' : 'bg-wk-vocab';
-
-                  return (
-                    <div key={key} className="relative group">
-                      <button
-                        onClick={() => toggleSelect(item)}
-                        className={cn(
-                          baseBg,
-                          'rounded-lg px-4 py-2.5 text-white font-bold text-xl transition-all hover:brightness-110',
-                          isSelected
-                            ? 'scale-95 opacity-100 shadow-lg outline outline-3 outline-offset-2 outline-white'
-                            : selectedIds.size > 0 ? 'opacity-50' : '',
-                        )}
-                        title={item.item_details?.meanings?.join(', ')}
-                      >
-                        {display}
-                        {isSelected && (
-                          <span className="absolute -top-1 -left-1 w-5 h-5 rounded-full bg-wk-radical text-white text-[10px] flex items-center justify-center font-bold shadow">
-                            &#10003;
-                          </span>
-                        )}
-                      </button>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          removeMutation.mutate({ item_type: item.item_type, item_id: item.item_id });
-                          setSelectedIds((prev) => { const next = new Set(prev); next.delete(key); return next; });
-                        }}
-                        className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-destructive text-destructive-foreground text-xs flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow z-10"
-                        title="Remove from queue"
-                      >
-                        &times;
-                      </button>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-
-            {/* Locked: vocab waiting on its kanji to reach Guru — shown for look-ahead. */}
-            {lockedItems.length > 0 && (
-              <div className="space-y-2 pt-2">
-                <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
-                  Locked — waiting on kanji ({lockedItems.length})
-                </p>
-                <div className="flex flex-wrap gap-2.5">
-                  {lockedItems.map((item) => {
-                    const display = item.item_details?.word || item.item_details?.character || '?';
-                    const key = itemKey(item);
-                    const blockedBy = item.locked_by ?? [];
-                    const tip = blockedBy.length
-                      ? `Locked until these kanji reach Guru: ${blockedBy.join('、')}`
-                      : 'Locked until its kanji reach Guru';
-
-                    return (
-                      <div key={key} className="relative group">
-                        <div
-                          className="bg-wk-vocab/30 text-white/70 rounded-lg px-4 py-2.5 font-bold text-xl cursor-not-allowed select-none"
-                          title={tip}
-                        >
-                          {display}
-                        </div>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            removeMutation.mutate({ item_type: item.item_type, item_id: item.item_id });
-                          }}
-                          className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-destructive text-destructive-foreground text-xs flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow z-10"
-                          title="Remove from queue"
-                        >
-                          &times;
-                        </button>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-          </>
-        )}
-      </div>
+      </QuizShell>
     );
   }
 
@@ -302,7 +311,6 @@ export function LessonsPage() {
   const readings = (item.item_details as Record<string, unknown>)?.readings as string[] | undefined;
   const components = item.item_details?.components ?? [];
   const kanjiComposition = item.item_details?.kanji ?? [];
-  const bgColor = isKanji ? 'bg-wk-kanji' : 'bg-wk-vocab';
 
   const tabOrder = tabOrderFor(item);
   const isLastStep = currentIndex === sessionItems.length - 1 && activeTab === 'info';
@@ -322,28 +330,33 @@ export function LessonsPage() {
   return (
     <QuizShell
       onExit={() => setSessionActive(false)}
-      right={<span>{currentIndex + 1} / {sessionItems.length}</span>}
+      right={`${currentIndex + 1} / ${sessionItems.length}`}
     >
-      {/* Hero band — full width, WaniKani-style */}
-      <div className={`${bgColor} p-10 text-white text-center shrink-0`}>
-        <div className="text-7xl font-bold mb-3" lang="ja">{display}</div>
-        <div className="text-xl opacity-90">{meanings[0]}</div>
+      {/* Hero — character floats in a very faint type-tinted block (pink=kanji, purple=vocab) */}
+      <div
+        className="flex shrink-0 flex-col items-center gap-3 py-14"
+        style={{ backgroundColor: `color-mix(in srgb, var(--card) 93%, ${isKanji ? '#ff00aa' : '#aa00ff'})` }}
+      >
+        <span lang="ja" className="font-[family-name:var(--font-mincho)] text-8xl leading-none">
+          {display}
+        </span>
+        <span className="text-lg text-muted-foreground">{meanings[0]}</span>
       </div>
 
-      {/* Tabs — full width */}
-      <div className="bg-muted flex border-b border-border shrink-0">
+      {/* Tabs — full width, mono */}
+      <div className="flex shrink-0 border-y border-border bg-muted">
         {tabs.map((tab) => (
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
             className={cn(
-              'flex-1 py-3 text-sm font-medium transition-colors relative',
+              'relative flex-1 py-3 font-mono text-xs tracking-wider uppercase transition-colors',
               activeTab === tab.id ? 'text-foreground' : 'text-muted-foreground hover:text-foreground',
             )}
           >
             {tab.label}
             {activeTab === tab.id && (
-              <div className={`absolute bottom-0 left-0 right-0 h-0.5 ${bgColor}`} />
+              <div className="absolute right-0 bottom-0 left-0 h-0.5 bg-foreground" />
             )}
           </button>
         ))}
@@ -369,12 +382,10 @@ export function LessonsPage() {
                 <Link
                   key={k.character}
                   to={`/kanji/${encodeURIComponent(k.character)}`}
-                  className="flex items-center gap-2 rounded-lg hover:bg-accent px-1 py-0.5 -mx-1 transition-colors"
+                  className="-mx-1 flex items-center gap-2 px-1 py-0.5 transition-colors hover:bg-accent"
                   title={`View ${k.character}`}
                 >
-                  <div className="bg-wk-kanji border-2 border-wk-kanji-dark w-11 h-11 rounded-lg flex items-center justify-center text-white text-xl font-bold" lang="ja">
-                    {k.character}
-                  </div>
+                  <GlyphCell type="kanji" character={k.character} size="sm" />
                   <span className="text-sm">{k.meanings[0]}</span>
                 </Link>
               ))}
@@ -444,12 +455,12 @@ export function LessonsPage() {
         {/* Navigation */}
         <div className="flex items-center justify-between pt-6">
           <Button variant="outline" onClick={goBack} disabled={atStart} className="disabled:opacity-30">
-            <kbd className="mr-1.5 px-1.5 py-0.5 rounded bg-muted text-foreground text-[10px] font-mono">&larr;</kbd>
+            <kbd className="mr-1.5 bg-muted px-1.5 py-0.5 font-mono text-[10px] text-foreground">&larr;</kbd>
             Back
           </Button>
-          <Button onClick={goForward} className="bg-wk-radical text-white hover:bg-wk-radical/90">
+          <Button onClick={goForward}>
             {isLastStep ? 'Finish' : 'Next'}
-            <kbd className="ml-1.5 px-1.5 py-0.5 rounded bg-white/25 text-white text-[10px] font-mono">&rarr;</kbd>
+            <kbd className="ml-1.5 bg-primary-foreground/20 px-1.5 py-0.5 font-mono text-[10px]">&rarr;</kbd>
           </Button>
         </div>
       </div>

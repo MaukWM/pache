@@ -34,10 +34,10 @@ function ProtectedRoutes() {
         <Route path="kanji/:char" element={<KanjiDetailPage />} />
         <Route path="vocab" element={<VocabPage />} />
         <Route path="vocab/:id" element={<VocabDetailPage />} />
-        <Route path="lessons" element={<LessonsPage />} />
         <Route path="account" element={<AccountPage />} />
       </Route>
-      {/* Reviews run full-screen (no navbar) for a more immersive, WaniKani-like session. */}
+      {/* Lessons + reviews run full-screen (no navbar) for an immersive session. */}
+      <Route path="lessons" element={<LessonsPage />} />
       <Route path="reviews" element={<ReviewPage />} />
     </Routes>
   );

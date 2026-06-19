@@ -30,7 +30,7 @@ export function Navbar() {
         <Link to="/" className="flex items-center gap-2.5">
           <span
             lang="ja"
-            className="grid size-7 place-items-center bg-wk-kanji font-[family-name:var(--font-mincho)] text-sm text-white"
+            className="grid size-7 place-items-center bg-foreground font-[family-name:var(--font-mincho)] text-sm text-background"
           >
             字
           </span>
@@ -40,7 +40,7 @@ export function Navbar() {
         </Link>
 
         <div className="flex h-full items-stretch gap-1">
-          {NAV_LINKS.map(({ to, label, ink, rule }) => {
+          {NAV_LINKS.map(({ to, label, rule }) => {
             const active = location.pathname === to;
             return (
               <Link
@@ -48,10 +48,11 @@ export function Navbar() {
                 to={to}
                 className={cn(
                   'relative flex items-center px-4 font-mono text-xs font-semibold tracking-wider uppercase transition-colors',
-                  active ? ink : 'text-muted-foreground hover:text-foreground',
+                  active ? 'text-foreground' : 'text-muted-foreground hover:text-foreground',
                 )}
               >
                 {label}
+                {/* thin type-ink underline is the only color accent (kanji pink / vocab purple) */}
                 {active && <span className={cn('absolute inset-x-0 bottom-0 h-0.5', rule)} />}
               </Link>
             );

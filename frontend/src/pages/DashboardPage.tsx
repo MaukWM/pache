@@ -4,21 +4,44 @@ import { ExternalLink } from 'lucide-react';
 import { api } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { cn } from '@/lib/utils';
-import { Card } from '@/components/ui/card';
+
+// A genkō-style stat slab: big mincho numeral, mono label, sharp bordered card.
+// "Ready" marker (not a loud color fill) signals there's something to do.
+function StatTile({ to, count, label }: { to: string; count: number; label: string }) {
+  const active = count > 0;
+  return (
+    <Link
+      to={to}
+      className={cn(
+        'group relative flex flex-col items-center justify-center border-2 bg-card p-10 transition-colors hover:bg-accent',
+        active ? 'border-foreground/40' : 'border-border',
+      )}
+    >
+      {active && (
+        <span className="absolute top-3 right-3 font-mono text-[10px] tracking-wider text-muted-foreground uppercase">
+          Ready
+        </span>
+      )}
+      <span
+        className={cn(
+          'font-[family-name:var(--font-mincho)] text-6xl leading-none tabular-nums',
+          active ? 'text-foreground' : 'text-muted-foreground/60',
+        )}
+      >
+        {count}
+      </span>
+      <span className="mt-3 font-mono text-xs tracking-[0.2em] text-muted-foreground uppercase">
+        {label}
+      </span>
+    </Link>
+  );
+}
 
 export function DashboardPage() {
   const { user } = useAuth();
 
-  const reviews = useQuery({
-    queryKey: ['reviews'],
-    queryFn: api.getReviews,
-  });
-
-  const queue = useQuery({
-    queryKey: ['queue'],
-    queryFn: api.getQueue,
-  });
-
+  const reviews = useQuery({ queryKey: ['reviews'], queryFn: api.getReviews });
+  const queue = useQuery({ queryKey: ['queue'], queryFn: api.getQueue });
   const wanikani = useQuery({
     queryKey: ['wanikani-status'],
     queryFn: api.getWanikaniStatus,
@@ -35,49 +58,28 @@ export function DashboardPage() {
       <h1 className="text-2xl font-bold">Welcome back, {user?.username}!</h1>
 
       <div className="grid grid-cols-2 gap-4">
-        <Link
-          to="/lessons"
-          className={cn(
-            'rounded-xl p-8 text-center text-white shadow-md transition-all hover:scale-[1.02] hover:shadow-lg',
-            lessonCount > 0 ? 'bg-wk-kanji' : 'bg-muted-foreground',
-          )}
-        >
-          <div className="text-5xl font-black">{lessonCount}</div>
-          <div className="mt-2 text-sm font-medium opacity-90">Lessons</div>
-        </Link>
-
-        <Link
-          to="/reviews"
-          className={cn(
-            'rounded-xl p-8 text-center text-white shadow-md transition-all hover:scale-[1.02] hover:shadow-lg',
-            reviewCount > 0 ? 'bg-wk-radical' : 'bg-muted-foreground',
-          )}
-        >
-          <div className="text-5xl font-black">{reviewCount}</div>
-          <div className="mt-2 text-sm font-medium opacity-90">Reviews</div>
-        </Link>
+        <StatTile to="/lessons" count={lessonCount} label="Lessons" />
+        <StatTile to="/reviews" count={reviewCount} label="Reviews" />
       </div>
 
       {wkConfigured && (
-        <Card className="p-0 transition-all hover:scale-[1.01] hover:shadow-md">
-          <a
-            href="https://www.wanikani.com/subjects/review"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center justify-between p-5"
-          >
-            <div className="flex items-baseline gap-3">
-              <span className="text-3xl font-black text-wk-kanji">{wkDue}</span>
-              <span className="text-sm font-medium text-muted-foreground">
-                {wkDue === 1 ? 'review' : 'reviews'} due on WaniKani
-              </span>
-            </div>
-            <span className="flex items-center gap-1 text-sm font-semibold text-wk-kanji">
-              Open WaniKani
-              <ExternalLink className="size-4" />
+        <a
+          href="https://www.wanikani.com/subjects/review"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex items-center justify-between border border-border bg-card p-5 transition-colors hover:bg-accent"
+        >
+          <div className="flex items-baseline gap-3">
+            <span className="font-[family-name:var(--font-mincho)] text-3xl tabular-nums">{wkDue}</span>
+            <span className="text-sm text-muted-foreground">
+              {wkDue === 1 ? 'review' : 'reviews'} due on WaniKani
             </span>
-          </a>
-        </Card>
+          </div>
+          <span className="flex items-center gap-1.5 font-mono text-xs tracking-wider text-muted-foreground uppercase">
+            Open WaniKani
+            <ExternalLink className="size-3.5" />
+          </span>
+        </a>
       )}
     </div>
   );

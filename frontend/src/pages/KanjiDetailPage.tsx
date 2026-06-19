@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../lib/api';
 import { RadicalList } from '../components/RadicalList';
 import { SubjectCard } from '../components/SubjectCard';
+import { GlyphCell } from '../components/GlyphCell';
 import { Section, ProgressionSection } from '../components/SubjectDetail';
 import { katakanaToHiragana } from '../lib/romaji';
 import { Button } from '@/components/ui/button';
@@ -99,16 +100,14 @@ export function KanjiDetailPage() {
       </Button>
 
       {/* Hero */}
-      <Card className="p-6 flex flex-row items-center gap-5">
-        <div className="bg-wk-kanji border-2 border-wk-kanji-dark w-24 h-24 rounded-xl flex items-center justify-center text-white text-5xl font-bold shrink-0" lang="ja">
-          {kanji.character}
-        </div>
+      <Card className="flex flex-row items-center gap-5 p-6">
+        <GlyphCell type="kanji" character={kanji.character} srsStage={currentStage} size="lg" />
         <div className="min-w-0">
           <h1 className="text-3xl font-bold">{kanji.meanings[0]}</h1>
           {kanji.meanings.length > 1 && (
             <p className="text-muted-foreground">{kanji.meanings.slice(1).join(', ')}</p>
           )}
-          <div className="flex gap-4 flex-wrap text-sm text-muted-foreground mt-1">
+          <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 font-mono text-xs uppercase tracking-wider text-muted-foreground">
             {kanji.frequency && <span>Freq #{kanji.frequency}</span>}
             {kanji.grade && <span>Grade {kanji.grade}</span>}
             {kanji.jlpt_level && <span>JLPT N{kanji.jlpt_level}</span>}
@@ -120,14 +119,13 @@ export function KanjiDetailPage() {
       {/* Actions */}
       <div className="flex items-center gap-2 flex-wrap">
         {!alreadyLearned && (
-          <Button onClick={() => queueMutation.mutate()} disabled={queueMutation.isPending}
-            className="bg-wk-kanji text-white hover:bg-wk-kanji/90">
+          <Button onClick={() => queueMutation.mutate()} disabled={queueMutation.isPending}>
             {queueMutation.isPending ? 'Adding…' : 'Add to Queue'}
           </Button>
         )}
         {alreadyLearned && isBurned && !confirmResurrect && (
           <Button onClick={() => setConfirmResurrect(true)}
-            className="bg-wk-radical text-white hover:bg-wk-radical/90">
+            className="border border-destructive/40 bg-destructive/10 text-destructive hover:bg-destructive/20 hover:text-destructive">
             Resurrect
           </Button>
         )}
@@ -140,7 +138,7 @@ export function KanjiDetailPage() {
           <span className="flex items-center gap-2 text-sm">
             <span className="text-muted-foreground">Resurrect {kanji.character} to Apprentice I?</span>
             <Button size="sm" onClick={() => resurrectMutation.mutate()} disabled={resurrectMutation.isPending}
-              className="bg-wk-radical text-white hover:bg-wk-radical/90">Yes</Button>
+              className="border border-destructive/40 bg-destructive/10 text-destructive hover:bg-destructive/20 hover:text-destructive">Yes</Button>
             <Button size="sm" variant="outline" onClick={() => setConfirmResurrect(false)}>Cancel</Button>
           </span>
         )}

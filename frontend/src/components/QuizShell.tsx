@@ -21,10 +21,10 @@ export function QuizShell({
   children: ReactNode;
 }) {
   return (
-    <div className="fixed inset-0 flex flex-col overflow-y-auto bg-background">
-      <header className="flex h-12 shrink-0 items-center justify-between px-4">
+    <div className="fixed inset-0 z-50 flex flex-col overflow-y-auto bg-background">
+      <header className="flex h-12 shrink-0 items-center justify-between border-b border-border px-4">
         {exitTo ? (
-          <Button asChild variant="ghost" size="icon" title="Exit" aria-label="Exit">
+          <Button asChild variant="ghost" size="icon" title="Home" aria-label="Home">
             <Link to={exitTo}>
               <Home className="size-5" />
             </Link>
@@ -35,13 +35,13 @@ export function QuizShell({
             variant="ghost"
             size="icon"
             onClick={onExit}
-            title="Exit"
-            aria-label="Exit"
+            title="Home"
+            aria-label="Home"
           >
             <Home className="size-5" />
           </Button>
         )}
-        <div className="text-sm font-medium text-muted-foreground">{right}</div>
+        <div className="font-mono text-xs tracking-wider text-muted-foreground uppercase">{right}</div>
       </header>
       <div className="flex flex-1 flex-col">{children}</div>
     </div>

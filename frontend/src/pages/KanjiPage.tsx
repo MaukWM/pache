@@ -14,7 +14,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { cn } from '@/lib/utils';
 
 const CHUNK_SIZE = 250;
 const INITIAL_LOAD = 250;
@@ -218,7 +217,7 @@ export function KanjiPage() {
           type="button"
           variant={hideKnown ? 'default' : 'outline'}
           onClick={() => { setHideKnown(!hideKnown); setVisibleCount(INITIAL_LOAD); }}
-          className={cn('whitespace-nowrap', hideKnown && 'bg-wk-kanji text-white hover:bg-wk-kanji/90')}
+          className="whitespace-nowrap"
         >
           Hide Known
         </Button>

@@ -2,6 +2,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { ChevronRight } from 'lucide-react';
 import { RadicalList } from './RadicalList';
+import { GlyphCell } from './GlyphCell';
 import { romajiToHiraganaLive, katakanaToHiragana } from '../lib/romaji';
 import type { KanjiComposition } from '../lib/api';
 import { cn } from '@/lib/utils';
@@ -115,9 +116,6 @@ export function QuizCard({
   const vocabComment = details.creator_comment;
   const vocabCreator = details.creator_username;
 
-  const headerBg = isKanji ? 'bg-wk-kanji' : 'bg-wk-vocab';
-  const labelBg =
-    cardType === 'reading' ? 'bg-[#303030] text-white' : 'bg-card text-foreground';
   // The answer field flips to a solid correct/incorrect color once answered.
   const inputStateClass = !answered
     ? ''
@@ -127,18 +125,24 @@ export function QuizCard({
 
   return (
     <>
-      {/* Character */}
-      <div className={cn(headerBg, 'p-12 text-center text-white')}>
-        <div lang="ja" className="text-9xl font-bold">
+      {/* Character — big mincho glyph on a very faint type-tinted block */}
+      <div
+        className="flex items-center justify-center py-14"
+        style={{ backgroundColor: `color-mix(in srgb, var(--card) 93%, ${isKanji ? '#ff00aa' : '#aa00ff'})` }}
+      >
+        <span
+          lang="ja"
+          className="font-[family-name:var(--font-mincho)] text-8xl leading-none md:text-9xl"
+        >
           {display}
-        </div>
+        </span>
       </div>
 
       {/* Reading/Meaning bar */}
-      <div className={cn(labelBg, 'py-2 text-center transition-colors duration-200')}>
-        <span className="text-sm tracking-wide capitalize">
-          {itemType}{' '}
-          <span className="font-black">{cardType === 'reading' ? 'Reading' : 'Meaning'}</span>
+      <div className="border-y border-border bg-muted py-2.5 text-center">
+        <span className="font-mono text-xs tracking-[0.2em] text-muted-foreground uppercase">
+          {itemType} ·{' '}
+          <span className="text-foreground">{cardType === 'reading' ? 'Reading' : 'Meaning'}</span>
         </span>
       </div>
 
@@ -230,12 +234,10 @@ export function QuizCard({
                         <Link
                           key={k.character}
                           to={`/kanji/${encodeURIComponent(k.character)}`}
-                          className="-mx-1 flex items-center gap-2 rounded px-1 transition-colors hover:bg-accent"
+                          className="-mx-1 flex items-center gap-2 px-1 transition-colors hover:bg-accent"
                           title={`View ${k.character}`}
                         >
-                          <div className="flex size-9 items-center justify-center rounded-lg border-2 border-wk-kanji-dark bg-wk-kanji font-bold text-white" lang="ja">
-                            {k.character}
-                          </div>
+                          <GlyphCell type="kanji" character={k.character} size="sm" />
                           <span className="text-sm">{k.meanings[0]}</span>
                         </Link>
                       ))}
@@ -249,11 +251,7 @@ export function QuizCard({
             {!isKanji && (vocabTags.length > 0 || vocabComment || vocabCreator) && (
               <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                 {vocabTags.map((tag) => (
-                  <Badge
-                    key={tag}
-                    variant="secondary"
-                    className="rounded-full bg-wk-vocab/10 text-wk-vocab"
-                  >
+                  <Badge key={tag} variant="secondary">
                     {tag}
                   </Badge>
                 ))}

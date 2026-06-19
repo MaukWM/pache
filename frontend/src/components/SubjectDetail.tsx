@@ -55,7 +55,7 @@ export function ProgressionSection({
       ) : (
         <div className="space-y-2 text-sm">
           <span
-            className="inline-block text-xs font-bold px-3 py-1.5 rounded-full text-white"
+            className="inline-block px-3 py-1 font-mono text-[11px] font-semibold uppercase tracking-wider text-white"
             style={{ backgroundColor: SRS_STAGE_COLORS[item.srs_stage] }}
           >
             {SRS_STAGE_NAMES[item.srs_stage]}
