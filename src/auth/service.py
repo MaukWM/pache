@@ -6,7 +6,12 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.auth.models import Session, User
-from src.auth.schemas import LoginResponse, SettingsResponse, UserResponse
+from src.auth.schemas import (
+    LoginResponse,
+    SettingsResponse,
+    SettingsUpdateRequest,
+    UserResponse,
+)
 from src.auth.security import hash_password, verify_password
 from src.core.constants import (
     DEFAULT_ADMIN_PASSWORD,
@@ -153,6 +158,7 @@ class AuthService:
         return SettingsResponse(
             wk_api_key_configured=user.wk_api_key is not None,
             password_set=user.password_hash is not None,
+            review_mode=user.review_mode,
         )
 
     async def set_password(self, user: User, new_password: str) -> SettingsResponse:
@@ -163,11 +169,31 @@ class AuthService:
         return SettingsResponse(
             wk_api_key_configured=user.wk_api_key is not None,
             password_set=True,
+            review_mode=user.review_mode,
         )
 
-    async def update_settings(self, user: User, wk_api_key: str | None) -> SettingsResponse:
-        """Update user settings (WK API key)."""
-        user.wk_api_key = wk_api_key
+    async def update_settings(
+        self, user: User, request: SettingsUpdateRequest
+    ) -> SettingsResponse:
+        """Update user settings — only the fields explicitly present in the request.
+
+        ``wk_api_key`` is nullable and clearing it (sending ``null``) is meaningful,
+        so we use ``model_fields_set`` to tell "omitted" apart from "set to null".
+        """
+        fields = request.model_fields_set
+        if "wk_api_key" in fields:
+            user.wk_api_key = request.wk_api_key
+        if "review_mode" in fields and request.review_mode is not None:
+            user.review_mode = request.review_mode
         await self.db.commit()
-        logger.info("settings_updated", user_id=user.id, wk_key_set=wk_api_key is not None)
-        return SettingsResponse(wk_api_key_configured=wk_api_key is not None)
+        logger.info(
+            "settings_updated",
+            user_id=user.id,
+            wk_key_set=user.wk_api_key is not None,
+            review_mode=user.review_mode,
+        )
+        return SettingsResponse(
+            wk_api_key_configured=user.wk_api_key is not None,
+            password_set=user.password_hash is not None,
+            review_mode=user.review_mode,
+        )

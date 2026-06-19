@@ -62,9 +62,12 @@ export interface LoginResponse {
   user: User;
 }
 
+export type ReviewMode = 'paired' | 'scrambled';
+
 export interface SettingsResponse {
   wk_api_key_configured: boolean;
   password_set: boolean;
+  review_mode: ReviewMode;
 }
 
 export interface ImportResponse {
@@ -127,6 +130,12 @@ export const api = {
     request<SettingsResponse>('/auth/settings', {
       method: 'POST',
       body: JSON.stringify({ wk_api_key: null }),
+    }),
+
+  setReviewMode: (review_mode: ReviewMode) =>
+    request<SettingsResponse>('/auth/settings', {
+      method: 'POST',
+      body: JSON.stringify({ review_mode }),
     }),
 
   // WaniKani import

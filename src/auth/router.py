@@ -137,6 +137,6 @@ async def update_settings(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> SettingsResponse:
-    """Update user settings (WaniKani API key)."""
+    """Update user settings (WaniKani API key, review mode)."""
     service = AuthService(db)
-    return await service.update_settings(current_user, request.wk_api_key)
+    return await service.update_settings(current_user, request)

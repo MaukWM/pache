@@ -1,5 +1,7 @@
 """Authentication request/response schemas."""
 
+from typing import Literal
+
 from pydantic import BaseModel, Field
 
 
@@ -61,9 +63,15 @@ class LoginResponse(BaseModel):
 
 
 class SettingsUpdateRequest(BaseModel):
-    """Request schema for updating user settings."""
+    """Request schema for updating user settings.
+
+    Fields are partial: only those explicitly provided are applied. (The service
+    relies on ``model_fields_set``, so omitting ``wk_api_key`` leaves the stored
+    key untouched, while sending ``null`` clears it.)
+    """
 
     wk_api_key: str | None = Field(None, min_length=1, max_length=255)
+    review_mode: Literal["paired", "scrambled"] | None = None
 
 
 class SettingsResponse(BaseModel):
@@ -71,3 +79,4 @@ class SettingsResponse(BaseModel):
 
     wk_api_key_configured: bool
     password_set: bool = False
+    review_mode: str = "paired"

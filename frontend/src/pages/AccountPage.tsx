@@ -34,6 +34,8 @@ export function AccountPage() {
 
       <PasswordSettings queryClient={queryClient} />
 
+      <ReviewSettings queryClient={queryClient} />
+
       {user?.is_admin && <AdminUsers queryClient={queryClient} />}
 
       <WaniKaniSettings queryClient={queryClient} />
@@ -237,6 +239,50 @@ function PasswordSettings({ queryClient }: { queryClient: ReturnType<typeof useQ
         {msg && (
           <p className={cn('text-sm', msg.includes('!') ? 'text-success' : 'text-destructive')}>{msg}</p>
         )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function ReviewSettings({ queryClient }: { queryClient: ReturnType<typeof useQueryClient> }) {
+  const settings = useQuery({ queryKey: ['settings'], queryFn: api.getSettings });
+  const mode = settings.data?.review_mode ?? 'paired';
+
+  const saveMutation = useMutation({
+    mutationFn: api.setReviewMode,
+    onSuccess: (data) => {
+      queryClient.setQueryData(['settings'], data);
+      queryClient.invalidateQueries({ queryKey: ['settings'] });
+    },
+  });
+
+  const OPTIONS: { value: 'paired' | 'scrambled'; label: string; desc: string }[] = [
+    { value: 'paired', label: 'ペア', desc: '各項目の読みと意味を続けて出題します。' },
+    { value: 'scrambled', label: 'シャッフル', desc: 'すべてのカードをシャッフルして出題します。' },
+  ];
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-lg">復習の出題順</CardTitle>
+        <CardDescription>復習を開始したときの既定の出題方法です。</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <div className="flex gap-3">
+          {OPTIONS.map((opt) => (
+            <Button
+              key={opt.value}
+              variant={mode === opt.value ? 'default' : 'outline'}
+              disabled={saveMutation.isPending || settings.isLoading}
+              onClick={() => saveMutation.mutate(opt.value)}
+            >
+              {opt.label}
+            </Button>
+          ))}
+        </div>
+        <p className="text-sm text-muted-foreground">
+          {OPTIONS.find((o) => o.value === mode)?.desc}
+        </p>
       </CardContent>
     </Card>
   );

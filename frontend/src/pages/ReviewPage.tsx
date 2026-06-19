@@ -1,12 +1,11 @@
 import { useState, useRef, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { api, type ReviewItem } from '../lib/api';
+import { api, type ReviewItem, type ReviewMode } from '../lib/api';
 import { QuizCard, type CardType } from '../components/QuizCard';
 import { QuizShell } from '../components/QuizShell';
 import { evaluateAnswer } from '../lib/quiz';
 import { Button } from '@/components/ui/button';
-
-type ReviewMode = 'scrambled' | 'paired';
 
 interface ReviewCard {
   item: ReviewItem;
@@ -51,7 +50,7 @@ function itemKey(item: ReviewItem): string {
 
 export function ReviewPage() {
   const queryClient = useQueryClient();
-  const [mode, setMode] = useState<ReviewMode>('paired');
+  const navigate = useNavigate();
   const [cards, setCards] = useState<ReviewCard[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [input, setInput] = useState('');
@@ -64,7 +63,6 @@ export function ReviewPage() {
   const [results, setResults] = useState<Record<string, ItemResult>>({});
   const [completedCorrect, setCompletedCorrect] = useState(0);
   const [completedIncorrect, setCompletedIncorrect] = useState(0);
-  const [started, setStarted] = useState(false);
   const [totalItems, setTotalItems] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
   const answeredAt = useRef(0);
@@ -73,6 +71,13 @@ export function ReviewPage() {
     queryKey: ['reviews'],
     queryFn: api.getReviews,
   });
+
+  const settingsQuery = useQuery({
+    queryKey: ['settings'],
+    queryFn: api.getSettings,
+  });
+  // The ordering is a per-account preference (default: paired). Set it in アカウント.
+  const mode: ReviewMode = settingsQuery.data?.review_mode ?? 'paired';
 
   const submitMutation = useMutation({
     mutationFn: api.submitReview,
@@ -100,11 +105,22 @@ export function ReviewPage() {
     }
   };
 
+  // Auto-start the session the moment reviews + settings are loaded — no
+  // intermediate "start" screen. Mode comes from the account preference. A
+  // populated queue (cards.length > 0) is itself the "started" flag.
   useEffect(() => {
-    if (!answered && started && currentIndex < cards.length) {
+    const items = reviewsQuery.data;
+    if (cards.length === 0 && items && items.length > 0 && !settingsQuery.isLoading) {
+      setCards(buildQueue(items, mode));
+      setTotalItems(items.length);
+    }
+  }, [cards.length, reviewsQuery.data, settingsQuery.isLoading, mode]);
+
+  useEffect(() => {
+    if (!answered && currentIndex < cards.length) {
       setTimeout(() => inputRef.current?.focus(), 50);
     }
-  }, [currentIndex, answered, started, cards.length]);
+  }, [currentIndex, answered, cards.length]);
 
   // Global keys when answered
   useEffect(() => {
@@ -127,60 +143,29 @@ export function ReviewPage() {
     return () => window.removeEventListener('keydown', handler);
   });
 
-  if (reviewsQuery.isLoading) {
+  const loading = reviewsQuery.isLoading || settingsQuery.isLoading;
+  const reviewItems = reviewsQuery.data || [];
+
+  // Nothing due (only meaningful once loaded).
+  if (!loading && reviewItems.length === 0) {
     return (
       <QuizShell exitTo="/">
-        <div className="flex-1 flex items-center justify-center text-muted-foreground animate-pulse text-lg">
-          復習を読み込み中...
+        <div className="flex-1 flex flex-col items-center justify-center space-y-4 text-center">
+          <h2 className="text-2xl font-bold">復習はありません</h2>
+          <p className="text-muted-foreground">項目が復習可能になったら、また来てください。</p>
         </div>
       </QuizShell>
     );
   }
 
-  const reviewItems = reviewsQuery.data || [];
-
-  if (!started) {
-    if (reviewItems.length === 0) {
-      return (
-        <QuizShell exitTo="/">
-          <div className="flex-1 flex flex-col items-center justify-center space-y-4 text-center">
-            <h2 className="text-2xl font-bold">復習はありません</h2>
-            <p className="text-muted-foreground">項目が復習可能になったら、また来てください。</p>
-          </div>
-        </QuizShell>
-      );
-    }
-
+  // Still fetching, or items loaded and the auto-start effect is about to build
+  // the queue — same brief loading state, no flash of an intermediate screen.
+  if (loading || cards.length === 0) {
     return (
       <QuizShell exitTo="/">
-      <div className="flex-1 flex flex-col items-center justify-center space-y-6">
-        <h2 className="text-2xl font-bold">復習する項目: {reviewItems.length}件</h2>
-        <div className="flex gap-3">
-          <Button
-            variant={mode === 'paired' ? 'default' : 'outline'}
-            onClick={() => setMode('paired')}
-          >
-            ペア
-          </Button>
-          <Button
-            variant={mode === 'scrambled' ? 'default' : 'outline'}
-            onClick={() => setMode('scrambled')}
-          >
-            シャッフル
-          </Button>
+        <div className="flex-1 flex items-center justify-center text-muted-foreground animate-pulse text-lg">
+          復習を読み込み中...
         </div>
-        <Button
-          size="lg"
-          onClick={() => {
-            const q = buildQueue(reviewItems, mode);
-            setCards(q);
-            setTotalItems(reviewItems.length);
-            setStarted(true);
-          }}
-        >
-          復習を開始
-        </Button>
-      </div>
       </QuizShell>
     );
   }
@@ -196,17 +181,11 @@ export function ReviewPage() {
         <Button
           size="lg"
           onClick={() => {
-            setCards([]);
-            setStarted(false);
-            setCurrentIndex(0);
-            setCompletedCorrect(0);
-            setCompletedIncorrect(0);
-            setResults({});
-            setTotalItems(0);
             queryClient.invalidateQueries({ queryKey: ['reviews'] });
+            navigate('/');
           }}
         >
-          終了
+          ダッシュボードへ
         </Button>
       </div>
       </QuizShell>

@@ -1,7 +1,16 @@
 import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
-import { Home } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { ArrowLeft } from 'lucide-react';
+import { cn } from '@/lib/utils';
+
+// Exit affordance styled to echo the site navbar: a back-arrow + monospace,
+// uppercase, wide-tracked label, muted until hover. Matches the nav links and
+// the progress readout on the right so the immersive shell still feels native.
+const exitClass = cn(
+  'inline-flex items-center gap-1.5 -ml-1 rounded-md px-2 py-1',
+  'font-mono text-xs font-semibold uppercase tracking-wider',
+  'text-muted-foreground transition-colors hover:text-foreground',
+);
 
 // Full-screen immersive shell shared by the review session and the lesson quiz,
 // so both have an identical feel: a thin top bar with an exit button on the
@@ -24,22 +33,15 @@ export function QuizShell({
     <div className="fixed inset-0 z-50 flex flex-col overflow-y-auto bg-background">
       <header className="flex h-12 shrink-0 items-center justify-between border-b border-border px-4">
         {exitTo ? (
-          <Button asChild variant="ghost" size="icon" title="Home" aria-label="Home">
-            <Link to={exitTo}>
-              <Home className="size-5" />
-            </Link>
-          </Button>
+          <Link to={exitTo} className={exitClass} title="ホームへ戻る">
+            <ArrowLeft className="size-3.5" />
+            ホーム
+          </Link>
         ) : (
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            onClick={onExit}
-            title="Home"
-            aria-label="Home"
-          >
-            <Home className="size-5" />
-          </Button>
+          <button type="button" onClick={onExit} className={exitClass} title="ホームへ戻る">
+            <ArrowLeft className="size-3.5" />
+            ホーム
+          </button>
         )}
         <div className="font-mono text-xs tracking-wider text-muted-foreground uppercase">{right}</div>
       </header>
