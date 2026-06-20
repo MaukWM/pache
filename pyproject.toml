@@ -1,7 +1,7 @@
 [project]
-name = "iwkisgwitnwk2"
-version = "0.1.0"
-description = "Kanji SRS Platform - Social SRS kanji learning platform with shared item pool"
+name = "pache"
+version = "1.4.0"
+description = "pache - Social SRS kanji learning platform with a shared item pool"
 requires-python = ">=3.12"
 dependencies = [
     "fastapi>=0.115.0",

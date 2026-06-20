@@ -13,7 +13,7 @@ class Settings(BaseSettings):
     database_url: str = "mysql+asyncmy://user:password@localhost/kanji_srs"
 
     # API settings
-    api_title: str = "Kanji SRS Platform"
+    api_title: str = "pache"
     api_version: str = "1.0.0"
     api_prefix: str = "/api/v1"
 

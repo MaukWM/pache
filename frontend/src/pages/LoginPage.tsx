@@ -39,7 +39,7 @@ export function LoginPage() {
           <div className="mb-2">
             <GlyphCell type="kanji" character="漢" size="lg" />
           </div>
-          <CardTitle className="text-2xl">iwkisgwitnwk2</CardTitle>
+          <CardTitle className="text-2xl">pache</CardTitle>
         </CardHeader>
 
         <CardContent>

@@ -1,1 +1,1 @@
-"""Kanji SRS Platform - Main package."""
+"""pache - Main package."""

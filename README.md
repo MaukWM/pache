@@ -1,4 +1,4 @@
-# Kanji SRS Platform
+# pache
 
 > *If WaniKani is so good, why is there no WaniKani 2?*
 

@@ -26,4 +26,4 @@ def test_app_imports(client: TestClient) -> None:
     from src.main import app
 
     assert app is not None
-    assert app.title == "Kanji SRS Platform"
+    assert app.title == "pache"

@@ -1,18 +1,20 @@
-# CLAUDE.md — Kanji SRS Platform
+# CLAUDE.md — pache
 
 Agent onboarding. Read this first, then the linked BMAD docs before writing code.
 
 ## What this is
 
-Social SRS (spaced-repetition) kanji learning platform with a shared item pool — WaniKani-style lessons, reviews, SRS stage progression, burn & resurrect. Backend is mature (Epics 1–5 implemented). **Frontend is greenfield** (see below).
+**pache** — a social SRS (spaced-repetition) kanji learning platform with a shared item pool. WaniKani-style lessons, reviews, SRS stage progression, burn & resurrect. Backend is mature (Epics 1–5). Frontend is a real React app (lessons, reviews, dashboard with forecast/spreads, kanji/vocab browsing, account/admin, light+dark themes).
+
+> Named after Patchouli Knowledge's nickname パチェ ("The Unmoving Great Library"). The DB is still named `kanji_srs` — that's plumbing, intentionally not renamed.
 
 ## Repo layout
 
 | Path | What |
 |------|------|
 | `src/` | FastAPI backend. One package per domain: `auth`, `kanji`, `vocab`, `lessons`, `reviews`, `progress`, `wanikani`, plus `core`, `database.py`, `settings.py`, `main.py`. |
-| `frontend/` | React 19 + TS + Vite. **Currently the default Vite scaffold, untracked in git.** No real UI yet. |
-| `_bmad-output/planning-artifacts/` | Design source of truth: `prd.md`, `architecture.md`, `epics.md`, `project-context.md`. |
+| `frontend/` | React 19 + TS + Vite SPA (committed). `src/pages/`, `src/components/` (+ `ui/` primitives), `src/lib/`. See **Frontend** below. |
+| `_bmad-output/planning-artifacts/` | Design source of truth: `prd.md`, `architecture.md`, `epics.md`, `project-context.md`. **Do not edit BMAD docs.** |
 | `_bmad-output/implementation-artifacts/` | Per-story specs (1.1 → 5.4). |
 | `_bmad-output/analysis/` | Brainstorm + code reviews. |
 | `alembic/` | Migrations. `scripts/seed_kanji.py` seeds ~12.5k kanji. |
@@ -30,6 +32,18 @@ Social SRS (spaced-repetition) kanji learning platform with a shared item pool �
 - **Schema naming:** `XCreateRequest` / `XUpdateRequest` (incoming), `XResponse` (outgoing).
 - Stack: Python 3.12+, FastAPI 0.115+, SQLAlchemy 2.0 async, asyncmy, MySQL 8, Pydantic v2, structlog, uv, ruff, mypy, pytest + pytest-asyncio.
 
+## Frontend
+
+React 19 + TS + Vite SPA under `frontend/`.
+
+- **Routing:** `react-router-dom` v7.
+- **Data:** TanStack Query v5; all HTTP through `src/lib/api.ts` helpers.
+- **Auth:** token in `localStorage`, sent as `Authorization: Bearer <token>`. Auth context in `src/lib/auth.tsx`. Login at `POST /api/v1/auth/login`.
+- **Styling:** Tailwind CSS v4 (`@tailwindcss/vite`). Design tokens (incl. light/dark) live in `src/index.css` (`:root` + `.dark`). shadcn-style primitives in `src/components/ui/` over Radix; `lucide-react` icons; `sonner` toasts; `cn()` from `src/lib/utils.ts`.
+- **Aesthetic:** "washed" palette, **sharp corners globally** (all radii forced to 0 in `index.css`), mincho serif (`--font-mincho`) for Japanese glyphs. Soften strong colors rather than using vivid defaults; keep it theme-aware (verify both light & dark).
+- **Pages:** Dashboard, Login, Kanji/KanjiDetail, Vocab/VocabDetail, Lessons, Review, Progress, Account. **Key components:** `QuizCard`/`QuizShell`/`LessonQuiz` (review/lesson flow), `ReviewForecast`, `ActiveItemSpread`/`SrsSpread`. **lib:** `forecast`, `quiz`, `srs`, `spread`, `romaji`.
+- After TS/UI changes, typecheck before a Docker rebuild (`tsc -b` / `npm run build`).
+
 ## Run it
 
 ```bash
@@ -39,36 +53,26 @@ DATABASE_URL="mysql+asyncmy://kanji_user:kanji_password@localhost/kanji_srs" uv 
 # API: http://localhost:8000  · docs: http://localhost:8000/docs
 ```
 
-Frontend:
+Frontend (dev):
 ```bash
-cd frontend && npm install && npm run dev   # Vite dev server
+cd frontend && npm install && npm run dev   # Vite dev server; CORS is enabled for it
 ```
+
+**Prod serving:** when `frontend_dist/` exists (the production image bakes the built SPA there), the API serves it — `/assets` static mount + SPA fallback to `index.html` (`main.py`). No `frontend_dist/` → API-only mode. So a frontend change needs an image rebuild to show in a deployed env; the backend hot-reloads.
 
 ## API contract (for the frontend)
 
-- Base prefix: **`/api/v1`** (`settings.api_prefix`). Health: `GET /health`.
-- Auth: **`Authorization: Bearer <token>`** header (`HTTPBearer`, `auth/dependencies.py::get_current_user`). Frontend stores the token.
-- Endpoints implemented:
+- Base prefix: **`/api/v1`** (`settings.api_prefix`). Health: `GET /health`. CORS middleware is mounted.
+- Auth: **`Authorization: Bearer <token>`** (`HTTPBearer`, `auth/dependencies.py::get_current_user`).
+- Routers mounted in `main.py`: `auth`, `kanji`, `vocab`, `progress`, progress-actions, `lessons`, `reviews`, `wanikani`, wanikani-status.
+  - `POST /auth/login`, `GET/POST /auth/users`, `POST /auth/password`, `GET/POST /auth/settings`, admin user actions
   - `GET /kanji`, `GET /kanji/{id_or_char}`
   - `POST /vocab`, `GET /vocab`, `GET /vocab/{id}`
   - `POST /lessons` (batch complete), lesson queue under progress
-  - `GET /reviews` (items due), `POST /reviews` (submit review → SRS stage progression)
-  - Progress + progress-actions routers (queue add/list/remove, resurrect burned)
+  - `GET /reviews` (items due), `POST /reviews` (submit → SRS stage progression)
+  - Progress + progress-actions (queue add/list/remove, resurrect burned)
+  - WaniKani sync + status/forecast
 - Confirm live shapes at `/docs` (OpenAPI) — it's the authoritative contract.
-
-## ⚠️ Frontend status — START HERE if doing frontend work
-
-There is **no frontend yet** and **no UX/design decisions recorded anywhere**:
-
-- `frontend/` is the unmodified `npm create vite` template (React 19 + TS), **not committed** to git.
-- `architecture.md` explicitly defers frontend ("plugged on later").
-- BMAD `create-ux-design` workflow = **pending** — never run. No wireframes, no design system, no component plan.
-
-Before building UI, design decisions must be captured. Options:
-- Run the BMAD UX workflow: `/bmad-create-ux-design` (ux-designer agent) → writes a UX doc into `_bmad-output/planning-artifacts/`.
-- Or capture decisions directly here (stack additions, routing, state mgmt, styling/design system, auth flow, which API endpoints each screen hits).
-
-Open frontend gaps to decide: styling (Tailwind? CSS modules?), routing (react-router?), data fetching (TanStack Query? fetch?), state, auth-token storage, **CORS** (backend `main.py` mounts no CORS middleware — cross-origin dev calls will fail until added), and whether an **auth/login router is mounted** (`auth_router` is *not* in `main.py:include_router` — only `get_current_user` dependency exists, so there may be no login endpoint yet).
 
 ## Workflow
 

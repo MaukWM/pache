@@ -35,7 +35,7 @@ export function Navbar() {
             字
           </span>
           <span className="hidden font-mono text-sm font-bold tracking-[0.18em] uppercase sm:inline">
-            iwkisgwitnwk2
+            pache
           </span>
         </Link>
 

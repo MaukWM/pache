@@ -110,4 +110,4 @@ else:
     @app.get("/")
     async def root() -> dict[str, str]:
         """Root endpoint (API-only mode, no bundled frontend)."""
-        return {"message": "Kanji SRS Platform API", "version": settings.api_version}
+        return {"message": "pache API", "version": settings.api_version}
