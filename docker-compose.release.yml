@@ -7,7 +7,7 @@
 #   APP_TAG=v1.0.0 docker compose -f docker-compose.release.yml up -d
 services:
   app:
-    image: ghcr.io/maukwm/iwkisgwitnwk2:${APP_TAG:-latest}
+    image: ghcr.io/maukwm/pache:${APP_TAG:-latest}
     ports:
       - "8000:8000"
     environment:
