@@ -133,16 +133,33 @@ export function QuizCard({
         <span
           lang="ja"
           className="font-[family-name:var(--font-mincho)] text-8xl leading-none md:text-9xl"
+          style={{ color: 'color-mix(in srgb, var(--foreground) 84%, var(--background))' }}
         >
           {display}
         </span>
       </div>
 
-      {/* Reading/Meaning bar */}
-      <div className="border-y border-border bg-muted py-2.5 text-center">
-        <span className="font-mono text-xs tracking-[0.2em] text-muted-foreground">
+      {/* Reading/Meaning bar — two-tone so you can tell at a glance which to
+          answer: reading is a dark bar, meaning a light one (WaniKani-style). */}
+      <div
+        className="border-y border-border py-2.5 text-center"
+        style={{
+          backgroundColor:
+            cardType === 'reading'
+              ? 'color-mix(in srgb, var(--foreground) 84%, var(--background))'
+              : 'var(--card)',
+        }}
+      >
+        <span
+          className={cn(
+            'font-mono text-xs tracking-[0.2em]',
+            cardType === 'reading' ? 'text-background/60' : 'text-muted-foreground',
+          )}
+        >
           {isKanji ? '漢字' : '語彙'} ・{' '}
-          <span className="text-foreground">{cardType === 'reading' ? '読み' : '意味'}</span>
+          <span className={cardType === 'reading' ? 'text-background' : 'text-foreground'}>
+            {cardType === 'reading' ? '読み' : '意味'}
+          </span>
         </span>
       </div>
 

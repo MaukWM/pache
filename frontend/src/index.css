@@ -122,7 +122,8 @@
   --color-srs-master: var(--srs-master);
   --color-srs-enlightened: var(--srs-enlightened);
   --color-srs-burned: var(--srs-burned);
-  --color-success: #16a34a;
+  /* Softened, slightly grayed green — vivid #16a34a clashed with the washed palette. */
+  --color-success: #4f9669;
 
   /* Type roles. Mincho is the Japanese face everywhere — it's appended as the
      JA fallback in the Latin stacks too, so any Japanese glyph (kana or kanji)
