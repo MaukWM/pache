@@ -6,9 +6,12 @@ from pydantic import BaseModel, Field
 class WaniKaniImportResponse(BaseModel):
     """Response schema for WaniKani import."""
 
-    imported_count: int = Field(..., description="Number of kanji imported")
+    imported_count: int = Field(..., description="Number of kanji newly imported")
+    updated_count: int = Field(
+        ..., description="Number of existing WK kanji whose stage was updated to match WaniKani"
+    )
     skipped_count: int = Field(..., description="Number of kanji not found in DB")
-    already_existed: int = Field(..., description="Number already in progress")
+    already_existed: int = Field(..., description="Number already in progress, unchanged")
     total_fetched: int = Field(..., description="Total Guru+ kanji from WK")
 
 

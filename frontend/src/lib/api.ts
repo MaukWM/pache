@@ -72,6 +72,7 @@ export interface SettingsResponse {
 
 export interface ImportResponse {
   imported_count: number;
+  updated_count: number;
   skipped_count: number;
   already_existed: number;
   total_fetched: number;

@@ -91,6 +91,7 @@ class WaniKaniService:
 
         # Match to our kanji DB and create/update progress
         imported = 0
+        updated = 0
         skipped = 0
         already_existed = 0
         now = datetime.now(UTC)
@@ -111,6 +112,10 @@ class WaniKaniService:
                 skipped += 1
                 continue
 
+            # Map WK SRS stage to ours (same numbering)
+            wk_stage = assignment["srs_stage"]
+            is_burned = wk_stage == 9
+
             # Check if user already has progress for this kanji
             result = await self.db.execute(
                 select(UserItemProgress).where(
@@ -121,13 +126,22 @@ class WaniKaniService:
             )
             existing = result.scalar_one_or_none()
 
-            if existing:
-                already_existed += 1
+            if existing is not None:
+                # Re-import refreshes WK-managed items so they match WaniKani
+                # exactly (stage advances, burns). Locally-studied (manual) items
+                # are reviewed here, not on WK, so we never clobber them.
+                if existing.source != ProgressSource.WANIKANI:
+                    already_existed += 1
+                elif existing.srs_stage == wk_stage:
+                    already_existed += 1
+                else:
+                    existing.srs_stage = wk_stage
+                    existing.burned_at = now if is_burned else None
+                    existing.next_review_at = None
+                    if not kanji.active:
+                        kanji.active = True
+                    updated += 1
                 continue
-
-            # Map WK SRS stage to ours (same numbering)
-            wk_stage = assignment["srs_stage"]
-            is_burned = wk_stage == 9
 
             # WaniKani-imported items are reviewed on WaniKani, not here, so they
             # never schedule a local review. next_review_at stays null; their live
@@ -156,6 +170,7 @@ class WaniKaniService:
             "wk_import_complete",
             user_id=user_id,
             imported=imported,
+            updated=updated,
             skipped=skipped,
             already_existed=already_existed,
             total=total_fetched,
@@ -163,6 +178,7 @@ class WaniKaniService:
 
         return WaniKaniImportResponse(
             imported_count=imported,
+            updated_count=updated,
             skipped_count=skipped,
             already_existed=already_existed,
             total_fetched=total_fetched,

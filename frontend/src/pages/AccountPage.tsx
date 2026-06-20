@@ -202,7 +202,7 @@ function PasswordSettings({ queryClient }: { queryClient: ReturnType<typeof useQ
 
   const handleSave = () => {
     if (password !== confirm) {
-      setMsg('パスワードが一致しません。');
+      setMsg('⚠ パスワードが一致しません。');
       return;
     }
     setMsg('');
@@ -237,7 +237,7 @@ function PasswordSettings({ queryClient }: { queryClient: ReturnType<typeof useQ
         </Button>
 
         {msg && (
-          <p className={cn('text-sm', msg.includes('!') ? 'text-success' : 'text-destructive')}>{msg}</p>
+          <p className={cn('text-sm', msg.startsWith('⚠') ? 'text-destructive' : 'text-success')}>{msg}</p>
         )}
       </CardContent>
     </Card>
@@ -319,9 +319,10 @@ function WaniKaniSettings({ queryClient }: { queryClient: ReturnType<typeof useQ
   const importMutation = useMutation({
     mutationFn: api.importWanikani,
     onSuccess: (data) => {
-      setMsg(`${data.total_fetched}件のGuru+項目から${data.imported_count}件の漢字をインポートしました！（${data.skipped_count}件スキップ、${data.already_existed}件は既存）`);
+      setMsg(`${data.total_fetched}件のGuru+項目から${data.imported_count}件を新規インポート、${data.updated_count}件を更新しました！（${data.skipped_count}件スキップ、${data.already_existed}件は変更なし）`);
       queryClient.invalidateQueries({ queryKey: ['kanji'] });
       queryClient.invalidateQueries({ queryKey: ['progress'] });
+      queryClient.invalidateQueries({ queryKey: ['wanikani'] });
     },
     onError: (err: Error) => setMsg(`⚠ ${err.message}`),
   });
@@ -340,9 +341,22 @@ function WaniKaniSettings({ queryClient }: { queryClient: ReturnType<typeof useQ
           <>
             <p className="text-sm text-muted-foreground">
               {hasKey
-                ? 'APIキーは設定済みです。バーンした漢字をインポートできます。'
+                ? 'APIキーは設定済みです。Guru+の漢字をインポートできます（再インポートでWaniKaniの進捗に合わせて更新）。'
                 : 'WaniKaniのAPIキーを追加して、Guru+の漢字をインポートしましょう。'}
             </p>
+
+            {/* Masked indicator that a key is stored (server never returns the key). */}
+            {hasKey && (
+              <div className="flex items-center gap-2">
+                <span
+                  aria-hidden
+                  className="flex-1 select-none border border-border bg-muted px-3 py-2 font-mono text-sm tracking-[0.3em] text-muted-foreground"
+                >
+                  ••••••••••••••••
+                </span>
+                <Badge variant="secondary">設定済み</Badge>
+              </div>
+            )}
 
             {/* Save API key */}
             <div className="flex gap-2">
@@ -389,7 +403,7 @@ function WaniKaniSettings({ queryClient }: { queryClient: ReturnType<typeof useQ
             )}
 
             {msg && (
-              <p className={cn('text-sm', msg.includes('!') ? 'text-success' : 'text-destructive')}>
+              <p className={cn('text-sm', msg.startsWith('⚠') ? 'text-destructive' : 'text-success')}>
                 {msg}
               </p>
             )}
