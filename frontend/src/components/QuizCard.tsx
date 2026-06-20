@@ -145,24 +145,21 @@ export function QuizCard({
       </div>
 
       {/* Reading/Meaning bar — two-tone so you can tell at a glance which to
-          answer: reading is a dark bar, meaning a light one (WaniKani-style). */}
+          answer. Reading is a dark slate (with light text), meaning blends with
+          the card. --reading-bar is theme-aware: strong slate on light paper, a
+          subtle elevation in dark mode so it doesn't dominate the near-black UI. */}
       <div
         className="border-y border-border py-2.5 text-center"
-        style={{
-          backgroundColor:
-            cardType === 'reading'
-              ? 'color-mix(in srgb, var(--foreground) 84%, var(--background))'
-              : 'var(--card)',
-        }}
+        style={{ backgroundColor: cardType === 'reading' ? 'var(--reading-bar)' : 'var(--card)' }}
       >
         <span
           className={cn(
             'font-mono text-xs tracking-[0.2em]',
-            cardType === 'reading' ? 'text-background/60' : 'text-muted-foreground',
+            cardType === 'reading' ? 'text-white/55' : 'text-muted-foreground',
           )}
         >
           {isKanji ? '漢字' : '語彙'} ・{' '}
-          <span className={cardType === 'reading' ? 'text-background' : 'text-foreground'}>
+          <span className={cardType === 'reading' ? 'text-white' : 'text-foreground'}>
             {cardType === 'reading' ? '読み' : '意味'}
           </span>
         </span>

@@ -44,6 +44,10 @@
 
   /* Forecast: WaniKani source segment (ours uses plain --foreground ink). */
   --forecast-wk: #e07b00;
+
+  /* Quiz reading-bar: a strong dark slate on light paper (two-tone vs the white
+     meaning bar). Theme-aware — see .dark for the subtler dark-mode value. */
+  --reading-bar: #33353d;
 }
 
 .dark {
@@ -78,6 +82,10 @@
 
   /* Softer amber so it doesn't glare on dark paper. */
   --forecast-wk: #d98a2b;
+
+  /* Reading-bar: only a subtle elevation above the card — a bright slate would
+     become the lightest band on the near-black page and dominate. */
+  --reading-bar: #1d1f27;
 }
 
 @theme inline {
