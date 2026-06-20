@@ -105,6 +105,10 @@ export function QuizCard({
     if (shakeSignal > 0) setShaking(true);
   }, [shakeSignal]);
   const isKanji = itemType === 'kanji';
+  // Type accent: kanji = pink ink, vocab = purple. Bright var for dark surfaces,
+  // the -dark variant where it must read on a light/washed surface.
+  const typeColor = isKanji ? 'var(--color-wk-kanji)' : 'var(--color-wk-vocab)';
+  const typeColorDark = isKanji ? 'var(--color-wk-kanji-dark)' : 'var(--color-wk-vocab-dark)';
   const display = details.character || details.word || '?';
   const meanings = details.meanings || [];
   const readingsOn = details.readings_on || [];
@@ -120,20 +124,21 @@ export function QuizCard({
   const inputStateClass = !answered
     ? ''
     : correct
-      ? 'border-success bg-success text-white placeholder:text-white/70'
-      : 'border-destructive bg-destructive text-white placeholder:text-white/70';
+      ? 'border-success/75 bg-success/75 text-white placeholder:text-white/70'
+      : 'border-destructive/75 bg-destructive/75 text-white placeholder:text-white/70';
 
   return (
     <>
-      {/* Character — big mincho glyph on a very faint type-tinted block */}
+      {/* Character — big mincho glyph on a very faint type-tinted block. Type
+          (kanji/vocab) is signalled by the background tint + the glyph ink hue. */}
       <div
         className="flex items-center justify-center py-14"
-        style={{ backgroundColor: `color-mix(in srgb, var(--card) 93%, ${isKanji ? '#ff00aa' : '#aa00ff'})` }}
+        style={{ backgroundColor: `color-mix(in srgb, var(--card) 93%, ${typeColor})` }}
       >
         <span
           lang="ja"
           className="font-[family-name:var(--font-mincho)] text-8xl leading-none md:text-9xl"
-          style={{ color: 'color-mix(in srgb, var(--foreground) 84%, var(--background))' }}
+          style={{ color: `color-mix(in srgb, var(--foreground) 75%, ${typeColorDark})` }}
         >
           {display}
         </span>
@@ -197,7 +202,7 @@ export function QuizCard({
         {answered && (
           <div className="mx-auto max-w-2xl space-y-3 px-4 pb-5">
             <div className="flex items-center justify-center gap-4">
-              <span className={cn('text-lg font-bold', correct ? 'text-success' : 'text-destructive')}>
+              <span className={cn('text-lg font-bold', correct ? 'text-success' : 'text-destructive/75')}>
                 {correct ? '正解！' : '不正解'}
               </span>
               <Button variant="outline" size="sm" onClick={onToggleInfo} className="text-muted-foreground">

@@ -295,10 +295,10 @@ export function ReviewPage() {
       {/* Progress bar — WK style with counts */}
       <div className="h-2 bg-secondary overflow-hidden flex shrink-0">
         {completedCorrect > 0 && (
-          <div className="h-full bg-success transition-all" style={{ width: `${correctPct}%` }} />
+          <div className="h-full bg-success/75 transition-all" style={{ width: `${correctPct}%` }} />
         )}
         {completedIncorrect > 0 && (
-          <div className="h-full bg-destructive transition-all" style={{ width: `${incorrectPct}%` }} />
+          <div className="h-full bg-destructive/75 transition-all" style={{ width: `${incorrectPct}%` }} />
         )}
       </div>
 
