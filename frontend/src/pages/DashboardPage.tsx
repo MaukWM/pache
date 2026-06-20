@@ -192,6 +192,7 @@ export function DashboardPage() {
             wkConfigured={wkForecastConfigured}
             mode={mode}
             hideEmpty
+            dropCurrent
             loading={forecastLoading}
           />
           <ReviewForecast

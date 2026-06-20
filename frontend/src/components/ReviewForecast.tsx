@@ -4,9 +4,11 @@ import { cn } from '@/lib/utils';
 import { Card } from '@/components/ui/card';
 
 // Review forecast: one row per time bucket, a horizontal bar split into our-site
-// ink + WaniKani amber. Each bar shows reviews unlocking *in that bucket only*
-// (not a cumulative running total); the header shows the window's grand total.
-// The shared source toggle (mode) decides which source(s) to show.
+// ink + WaniKani amber. The bar shows reviews unlocking *in that bucket only*;
+// each row also carries WaniKani-style numbers — the per-source increment
+// (+ours/+wk) plus a cumulative running total (how many you'd have waiting at
+// that time, seeded by what's already due). The header shows the window's grand
+// total. The shared source toggle (mode) decides which source(s) to show.
 // Used twice on the dashboard (next 24h, next 7 days).
 export function ReviewForecast({
   title,
@@ -14,6 +16,7 @@ export function ReviewForecast({
   wkConfigured,
   mode,
   hideEmpty = false,
+  dropCurrent = false,
   loading = false,
 }: {
   title: string;
@@ -22,15 +25,30 @@ export function ReviewForecast({
   mode: SpreadMode;
   /** Drop buckets where nothing new arrives (keeps the hourly view compact). */
   hideEmpty?: boolean;
+  /**
+   * Hide the current (first) block as a row — it's already on the review button.
+   * Its count still seeds the cumulative baseline so totals match what's waiting.
+   */
+  dropCurrent?: boolean;
   loading?: boolean;
 }) {
   const showOurs = mode !== 'wanikani';
   const showWk = wkConfigured && mode !== 'site';
   const valueOf = (b: ForecastBucket) => (showOurs ? b.addOurs : 0) + (showWk ? b.addWk : 0);
 
-  const rows = hideEmpty ? buckets.filter((b) => valueOf(b) > 0) : buckets;
-  const max = Math.max(1, ...buckets.map(valueOf));
-  const grandTotal = buckets.reduce((s, b) => s + valueOf(b), 0);
+  // Cumulative running total over the whole window (respects the source toggle).
+  // The current block seeds the baseline even when its row is dropped, so the
+  // last visible row's total equals the grand total in the header.
+  let running = 0;
+  const enriched = buckets.map((b) => {
+    running += valueOf(b);
+    return { bucket: b, increment: valueOf(b), cumulative: running };
+  });
+  const grandTotal = running;
+
+  let rows = dropCurrent ? enriched.slice(1) : enriched;
+  if (hideEmpty) rows = rows.filter((r) => r.increment > 0);
+  const max = Math.max(1, ...rows.map((r) => r.increment));
 
   return (
     <Card className="gap-3 p-5">
@@ -59,31 +77,40 @@ export function ReviewForecast({
 
       {loading ? (
         <div className="py-6 text-center text-sm text-muted-foreground animate-pulse">読み込み中...</div>
-      ) : grandTotal === 0 ? (
+      ) : rows.length === 0 ? (
         <div className="py-6 text-center text-sm text-muted-foreground">予定されている復習はありません。</div>
       ) : (
         <div className="space-y-1">
-          {rows.map((b, i) => {
-            const value = valueOf(b);
-            return (
-              <div key={`${b.label}-${i}`} className="flex items-center gap-2 text-xs">
-                <span className="w-10 shrink-0 text-right font-mono text-muted-foreground tabular-nums">
-                  {b.label}
-                </span>
-                <div className="flex h-4 flex-1 items-stretch overflow-hidden bg-secondary">
-                  {showOurs && (
-                    <div className="bg-foreground transition-all" style={{ width: `${(b.addOurs / max) * 100}%` }} />
-                  )}
-                  {showWk && (
-                    <div className="transition-all" style={{ width: `${(b.addWk / max) * 100}%`, backgroundColor: 'var(--forecast-wk)' }} />
-                  )}
-                </div>
-                <span className={cn('w-10 shrink-0 text-right font-mono tabular-nums', value > 0 ? 'text-foreground' : 'text-muted-foreground/40')}>
-                  {value}
-                </span>
+          {rows.map(({ bucket: b, increment, cumulative }, i) => (
+            <div key={`${b.label}-${i}`} className="flex items-center gap-2 text-xs">
+              <span className="w-10 shrink-0 text-right font-mono text-muted-foreground tabular-nums">
+                {b.label}
+              </span>
+              <div className="flex h-4 flex-1 items-stretch overflow-hidden bg-secondary">
+                {showOurs && (
+                  <div className="bg-foreground transition-all" style={{ width: `${(b.addOurs / max) * 100}%` }} />
+                )}
+                {showWk && (
+                  <div className="transition-all" style={{ width: `${(b.addWk / max) * 100}%`, backgroundColor: 'var(--forecast-wk)' }} />
+                )}
               </div>
-            );
-          })}
+              {/* Per-source increments, aligned column-wise (ours / 鰐蟹) so the
+                  split reads vertically. The `/` only shows when both sources do. */}
+              <span
+                className={cn(
+                  'flex shrink-0 items-center justify-end gap-px font-mono text-[11px] tabular-nums',
+                  increment > 0 ? 'text-muted-foreground' : 'text-muted-foreground/40',
+                )}
+              >
+                {showOurs && <span className="w-7 text-right">+{b.addOurs}</span>}
+                {showOurs && showWk && <span className="text-muted-foreground/40">/</span>}
+                {showWk && <span className="w-7 text-left">+{b.addWk}</span>}
+              </span>
+              <span className="w-10 shrink-0 text-right font-mono tabular-nums text-foreground">
+                {cumulative}
+              </span>
+            </div>
+          ))}
         </div>
       )}
     </Card>
