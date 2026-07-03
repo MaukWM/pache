@@ -1,5 +1,5 @@
 import { useState, useMemo, useRef, useCallback, useEffect } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useInfiniteQuery } from '@tanstack/react-query';
 import { api, type KanjiItem } from '../lib/api';
 import { SubjectCard } from '../components/SubjectCard';
 import { romajiToKana } from '../lib/romaji';
@@ -15,8 +15,8 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 
-const CHUNK_SIZE = 250;
-const INITIAL_LOAD = 250;
+// Server page size; also the block size for the frequency/default dividers.
+const PAGE_SIZE = 250;
 
 type SortMode = 'frequency' | 'grade' | 'jlpt' | 'strokes' | 'default';
 
@@ -28,35 +28,53 @@ const SORT_OPTIONS: { value: SortMode; label: string }[] = [
   { value: 'default', label: 'データベース順' },
 ];
 
-function sortKanji(items: KanjiItem[], mode: SortMode): KanjiItem[] {
-  if (mode === 'default') return items;
-  return [...items].sort((a, b) => {
-    if (mode === 'frequency') {
-      return (a.frequency ?? 99999) - (b.frequency ?? 99999);
-    }
-    if (mode === 'grade') {
-      return (a.grade ?? 99) - (b.grade ?? 99) || (a.stroke_count ?? 99) - (b.stroke_count ?? 99);
-    }
-    if (mode === 'jlpt') {
-      return (b.jlpt_level ?? 0) - (a.jlpt_level ?? 0) || (a.grade ?? 99) - (b.grade ?? 99);
-    }
-    if (mode === 'strokes') {
-      return (a.stroke_count ?? 99) - (b.stroke_count ?? 99);
-    }
-    return 0;
-  });
+// Debounce a value so search only hits the server after typing pauses.
+function useDebounced<T>(value: T, delayMs: number): T {
+  const [debounced, setDebounced] = useState(value);
+  useEffect(() => {
+    const t = setTimeout(() => setDebounced(value), delayMs);
+    return () => clearTimeout(t);
+  }, [value, delayMs]);
+  return debounced;
 }
 
 export function KanjiPage() {
   const [search, setSearch] = useState('');
   const [sort, setSort] = useState<SortMode>('frequency');
-  const [visibleCount, setVisibleCount] = useState(INITIAL_LOAD);
   const [hideKnown, setHideKnown] = useState(false);
+  const debouncedSearch = useDebounced(search.trim(), 300);
 
-  const kanji = useQuery({
-    queryKey: ['kanji', 'all'],
-    queryFn: () => api.getKanji({ include_inactive: 'true' }),
+  // Sorting, search, and the known-filter all run server-side; each page is
+  // PAGE_SIZE rows. Changing any of them resets to the first page via the key.
+  const kanji = useInfiniteQuery({
+    queryKey: ['kanji', 'page', sort, debouncedSearch, hideKnown],
+    queryFn: ({ pageParam }) => {
+      const params: Record<string, string> = {
+        include_inactive: 'true',
+        limit: String(PAGE_SIZE),
+        offset: String(pageParam),
+        sort,
+      };
+      if (debouncedSearch) {
+        params.q = debouncedSearch;
+        const kana = romajiToKana(debouncedSearch);
+        if (kana) params.q_kana = kana.hiragana;
+      }
+      if (hideKnown) params.hide_known = 'true';
+      return api.getKanji(params);
+    },
+    initialPageParam: 0,
+    getNextPageParam: (lastPage, allPages) => {
+      const loaded = allPages.reduce((n, p) => n + p.items.length, 0);
+      return loaded < lastPage.total ? loaded : undefined;
+    },
   });
+
+  const items = useMemo(
+    () => kanji.data?.pages.flatMap((p) => p.items) ?? [],
+    [kanji.data],
+  );
+  const total = kanji.data?.pages[0]?.total ?? 0;
 
   // Fetch user progress to color-code tiles by SRS stage
   const progressMap = useQuery({
@@ -64,80 +82,38 @@ export function KanjiPage() {
     queryFn: api.getProgressMap,
   });
 
-  // Full sorted list (before hide-known filtering) — used for stable chunk positions
-  const sortedAll = useMemo(() => {
-    let items = kanji.data || [];
-
-    if (search.trim()) {
-      const q = search.trim().toLowerCase();
-      const kana = romajiToKana(q);
-
-      items = items.filter((k) => {
-        if (k.character === q) return true;
-        if (k.meanings.some((m) => m.toLowerCase().includes(q))) return true;
-        if (k.readings_on.some((r) => r.includes(q))) return true;
-        if (k.readings_kun.some((r) => r.includes(q))) return true;
-        if (kana) {
-          if (k.readings_on.some((r) => r.includes(kana.katakana))) return true;
-          if (k.readings_kun.some((r) => r.includes(kana.hiragana))) return true;
-        }
-        return false;
-      });
-    }
-
-    return sortKanji(items, sort);
-  }, [kanji.data, search, sort]);
-
-  const filtered = sortedAll;
-
-  // Reset visible count when sort/search changes
-  const prevSortedLen = useRef(sortedAll.length);
-  if (sortedAll.length !== prevSortedLen.current) {
-    prevSortedLen.current = sortedAll.length;
-    if (visibleCount > INITIAL_LOAD) setVisibleCount(INITIAL_LOAD);
-  }
-
-  const hasMore = visibleCount < sortedAll.length;
-
-  // Intersection observer for infinite scroll
+  // Intersection observer sentinel triggers the next server page.
   const observerRef = useRef<IntersectionObserver | null>(null);
+  const fetchNextRef = useRef(() => {});
+  fetchNextRef.current = () => {
+    if (kanji.hasNextPage && !kanji.isFetchingNextPage) kanji.fetchNextPage();
+  };
   const sentinelRef = useCallback(
     (node: HTMLDivElement | null) => {
       if (observerRef.current) observerRef.current.disconnect();
-      if (!node || !hasMore) return;
+      if (!node) return;
       observerRef.current = new IntersectionObserver(
         (entries) => {
-          if (entries[0].isIntersecting) {
-            setVisibleCount((c) => c + CHUNK_SIZE);
-          }
+          if (entries[0].isIntersecting) fetchNextRef.current();
         },
         { rootMargin: '400px' },
       );
       observerRef.current.observe(node);
     },
-    [hasMore],
+    [],
   );
 
-  // Build chunks — either by sort-mode groups or fixed-size blocks
+  // Build display chunks — grouped by sort-mode label, or fixed-size blocks.
+  // Items arrive server-sorted, so groups grow progressively as pages load.
   const chunks = useMemo(() => {
-    const visible = sortedAll.slice(0, visibleCount);
-    const filterKnown = (items: KanjiItem[]) =>
-      hideKnown && progressMap.data
-        ? items.filter((k) => progressMap.data![`kanji-${k.id}`] == null)
-        : items;
-
-    // Group-based chunking for grade/jlpt/strokes
     if (sort === 'grade') {
       const groups = new Map<string, KanjiItem[]>();
-      for (const k of visible) {
+      for (const k of items) {
         const label = k.grade ? `${k.grade}年生` : '学年なし';
         if (!groups.has(label)) groups.set(label, []);
         groups.get(label)!.push(k);
       }
-      return [...groups.entries()].map(([label, items]) => ({
-        label,
-        items: filterKnown(items),
-      }));
+      return [...groups.entries()].map(([label, items]) => ({ label, items }));
     }
 
     if (sort === 'jlpt') {
@@ -149,49 +125,52 @@ export function KanjiPage() {
         2: 'JLPT N2',
         1: 'JLPT N1',
       };
-      for (const k of visible) {
+      for (const k of items) {
         const label = k.jlpt_level ? (labelMap[k.jlpt_level] || `JLPT ${k.jlpt_level}`) : 'JLPT対象外';
         if (!groups.has(label)) groups.set(label, []);
         groups.get(label)!.push(k);
       }
-      return [...groups.entries()].map(([label, items]) => ({
-        label,
-        items: filterKnown(items),
-      }));
+      return [...groups.entries()].map(([label, items]) => ({ label, items }));
     }
 
     if (sort === 'strokes') {
       const groups = new Map<string, KanjiItem[]>();
-      for (const k of visible) {
+      for (const k of items) {
         const label = `${k.stroke_count}画`;
         if (!groups.has(label)) groups.set(label, []);
         groups.get(label)!.push(k);
       }
-      return [...groups.entries()].map(([label, items]) => ({
-        label,
-        items: filterKnown(items),
-      }));
+      return [...groups.entries()].map(([label, items]) => ({ label, items }));
     }
 
-    // Frequency / default: fixed-size blocks
+    // Frequency / default: banded blocks. The band label must keep its global
+    // meaning ("1–250" = frequency ranks 1–250) even when hide-known drops
+    // items, so derive the band from each kanji's own rank (frequency rank, or
+    // DB id for database order) instead of its position in the filtered list.
+    // Fully-known bands simply don't appear.
+    if (hideKnown) {
+      const groups = new Map<string, KanjiItem[]>();
+      for (const k of items) {
+        const rank = sort === 'frequency' ? k.frequency : k.id;
+        const label = rank
+          ? `${Math.floor((rank - 1) / PAGE_SIZE) * PAGE_SIZE + 1}–${(Math.floor((rank - 1) / PAGE_SIZE) + 1) * PAGE_SIZE}`
+          : '頻度なし';
+        if (!groups.has(label)) groups.set(label, []);
+        groups.get(label)!.push(k);
+      }
+      return [...groups.entries()].map(([label, items]) => ({ label, items }));
+    }
+
+    // Unfiltered: list position equals global rank, so plain blocks are correct.
     const result: { label: string; items: KanjiItem[] }[] = [];
-    for (let i = 0; i < visible.length; i += CHUNK_SIZE) {
-      const chunkItems = visible.slice(i, i + CHUNK_SIZE);
+    for (let i = 0; i < items.length; i += PAGE_SIZE) {
       result.push({
-        label: `${i + 1}–${Math.min(i + CHUNK_SIZE, sortedAll.length)}`,
-        items: filterKnown(chunkItems),
+        label: `${i + 1}–${Math.min(i + PAGE_SIZE, total)}`,
+        items: items.slice(i, i + PAGE_SIZE),
       });
     }
     return result;
-  }, [sortedAll, visibleCount, hideKnown, progressMap.data, sort]);
-
-  // Load everything when hiding known or using grouped sort modes
-  const isGroupedSort = sort === 'grade' || sort === 'jlpt' || sort === 'strokes';
-  useEffect(() => {
-    if ((hideKnown || isGroupedSort) && hasMore) {
-      setVisibleCount(sortedAll.length);
-    }
-  }, [hideKnown, isGroupedSort, sortedAll.length]);
+  }, [items, sort, total, hideKnown]);
 
   return (
     <div className="space-y-4">
@@ -199,8 +178,8 @@ export function KanjiPage() {
         <h1 className="text-2xl font-bold">漢字</h1>
         <span className="text-sm text-muted-foreground">
           {hideKnown
-            ? `未習得 ${(sortedAll.length - Object.keys(progressMap.data || {}).length).toLocaleString()} / ${sortedAll.length.toLocaleString()}`
-            : `${sortedAll.length.toLocaleString()}字`}
+            ? `未習得 ${total.toLocaleString()}字`
+            : `${total.toLocaleString()}字`}
         </span>
       </div>
 
@@ -210,21 +189,18 @@ export function KanjiPage() {
           type="text"
           placeholder="文字・意味・読みで検索..."
           value={search}
-          onChange={(e) => { setSearch(e.target.value); setVisibleCount(INITIAL_LOAD); }}
+          onChange={(e) => setSearch(e.target.value)}
           className="flex-1"
         />
         <Button
           type="button"
           variant={hideKnown ? 'default' : 'outline'}
-          onClick={() => { setHideKnown(!hideKnown); setVisibleCount(INITIAL_LOAD); }}
+          onClick={() => setHideKnown(!hideKnown)}
           className="whitespace-nowrap"
         >
           習得済みを隠す
         </Button>
-        <Select
-          value={sort}
-          onValueChange={(v) => { setSort(v as SortMode); setVisibleCount(INITIAL_LOAD); }}
-        >
+        <Select value={sort} onValueChange={(v) => setSort(v as SortMode)}>
           <SelectTrigger className="w-auto">
             <SelectValue />
           </SelectTrigger>
@@ -253,7 +229,6 @@ export function KanjiPage() {
                 <Separator className="flex-1" />
                 <span className="text-xs text-muted-foreground font-medium whitespace-nowrap">
                   {chunk.label}
-                  {hideKnown && chunk.items.length === 0 && ' ✓'}
                 </span>
                 <Separator className="flex-1" />
               </div>
@@ -275,16 +250,22 @@ export function KanjiPage() {
             </div>
           ))}
 
+          {items.length === 0 && (
+            <p className="text-center py-8 text-sm text-muted-foreground">
+              該当する漢字がありません。
+            </p>
+          )}
+
           {/* Infinite scroll sentinel */}
-          {hasMore && (
+          {kanji.hasNextPage && (
             <div ref={sentinelRef} className="text-center py-4 text-muted-foreground text-sm">
               読み込み中...
             </div>
           )}
 
-          {!hasMore && filtered.length > CHUNK_SIZE && (
+          {!kanji.hasNextPage && items.length > PAGE_SIZE && (
             <div className="text-center py-4 text-muted-foreground text-xs">
-              全{sortedAll.length.toLocaleString()}字を読み込みました
+              全{total.toLocaleString()}字を読み込みました
             </div>
           )}
         </div>

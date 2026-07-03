@@ -22,3 +22,10 @@ class KanjiResponse(BaseModel):
     frequency: int | None
     active: bool
     created_at: datetime
+
+
+class KanjiListResponse(BaseModel):
+    """Paginated kanji list: one page of items plus the total match count."""
+
+    items: list[KanjiResponse]
+    total: int

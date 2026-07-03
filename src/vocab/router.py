@@ -21,7 +21,9 @@ from src.vocab.schemas import (
 )
 from src.vocab.service import VocabService
 
-router = APIRouter(prefix="/vocab", tags=["vocab"])
+router = APIRouter(
+    prefix="/vocab", tags=["vocab"], dependencies=[Depends(get_current_user)]
+)
 
 
 @router.post("", response_model=VocabResponse, status_code=status.HTTP_201_CREATED)
@@ -68,7 +70,7 @@ async def list_vocab(
     kanji_id: int | None = Query(default=None, description="Filter by kanji ID"),
     db: AsyncSession = Depends(get_db),
 ) -> list[VocabResponse]:
-    """List all vocabulary with optional filters. No authentication required."""
+    """List all vocabulary with optional filters."""
     service = VocabService(db)
     vocab_list = await service.get_all(tag=tag, creator=creator, kanji_id=kanji_id)
     return [_vocab_to_response(vocab) for vocab in vocab_list]
@@ -101,7 +103,7 @@ async def get_vocab(
     vocab_id: int,
     db: AsyncSession = Depends(get_db),
 ) -> VocabResponse:
-    """Get a single vocabulary item by ID. No authentication required."""
+    """Get a single vocabulary item by ID."""
     service = VocabService(db)
     vocab = await service.get_by_id(vocab_id)
     if vocab is None:

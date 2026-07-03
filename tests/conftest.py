@@ -1,5 +1,6 @@
 """Pytest configuration and fixtures."""
 
+import json
 from collections.abc import AsyncGenerator, Generator
 
 import pytest
@@ -22,6 +23,8 @@ test_engine = create_async_engine(
     "sqlite+aiosqlite:///:memory:",
     echo=False,
     future=True,
+    # Match the production engine: raw UTF-8 JSON so kana LIKE-search works.
+    json_serializer=lambda obj: json.dumps(obj, ensure_ascii=False),
 )
 
 # Create test session factory

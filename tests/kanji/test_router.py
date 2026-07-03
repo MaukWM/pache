@@ -4,9 +4,16 @@ import pytest
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.auth.dependencies import get_current_user
+from src.auth.models import User
 from src.database import get_db
 from src.kanji.models import Kanji
 from src.main import app
+
+
+def _fake_user() -> User:
+    """Bypass auth: kanji endpoints require a user but not a real session."""
+    return User(id=1, username="testuser")
 
 
 @pytest.mark.asyncio
@@ -17,10 +24,11 @@ async def test_list_kanji_empty(async_client: AsyncClient, db_session: AsyncSess
         yield db_session
 
     app.dependency_overrides[get_db] = override_get_db
+    app.dependency_overrides[get_current_user] = _fake_user
     try:
         response = await async_client.get("/api/v1/kanji")
         assert response.status_code == 200
-        assert response.json() == []
+        assert response.json() == {"items": [], "total": 0}
     finally:
         app.dependency_overrides.clear()
 
@@ -53,10 +61,13 @@ async def test_list_kanji_only_active(async_client: AsyncClient, db_session: Asy
         yield db_session
 
     app.dependency_overrides[get_db] = override_get_db
+    app.dependency_overrides[get_current_user] = _fake_user
     try:
         response = await async_client.get("/api/v1/kanji")
         assert response.status_code == 200
-        data = response.json()
+        body = response.json()
+        assert body["total"] == 1
+        data = body["items"]
         assert len(data) == 1
         assert data[0]["character"] == "日"
         assert data[0]["active"] is True
@@ -92,10 +103,13 @@ async def test_list_kanji_include_inactive(async_client: AsyncClient, db_session
         yield db_session
 
     app.dependency_overrides[get_db] = override_get_db
+    app.dependency_overrides[get_current_user] = _fake_user
     try:
         response = await async_client.get("/api/v1/kanji?include_inactive=true")
         assert response.status_code == 200
-        data = response.json()
+        body = response.json()
+        assert body["total"] == 2
+        data = body["items"]
         assert len(data) == 2
         characters = {item["character"] for item in data}
         assert characters == {"日", "月"}
@@ -122,6 +136,7 @@ async def test_get_kanji_by_id(async_client: AsyncClient, db_session: AsyncSessi
         yield db_session
 
     app.dependency_overrides[get_db] = override_get_db
+    app.dependency_overrides[get_current_user] = _fake_user
     try:
         response = await async_client.get(f"/api/v1/kanji/{kanji.id}")
         assert response.status_code == 200
@@ -155,6 +170,7 @@ async def test_get_kanji_by_character(async_client: AsyncClient, db_session: Asy
         yield db_session
 
     app.dependency_overrides[get_db] = override_get_db
+    app.dependency_overrides[get_current_user] = _fake_user
     try:
         response = await async_client.get("/api/v1/kanji/月")
         assert response.status_code == 200
@@ -173,6 +189,7 @@ async def test_get_kanji_not_found_by_id(async_client: AsyncClient, db_session: 
         yield db_session
 
     app.dependency_overrides[get_db] = override_get_db
+    app.dependency_overrides[get_current_user] = _fake_user
     try:
         response = await async_client.get("/api/v1/kanji/99999")
         assert response.status_code == 404
@@ -191,6 +208,7 @@ async def test_get_kanji_not_found_by_character(
         yield db_session
 
     app.dependency_overrides[get_db] = override_get_db
+    app.dependency_overrides[get_current_user] = _fake_user
     try:
         response = await async_client.get("/api/v1/kanji/漢")
         assert response.status_code == 404
@@ -207,6 +225,7 @@ async def test_get_kanji_invalid_identifier(async_client: AsyncClient, db_sessio
         yield db_session
 
     app.dependency_overrides[get_db] = override_get_db
+    app.dependency_overrides[get_current_user] = _fake_user
     try:
         response = await async_client.get("/api/v1/kanji/abc")
         assert response.status_code == 400
@@ -216,10 +235,10 @@ async def test_get_kanji_invalid_identifier(async_client: AsyncClient, db_sessio
 
 
 @pytest.mark.asyncio
-async def test_kanji_endpoints_no_auth_required(
+async def test_kanji_endpoints_require_auth(
     async_client: AsyncClient, db_session: AsyncSession
 ):
-    """Test that kanji endpoints do not require authentication."""
+    """Kanji endpoints reject unauthenticated requests."""
     kanji = Kanji(
         character="日",
         meanings=["sun"],
@@ -237,12 +256,17 @@ async def test_kanji_endpoints_no_auth_required(
 
     app.dependency_overrides[get_db] = override_get_db
     try:
-        # List endpoint - no auth header
+        # No Authorization header: HTTPBearer rejects with 401.
         response = await async_client.get("/api/v1/kanji")
-        assert response.status_code == 200
+        assert response.status_code == 401
 
-        # Get endpoint - no auth header
         response = await async_client.get(f"/api/v1/kanji/{kanji.id}")
-        assert response.status_code == 200
+        assert response.status_code == 401
+
+        # Invalid token: 401 from session lookup.
+        response = await async_client.get(
+            "/api/v1/kanji", headers={"Authorization": "Bearer bogus"}
+        )
+        assert response.status_code == 401
     finally:
         app.dependency_overrides.clear()

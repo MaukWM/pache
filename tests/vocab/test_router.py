@@ -4,8 +4,22 @@ import pytest
 from fastapi import status
 from httpx import AsyncClient
 
+from src.auth.dependencies import get_current_user
 from src.auth.models import Session, User
 from src.kanji.models import Kanji
+from src.main import app
+
+
+@pytest.fixture
+def as_user() -> User:
+    """Authenticate requests via dependency override.
+
+    conftest's autouse override_dependency fixture clears all overrides after
+    each test, so no teardown is needed here.
+    """
+    user = User(id=999, username="authed")
+    app.dependency_overrides[get_current_user] = lambda: user
+    return user
 
 
 @pytest.mark.asyncio
@@ -212,7 +226,7 @@ async def test_create_vocab_auto_activates_kanji(async_client: AsyncClient, db_s
 
 
 @pytest.mark.asyncio
-async def test_list_vocab_returns_all(async_client: AsyncClient, db_session) -> None:
+async def test_list_vocab_returns_all(async_client: AsyncClient, db_session, as_user: User) -> None:
     """Test that GET /vocab returns all vocabulary."""
     # Create users
     user1 = User(username="floppa")
@@ -276,7 +290,9 @@ async def test_list_vocab_returns_all(async_client: AsyncClient, db_session) -> 
 
 
 @pytest.mark.asyncio
-async def test_list_vocab_filters_by_tag(async_client: AsyncClient, db_session) -> None:
+async def test_list_vocab_filters_by_tag(
+    async_client: AsyncClient, db_session, as_user: User
+) -> None:
     """Test that GET /vocab?tag=slang filters by tag."""
     # Create user
     user = User(username="testuser")
@@ -320,7 +336,9 @@ async def test_list_vocab_filters_by_tag(async_client: AsyncClient, db_session) 
 
 
 @pytest.mark.asyncio
-async def test_list_vocab_filters_by_creator(async_client: AsyncClient, db_session) -> None:
+async def test_list_vocab_filters_by_creator(
+    async_client: AsyncClient, db_session, as_user: User
+) -> None:
     """Test that GET /vocab?creator=floppa filters by creator."""
     # Create users
     user1 = User(username="floppa")
@@ -362,7 +380,9 @@ async def test_list_vocab_filters_by_creator(async_client: AsyncClient, db_sessi
 
 
 @pytest.mark.asyncio
-async def test_list_vocab_filters_by_tag_and_creator(async_client: AsyncClient, db_session) -> None:
+async def test_list_vocab_filters_by_tag_and_creator(
+    async_client: AsyncClient, db_session, as_user: User
+) -> None:
     """Test that GET /vocab?tag=slang&creator=floppa filters by both (AND logic)."""
     # Create users
     user1 = User(username="floppa")
@@ -417,7 +437,9 @@ async def test_list_vocab_filters_by_tag_and_creator(async_client: AsyncClient, 
 
 
 @pytest.mark.asyncio
-async def test_get_vocab_by_id_success(async_client: AsyncClient, db_session) -> None:
+async def test_get_vocab_by_id_success(
+    async_client: AsyncClient, db_session, as_user: User
+) -> None:
     """Test that GET /vocab/{vocab_id} returns vocabulary details."""
     # Create user
     user = User(username="testuser")
@@ -471,7 +493,7 @@ async def test_get_vocab_by_id_success(async_client: AsyncClient, db_session) ->
 
 
 @pytest.mark.asyncio
-async def test_get_vocab_by_id_not_found(async_client: AsyncClient) -> None:
+async def test_get_vocab_by_id_not_found(async_client: AsyncClient, as_user: User) -> None:
     """Test that GET /vocab/{vocab_id} returns 404 when vocab doesn't exist."""
     response = await async_client.get("/api/v1/vocab/999")
 
@@ -480,8 +502,8 @@ async def test_get_vocab_by_id_not_found(async_client: AsyncClient) -> None:
 
 
 @pytest.mark.asyncio
-async def test_list_vocab_no_auth_required(async_client: AsyncClient, db_session) -> None:
-    """Test that GET /vocab does not require authentication."""
+async def test_list_vocab_requires_auth(async_client: AsyncClient, db_session) -> None:
+    """GET /vocab rejects unauthenticated requests."""
     # Create user and vocab via service
     user = User(username="testuser")
     db_session.add(user)
@@ -501,15 +523,16 @@ async def test_list_vocab_no_auth_required(async_client: AsyncClient, db_session
     )
     await db_session.commit()
 
-    # Request without auth header
+    # Request without auth header is rejected
     response = await async_client.get("/api/v1/vocab")
 
-    # Should succeed (no 401)
-    assert response.status_code == status.HTTP_200_OK
+    assert response.status_code == status.HTTP_401_UNAUTHORIZED
 
 
 @pytest.mark.asyncio
-async def test_list_vocab_filters_by_kanji_id(async_client: AsyncClient, db_session) -> None:
+async def test_list_vocab_filters_by_kanji_id(
+    async_client: AsyncClient, db_session, as_user: User
+) -> None:
     """Test that GET /vocab?kanji_id=X filters by kanji ID."""
     # Create user
     user = User(username="testuser")
@@ -660,7 +683,10 @@ async def test_delete_vocab_success(async_client: AsyncClient, db_session) -> No
     resp = await async_client.delete(f"/api/v1/vocab/{created['id']}", headers=headers)
     assert resp.status_code == status.HTTP_204_NO_CONTENT
 
-    follow_up = await async_client.get(f"/api/v1/vocab/{created['id']}")
+    follow_up = await async_client.get(
+        f"/api/v1/vocab/{created['id']}",
+        headers={"Authorization": "Bearer test-token-123"},
+    )
     assert follow_up.status_code == status.HTTP_404_NOT_FOUND
 
 

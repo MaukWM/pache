@@ -1,5 +1,6 @@
 """Database configuration and session management."""
 
+import json
 from collections.abc import AsyncGenerator
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
@@ -12,6 +13,9 @@ engine = create_async_engine(
     settings.database_url,
     echo=False,  # Set to True for SQL debugging
     future=True,
+    # Store JSON columns as raw UTF-8 (not \uXXXX escapes) so kana survives a
+    # CAST-to-text LIKE search on every backend, including SQLite in tests.
+    json_serializer=lambda obj: json.dumps(obj, ensure_ascii=False),
 )
 
 # Create async session factory

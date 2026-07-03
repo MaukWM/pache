@@ -24,25 +24,21 @@ function extractKanji(text: string): string[] {
 }
 
 // Resolve the kanji items contained in a word, deduped, for auto-linking.
+// Fetches each detected character individually instead of downloading the
+// whole 12k-kanji catalog; characters not in the DB (404) are skipped.
 function useDetectedKanji(word: string): KanjiItem[] {
-  const allKanji = useQuery({
-    queryKey: ['kanji', 'all'],
-    queryFn: () => api.getKanji({ include_inactive: 'true' }),
+  const chars = useMemo(() => [...new Set(extractKanji(word))], [word]);
+  const detected = useQuery({
+    queryKey: ['kanji', 'chars', chars.join('')],
+    enabled: chars.length > 0,
+    queryFn: async () => {
+      const results = await Promise.all(
+        chars.map((ch) => api.getKanjiDetail(ch).catch(() => null)),
+      );
+      return results.filter((k): k is KanjiItem => k !== null);
+    },
   });
-  return useMemo(() => {
-    if (!word || !allKanji.data) return [];
-    const map = new Map(allKanji.data.map((k) => [k.character, k]));
-    const found: KanjiItem[] = [];
-    const seen = new Set<string>();
-    for (const ch of extractKanji(word)) {
-      if (!seen.has(ch)) {
-        seen.add(ch);
-        const k = map.get(ch);
-        if (k) found.push(k);
-      }
-    }
-    return found;
-  }, [word, allKanji.data]);
+  return (chars.length > 0 ? detected.data : undefined) ?? [];
 }
 
 // Add a vocab to the queue along with any constituent kanji the user isn't already

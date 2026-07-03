@@ -5,6 +5,7 @@ from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy import func, select
@@ -55,6 +56,9 @@ app = FastAPI(
     version=settings.api_version,
     lifespan=lifespan,
 )
+
+# Compress large JSON responses (kanji/vocab lists shrink ~10x)
+app.add_middleware(GZipMiddleware, minimum_size=1024)
 
 # CORS - allow frontend dev server
 app.add_middleware(

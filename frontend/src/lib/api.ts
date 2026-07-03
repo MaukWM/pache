@@ -278,7 +278,7 @@ export const api = {
   // Kanji
   getKanji: (params?: Record<string, string>) => {
     const qs = params ? '?' + new URLSearchParams(params).toString() : '';
-    return request<KanjiItem[]>(`/kanji${qs}`);
+    return request<KanjiListResponse>(`/kanji${qs}`);
   },
 
   getKanjiDetail: (idOrChar: string) =>
@@ -401,6 +401,12 @@ export interface KanjiItem {
   stroke_count?: number;
   frequency?: number;
   active: boolean;
+}
+
+// GET /kanji is paginated: one page of items plus the total match count.
+export interface KanjiListResponse {
+  items: KanjiItem[];
+  total: number;
 }
 
 export interface ProgressItem {
