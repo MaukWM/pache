@@ -9,6 +9,7 @@ from src.core.constants import ItemType
 from src.database import get_db
 from src.progress.models import UserItemProgress
 from src.progress.schemas import (
+    BurnResponse,
     ProgressItemResponse,
     QueueItemRequest,
     QueueItemResponse,
@@ -105,6 +106,30 @@ async def unlearn_item(
     """Unlearn an item, deleting its progress and any upcoming reviews."""
     service = ProgressService(db)
     await service.unlearn_item(
+        user_id=current_user.id,
+        item_type=item_type,
+        item_id=item_id,
+    )
+
+
+@progress_router.post(
+    "/{item_type}/{item_id}/burn",
+    response_model=BurnResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def burn_item(
+    item_type: ItemType = Path(..., description="Type of item to burn (kanji or vocab)"),
+    item_id: int = Path(..., gt=0, description="Positive item ID"),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> BurnResponse:
+    """Instantly burn an already-known item, skipping lessons and reviews.
+
+    Only allowed for items not yet in the user's progress; removes any
+    lesson-queue entry for the item.
+    """
+    service = ProgressService(db)
+    return await service.burn_item(
         user_id=current_user.id,
         item_type=item_type,
         item_id=item_id,

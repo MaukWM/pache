@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { X } from 'lucide-react';
+import { Flame, X } from 'lucide-react';
+import { toast } from 'sonner';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api, type QueueItem } from '../lib/api';
 import { RadicalList } from '../components/RadicalList';
@@ -18,6 +19,14 @@ import { cn } from '@/lib/utils';
 // icon + tooltip carry the "remove" meaning, so no red is needed.
 const removeBadgeClass =
   'absolute -top-2 -right-2 z-10 grid size-5 place-items-center border border-border ' +
+  'bg-background text-muted-foreground opacity-0 transition-colors transition-opacity ' +
+  'group-hover:opacity-100 hover:border-foreground hover:bg-foreground hover:text-background';
+
+// Instant-burn badge: same quiet paper square as the remove badge, in the
+// opposite (bottom-right) corner so the two actions can't be mistaken for each
+// other. Flame icon + tooltip carry the "already know it → burn" meaning.
+const burnBadgeClass =
+  'absolute -bottom-2 -right-2 z-10 grid size-5 place-items-center border border-border ' +
   'bg-background text-muted-foreground opacity-0 transition-colors transition-opacity ' +
   'group-hover:opacity-100 hover:border-foreground hover:bg-foreground hover:text-background';
 
@@ -58,6 +67,46 @@ export function LessonsPage() {
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ['queue'] });
     },
+  });
+
+  const invalidateProgress = () => {
+    queryClient.invalidateQueries({ queryKey: ['queue'] });
+    queryClient.invalidateQueries({ queryKey: ['progress'] });
+    queryClient.invalidateQueries({ queryKey: ['progressMap'] });
+    queryClient.invalidateQueries({ queryKey: ['reviews'] });
+  };
+
+  // Instant-burn an already-known item straight from the queue. Reversible via
+  // the toast's undo (unlearn + re-queue), so no confirm step.
+  const burnMutation = useMutation({
+    mutationFn: ({ item_type, item_id }: { item_type: string; item_id: number; display: string }) =>
+      api.burnItem(item_type, item_id),
+    onMutate: async ({ item_type, item_id }) => {
+      await queryClient.cancelQueries({ queryKey: ['queue'] });
+      queryClient.setQueryData<QueueItem[]>(['queue'], (old) =>
+        old?.filter((i) => !(i.item_type === item_type && i.item_id === item_id))
+      );
+    },
+    onSuccess: (_data, { item_type, item_id, display }) => {
+      toast(`「${display}」を焼却済みにしました`, {
+        action: {
+          label: '元に戻す',
+          onClick: async () => {
+            try {
+              await api.unlearnItem(item_type, item_id);
+              await api.addToQueue(item_type, item_id);
+              toast(`「${display}」をキューに戻しました`);
+            } catch (err) {
+              toast.error(err instanceof Error ? err.message : '元に戻せませんでした');
+            } finally {
+              invalidateProgress();
+            }
+          },
+        },
+      });
+    },
+    onError: (err: Error) => toast.error(err.message),
+    onSettled: () => invalidateProgress(),
   });
 
   const completeMutation = useMutation({
@@ -192,6 +241,22 @@ export function LessonsPage() {
           >
             <X className="size-3" strokeWidth={2.5} />
           </button>
+          {/* Instant-burn is kanji-only: vocab is the thing being studied, kanji
+              is the prerequisite you may already know. */}
+          {item.item_type === 'kanji' && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                burnMutation.mutate({ item_type: item.item_type, item_id: item.item_id, display });
+                setSelectedIds((prev) => { const next = new Set(prev); next.delete(key); return next; });
+              }}
+              className={burnBadgeClass}
+              title="既に知っている — 焼却済みにする"
+              aria-label="既に知っている — 焼却済みにする"
+            >
+              <Flame className="size-3" strokeWidth={2.5} />
+            </button>
+          )}
         </div>
       );
     };

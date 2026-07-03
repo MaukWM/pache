@@ -807,3 +807,164 @@ async def test_unlearn_item_other_user_isolated(db_session: AsyncSession) -> Non
         select(UserItemProgress).where(UserItemProgress.user_id == user1.id)
     )
     assert still_there.scalar_one_or_none() is not None
+
+
+@pytest.mark.asyncio
+@freeze_time("2026-01-24 12:00:00", tz_offset=0)
+async def test_burn_item_creates_stage_nine_progress(db_session: AsyncSession) -> None:
+    """Instant-burning an unlearned item creates a stage-9 progress row."""
+    user = User(username="testuser")
+    db_session.add(user)
+    await db_session.flush()
+
+    kanji = Kanji(character="漢", meanings=["Chinese"], readings_on=["kan"],
+                  readings_kun=[], stroke_count=13)
+    db_session.add(kanji)
+    await db_session.flush()
+
+    service = ProgressService(db_session)
+    response = await service.burn_item(
+        user_id=user.id, item_type=ItemType.KANJI, item_id=kanji.id
+    )
+
+    assert response.item_type == ItemType.KANJI
+    assert response.item_id == kanji.id
+    assert response.srs_stage == 9
+    assert response.burned_at == datetime(2026, 1, 24, 12, 0, 0, tzinfo=UTC)
+
+    result = await db_session.execute(
+        select(UserItemProgress).where(
+            UserItemProgress.user_id == user.id,
+            UserItemProgress.item_type == ItemType.KANJI,
+            UserItemProgress.item_id == kanji.id,
+        )
+    )
+    progress = result.scalar_one()
+    assert progress.srs_stage == 9
+    assert progress.next_review_at is None
+    assert progress.burned_at is not None
+
+
+@pytest.mark.asyncio
+async def test_burn_item_removes_queue_entry_and_logs(db_session: AsyncSession) -> None:
+    """Instant-burning dequeues the item and writes a 0->9 audit ReviewLog."""
+    user = User(username="testuser")
+    db_session.add(user)
+    await db_session.flush()
+
+    kanji = Kanji(character="漢", meanings=["Chinese"], readings_on=["kan"],
+                  readings_kun=[], stroke_count=13)
+    db_session.add(kanji)
+    await db_session.flush()
+
+    queue_item = LessonQueue(user_id=user.id, item_type=ItemType.KANJI, item_id=kanji.id)
+    db_session.add(queue_item)
+    await db_session.commit()
+
+    service = ProgressService(db_session)
+    await service.burn_item(user_id=user.id, item_type=ItemType.KANJI, item_id=kanji.id)
+
+    queue_result = await db_session.execute(
+        select(LessonQueue).where(
+            LessonQueue.user_id == user.id,
+            LessonQueue.item_type == ItemType.KANJI,
+            LessonQueue.item_id == kanji.id,
+        )
+    )
+    assert queue_result.scalar_one_or_none() is None
+
+    log_result = await db_session.execute(
+        select(ReviewLog).where(
+            ReviewLog.user_id == user.id,
+            ReviewLog.item_type == ItemType.KANJI,
+            ReviewLog.item_id == kanji.id,
+        )
+    )
+    log = log_result.scalar_one()
+    assert log.srs_stage_before == 0
+    assert log.srs_stage_after == 9
+
+
+@pytest.mark.asyncio
+async def test_burn_item_unlocks_dependent_vocab(db_session: AsyncSession) -> None:
+    """A burned kanji (stage 9 >= Guru) unlocks queued vocab that depends on it."""
+    user = User(username="testuser")
+    db_session.add(user)
+    await db_session.flush()
+
+    kanji = Kanji(character="日", meanings=["sun"], readings_on=["nichi"],
+                  readings_kun=["ひ"], stroke_count=4)
+    db_session.add(kanji)
+    await db_session.flush()
+
+    vocab = Vocab(word="日本", readings=["にほん"], meanings=["Japan"], creator_id=user.id)
+    vocab.kanji.append(kanji)
+    db_session.add(vocab)
+    await db_session.flush()
+
+    db_session.add_all([
+        LessonQueue(user_id=user.id, item_type=ItemType.KANJI, item_id=kanji.id),
+        LessonQueue(user_id=user.id, item_type=ItemType.VOCAB, item_id=vocab.id),
+    ])
+    await db_session.commit()
+
+    service = ProgressService(db_session)
+
+    # Before burning, the vocab is locked behind its kanji.
+    queue_before = await service.get_queue(user_id=user.id)
+    vocab_before = next(q for q in queue_before if q.item_type == ItemType.VOCAB)
+    assert vocab_before.locked is True
+
+    await service.burn_item(user_id=user.id, item_type=ItemType.KANJI, item_id=kanji.id)
+
+    queue_after = await service.get_queue(user_id=user.id)
+    assert len(queue_after) == 1  # kanji dequeued
+    vocab_after = queue_after[0]
+    assert vocab_after.item_type == ItemType.VOCAB
+    assert vocab_after.locked is False
+
+
+@pytest.mark.asyncio
+async def test_burn_item_already_in_progress_returns_409(db_session: AsyncSession) -> None:
+    """Items being learned (or already burned) cannot be instant-burned."""
+    user = User(username="testuser")
+    db_session.add(user)
+    await db_session.flush()
+
+    kanji = Kanji(character="漢", meanings=["Chinese"], readings_on=["kan"],
+                  readings_kun=[], stroke_count=13)
+    db_session.add(kanji)
+    await db_session.flush()
+
+    progress = UserItemProgress(
+        user_id=user.id, item_type=ItemType.KANJI, item_id=kanji.id,
+        srs_stage=3, next_review_at=datetime.now(UTC) + timedelta(days=1),
+    )
+    db_session.add(progress)
+    await db_session.commit()
+
+    service = ProgressService(db_session)
+    with pytest.raises(HTTPException) as exc_info:
+        await service.burn_item(
+            user_id=user.id, item_type=ItemType.KANJI, item_id=kanji.id
+        )
+    assert exc_info.value.status_code == status.HTTP_409_CONFLICT
+
+    # Progress untouched
+    await db_session.refresh(progress)
+    assert progress.srs_stage == 3
+
+
+@pytest.mark.asyncio
+async def test_burn_item_nonexistent_item_returns_400(db_session: AsyncSession) -> None:
+    """Burning a nonexistent item raises 400."""
+    user = User(username="testuser")
+    db_session.add(user)
+    await db_session.commit()
+
+    service = ProgressService(db_session)
+    with pytest.raises(HTTPException) as exc_info:
+        await service.burn_item(
+            user_id=user.id, item_type=ItemType.KANJI, item_id=99999
+        )
+    assert exc_info.value.status_code == status.HTTP_400_BAD_REQUEST

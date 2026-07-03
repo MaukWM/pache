@@ -8,10 +8,11 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from src.core.constants import SRS_INTERVALS, ItemType
+from src.core.constants import SRS_INTERVALS, ItemType, ProgressSource
 from src.kanji.models import Kanji
 from src.progress.models import LessonQueue, UserItemProgress
 from src.progress.schemas import (
+    BurnResponse,
     KanjiItemDetails,
     QueueItemResponse,
     ResurrectResponse,
@@ -322,6 +323,109 @@ class ProgressService:
             await self.db.delete(queue_item)
 
         await self.db.commit()
+
+    async def burn_item(
+        self,
+        user_id: int,
+        item_type: ItemType,
+        item_id: int,
+    ) -> BurnResponse:
+        """Instantly burn an item the user already knows, skipping the SRS entirely.
+
+        Only allowed for items with no progress row: items being learned (or
+        already burned) must go through reviews or resurrect instead. Any
+        lesson-queue entry is removed, so vocab gated on this kanji unlocks.
+
+        Raises:
+            HTTPException 400: the item does not exist.
+            HTTPException 409: the item is already in the user's progress.
+        """
+        now = datetime.now(UTC)
+
+        # Validate item exists
+        if item_type == ItemType.KANJI:
+            item = await self.db.get(Kanji, item_id)
+        elif item_type == ItemType.VOCAB:
+            item = await self.db.get(Vocab, item_id)
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Invalid item_type: {item_type}",
+            )
+        if item is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"{item_type.value} with id={item_id} not found",
+            )
+
+        # Items already in progress (learning or burned) can't be instant-burned.
+        existing_result = await self.db.execute(
+            select(UserItemProgress).where(
+                UserItemProgress.user_id == user_id,
+                UserItemProgress.item_type == item_type,
+                UserItemProgress.item_id == item_id,
+            )
+        )
+        if existing_result.scalar_one_or_none() is not None:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Item is already in your progress; it must be reviewed to burn",
+            )
+
+        progress = UserItemProgress(
+            user_id=user_id,
+            item_type=item_type,
+            item_id=item_id,
+            srs_stage=9,
+            next_review_at=None,
+            unlocked_at=now,
+            burned_at=now,
+            source=ProgressSource.MANUAL,
+        )
+        self.db.add(progress)
+
+        # Drop any lesson-queue entry so the item doesn't linger as a lesson.
+        queue_result = await self.db.execute(
+            select(LessonQueue).where(
+                LessonQueue.user_id == user_id,
+                LessonQueue.item_type == item_type,
+                LessonQueue.item_id == item_id,
+            )
+        )
+        queue_item = queue_result.scalar_one_or_none()
+        if queue_item:
+            await self.db.delete(queue_item)
+
+        # Audit trail: 0->9 stage transition uniquely marks an instant burn.
+        burn_log = ReviewLog(
+            user_id=user_id,
+            item_type=item_type,
+            item_id=item_id,
+            reading_correct=True,
+            meaning_correct=True,
+            srs_stage_before=0,
+            srs_stage_after=9,
+            reviewed_at=now,
+        )
+        self.db.add(burn_log)
+
+        try:
+            await self.db.commit()
+        except IntegrityError:
+            await self.db.rollback()
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Item is already in your progress; it must be reviewed to burn",
+            )
+        await self.db.refresh(progress)
+
+        return BurnResponse(
+            item_type=progress.item_type,
+            item_id=progress.item_id,
+            srs_stage=progress.srs_stage,
+            burned_at=now,
+            unlocked_at=progress.unlocked_at,
+        )
 
     async def resurrect_item(
         self,

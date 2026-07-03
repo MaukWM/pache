@@ -321,6 +321,10 @@ export const api = {
   // Resurrect a burned item back to Apprentice 1.
   resurrectItem: (item_type: string, item_id: number) =>
     request<ProgressItem>(`/me/progress/${item_type}/${item_id}/resurrect`, { method: 'POST' }),
+
+  // Instant-burn an already-known item (only if not yet in progress); also dequeues it.
+  burnItem: (item_type: string, item_id: number) =>
+    request<ProgressItem>(`/me/progress/${item_type}/${item_id}/burn`, { method: 'POST' }),
 };
 
 // Types

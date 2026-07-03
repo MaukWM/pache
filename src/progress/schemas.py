@@ -118,6 +118,19 @@ class ProgressItemResponse(BaseModel):
     source: str
 
 
+class BurnResponse(BaseModel):
+    """Response schema for an instantly-burned (already-known) item."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    item_type: ItemType
+    item_id: int = Field(..., gt=0)
+    srs_stage: int = Field(..., ge=9, le=9, description="Always 9 (burned)")
+    burned_at: datetime = Field(..., description="When the item was burned")
+    unlocked_at: datetime = Field(..., description="When the progress row was created")
+    message: str = Field(default="Item burned successfully")
+
+
 class ResurrectResponse(BaseModel):
     """Response schema for a resurrected (un-burned) item."""
 
