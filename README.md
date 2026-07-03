@@ -24,11 +24,11 @@ same origin. Migrations run automatically on startup, and the kanji table
 Pin a specific version with `APP_TAG` (note: container tags drop the `v`):
 
 ```bash
-APP_TAG=1.4.0 docker compose -f docker-compose.release.yml up -d
+APP_TAG=1.5.0 docker compose -f docker-compose.release.yml up -d
 ```
 
 Image: [`ghcr.io/maukwm/pache`](https://github.com/MaukWM/pache/pkgs/container/pache)
-(tags: `latest`, `1.4.0`, `1.4`).
+(tags: `latest`, `1.5.0`, `1.5`).
 
 ## Features
 
@@ -97,8 +97,8 @@ container, pushes it to GHCR (`latest` + semver tags), and creates a GitHub
 Release:
 
 ```bash
-git tag -a v1.4.0 -m "v1.4.0"
-git push origin v1.4.0
+git tag -a v1.5.0 -m "v1.5.0"
+git push origin v1.5.0
 ```
 
 ## AI Development Disclosure,
