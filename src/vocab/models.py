@@ -50,6 +50,8 @@ class Vocab(Base):
     meanings: Mapped[list[str]] = mapped_column(JSON, nullable=False)
     creator_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), nullable=False)
     creator_comment: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Where the word was encountered (URL or free text), e.g. an article link.
+    source_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=lambda: datetime.now(UTC),

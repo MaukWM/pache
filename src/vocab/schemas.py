@@ -58,6 +58,7 @@ class VocabCreateRequest(BaseModel):
     kanji_ids: list[int] = Field(default_factory=list)
     tags: list[str] = Field(default_factory=list)
     creator_comment: str | None = None
+    source_url: str | None = Field(default=None, max_length=500)
 
     @field_validator("tags")
     @classmethod
@@ -74,6 +75,7 @@ class VocabUpdateRequest(BaseModel):
     kanji_ids: list[int] = Field(default_factory=list)
     tags: list[str] = Field(default_factory=list)
     creator_comment: str | None = None
+    source_url: str | None = Field(default=None, max_length=500)
 
     @field_validator("tags")
     @classmethod
@@ -93,6 +95,7 @@ class VocabResponse(BaseModel):
     creator_id: int
     creator_username: str
     creator_comment: str | None
+    source_url: str | None
     sentences: list[SentenceResponse]
     created_at: datetime
     tags: list[TagResponse]

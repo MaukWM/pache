@@ -55,6 +55,7 @@ class VocabService:
             meanings=request.meanings,
             creator_id=creator_id,
             creator_comment=request.creator_comment,
+            source_url=request.source_url,
         )
         vocab.kanji = kanji_list
         vocab.tags = tags
@@ -112,6 +113,7 @@ class VocabService:
         vocab.readings = request.readings
         vocab.meanings = request.meanings
         vocab.creator_comment = request.creator_comment
+        vocab.source_url = request.source_url
         vocab.kanji = kanji_list
         vocab.tags = tags
 

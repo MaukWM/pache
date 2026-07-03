@@ -724,3 +724,44 @@ async def test_update_sentence_success(async_client: AsyncClient, db_session) ->
     data = resp.json()
     assert data["ja"] == "新しい文"
     assert data["en"] == "new sentence"
+
+
+@pytest.mark.asyncio
+async def test_vocab_source_url_roundtrip(async_client: AsyncClient, db_session) -> None:
+    """source_url is stored on create, returned on read, and clearable on update."""
+    user = User(username="testuser")
+    db_session.add(user)
+    await db_session.flush()
+    db_session.add(Session(user_id=user.id, token="test-token-123"))
+    await db_session.commit()
+
+    headers = {"Authorization": "Bearer test-token-123"}
+    create = await async_client.post(
+        "/api/v1/vocab",
+        json={
+            "word": "出典",
+            "readings": ["しゅってん"],
+            "meanings": ["source"],
+            "source_url": "https://example.com/article",
+        },
+        headers=headers,
+    )
+    assert create.status_code == status.HTTP_201_CREATED
+    created = create.json()
+    assert created["source_url"] == "https://example.com/article"
+
+    fetched = await async_client.get(f"/api/v1/vocab/{created['id']}", headers=headers)
+    assert fetched.json()["source_url"] == "https://example.com/article"
+
+    updated = await async_client.put(
+        f"/api/v1/vocab/{created['id']}",
+        json={
+            "word": "出典",
+            "readings": ["しゅってん"],
+            "meanings": ["source"],
+            "source_url": None,
+        },
+        headers=headers,
+    )
+    assert updated.status_code == status.HTTP_200_OK
+    assert updated.json()["source_url"] is None

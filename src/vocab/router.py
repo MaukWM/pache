@@ -56,6 +56,7 @@ def _vocab_to_response(vocab: Vocab) -> VocabResponse:
         creator_id=vocab.creator_id,
         creator_username=vocab.creator.username,
         creator_comment=vocab.creator_comment,
+        source_url=vocab.source_url,
         sentences=[SentenceResponse.model_validate(s) for s in vocab.sentences],
         created_at=vocab.created_at,
         tags=[TagResponse.model_validate(tag) for tag in vocab.tags],

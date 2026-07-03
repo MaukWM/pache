@@ -262,6 +262,7 @@ export function EditVocabForm({
   const [meanings, setMeanings] = useState(item.meanings.join(', '));
   const [tags, setTags] = useState<string[]>((item.tags ?? []).map((t) => t.name));
   const [comment, setComment] = useState(item.creator_comment ?? '');
+  const [sourceUrl, setSourceUrl] = useState(item.source_url ?? '');
   const [error, setError] = useState('');
 
   const allTags = useAllTags();
@@ -276,6 +277,7 @@ export function EditVocabForm({
         kanji_ids: detectedKanji.map((k) => k.id),
         tags: tags,
         creator_comment: comment.trim() || null,
+        source_url: sourceUrl.trim() || null,
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['vocab'] });
@@ -316,6 +318,11 @@ export function EditVocabForm({
           <Label className="mb-1 block text-xs text-muted-foreground">コメント</Label>
           <Input type="text" value={comment} onChange={(e) => setComment(e.target.value)} className="text-sm" />
         </div>
+      </div>
+
+      <div>
+        <Label className="mb-1 block text-xs text-muted-foreground">出典URL</Label>
+        <Input type="url" value={sourceUrl} onChange={(e) => setSourceUrl(e.target.value)} placeholder="https://..." className="text-sm" />
       </div>
 
       {error && <p className="text-destructive text-sm">{error}</p>}
@@ -509,6 +516,7 @@ function CreateVocabForm({ onCreated }: { onCreated: () => void }) {
   });
   const [tags, setTags] = useState<string[]>([]);
   const [comment, setComment] = useState('');
+  const [sourceUrl, setSourceUrl] = useState('');
   const allTags = useAllTags();
   const [sentences, setSentences] = useState<{ ja: string; en: string }[]>([]);
   const [showLinks, setShowLinks] = useState(false);
@@ -607,6 +615,7 @@ function CreateVocabForm({ onCreated }: { onCreated: () => void }) {
         kanji_ids: detectedKanji.map((k) => k.id),
         tags: tags.length ? tags : undefined,
         creator_comment: comment.trim() || undefined,
+        source_url: sourceUrl.trim() || undefined,
       });
       for (const s of sentences) {
         if (s.ja.trim() && s.en.trim()) {
@@ -776,6 +785,17 @@ function CreateVocabForm({ onCreated }: { onCreated: () => void }) {
               className="text-sm"
             />
           </div>
+        </div>
+
+        <div>
+          <Label className="mb-1 block text-xs text-muted-foreground">出典URL（任意）</Label>
+          <Input
+            type="url"
+            placeholder="https://... 単語を見つけたページ"
+            value={sourceUrl}
+            onChange={(e) => setSourceUrl(e.target.value)}
+            className="text-sm"
+          />
         </div>
 
         {/* Example sentences (optional) */}

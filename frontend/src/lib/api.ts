@@ -216,6 +216,7 @@ export const api = {
     kanji_ids?: number[];
     tags?: string[];
     creator_comment?: string;
+    source_url?: string;
   }) =>
     request<VocabItem>('/vocab', {
       method: 'POST',
@@ -236,6 +237,7 @@ export const api = {
       kanji_ids?: number[];
       tags?: string[];
       creator_comment?: string | null;
+      source_url?: string | null;
     },
   ) =>
     request<VocabItem>(`/vocab/${id}`, {
@@ -387,6 +389,7 @@ export interface VocabItem {
   // lighter shape, so readings/meanings are optional.
   kanji?: { id: number; character: string; meanings?: string[]; readings_on?: string[]; readings_kun?: string[] }[];
   creator_comment?: string;
+  source_url?: string | null;
 }
 
 export interface KanjiItem {

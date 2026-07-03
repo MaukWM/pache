@@ -11,6 +11,12 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
 
+// A bare "google.com" in an href is resolved relative to the current page;
+// prepend a scheme so the source link always leaves the app.
+function toAbsoluteUrl(url: string): string {
+  return /^[a-z][a-z0-9+.-]*:/i.test(url) ? url : `https://${url}`;
+}
+
 export function VocabDetailPage() {
   const { id } = useParams<{ id: string }>();
   const vocabId = Number(id);
@@ -155,6 +161,17 @@ export function VocabDetailPage() {
             ))}
             {item.creator_comment && <span className="text-muted-foreground italic">"{item.creator_comment}"</span>}
             {item.creator_username && <span className="text-muted-foreground">作成者: {item.creator_username}</span>}
+            {item.source_url && (
+              <a
+                href={toAbsoluteUrl(item.source_url)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-muted-foreground underline underline-offset-2 hover:text-foreground"
+                title={item.source_url}
+              >
+                出典
+              </a>
+            )}
           </div>
         </div>
       </Card>
