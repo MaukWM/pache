@@ -4,7 +4,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.auth.models import User
-from src.core.constants import ItemType
+from src.core.constants import ItemType, Register
 from src.progress.models import UserItemProgress
 from src.sentences.models import ProductionSentence, ProductionSentenceReviewLog
 
@@ -14,7 +14,9 @@ async def test_sentence_srs_roundtrip(db_session: AsyncSession) -> None:
     db_session.add(user)
     await db_session.flush()
 
-    sentence = ProductionSentence(user_id=user.id, english="5 more days", japanese="あと5日")
+    sentence = ProductionSentence(
+        user_id=user.id, english="5 more days", japanese="あと5日", register=Register.CASUAL
+    )
     db_session.add(sentence)
     await db_session.flush()
 

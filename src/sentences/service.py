@@ -121,8 +121,8 @@ class SentenceService:
             ).scalar_one_or_none()
 
             # ponytail: guard + due-check + outcome below duplicate ReviewService orchestration.
-            # DRY later (hour_reached / apply_review_outcome in srs.py) — see production-srs-design.md
-            # "TECH DEBT". Deferred to avoid touching mature ReviewService now.
+            # DRY later (hour_reached / apply_review_outcome in srs.py) — see
+            # production-srs-design.md "TECH DEBT". Deferred: don't touch mature ReviewService now.
             if progress is None:
                 raise ValueError("Sentence not in progress")
             if progress.srs_stage >= 9:

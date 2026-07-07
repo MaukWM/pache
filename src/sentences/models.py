@@ -13,9 +13,10 @@ progress.user_id == production_sentences.user_id.
 
 from datetime import UTC, datetime
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, Text
+from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, Integer, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
+from src.core.constants import Register
 from src.database import Base
 
 
@@ -30,6 +31,11 @@ class ProductionSentence(Base):
     )
     english: Mapped[str] = mapped_column(Text, nullable=False)  # prompt shown to the user
     japanese: Mapped[str] = mapped_column(Text, nullable=False)  # reference answer
+    # Target politeness, classified from the reference at creation. Shown to the learner (they can't
+    # see the reference while producing) and passed to the judge as the explicit register target.
+    register: Mapped[Register] = mapped_column(
+        Enum(Register, values_callable=lambda e: [m.value for m in e]), nullable=False
+    )
     # No `validated` column: the EN/JP pair is validated server-side at creation (POST /sentences),
     # inserted only on pass. A persisted row is valid by construction.
     created_at: Mapped[datetime] = mapped_column(
@@ -60,6 +66,9 @@ class ProductionSentenceReviewLog(Base):
     # feedback fires on either verdict: why-wrong, OR a better/more natural phrasing when correct.
     feedback: Mapped[str | None] = mapped_column(Text, nullable=True)
     overridden: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    # Optional learner justification when they override the verdict. Fed back to the judge on future
+    # reviews of THIS sentence (per-sentence memory) so a justified form can pass again.
+    override_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
     srs_stage_before: Mapped[int] = mapped_column(Integer, nullable=False)
     srs_stage_after: Mapped[int] = mapped_column(Integer, nullable=False)
     reviewed_at: Mapped[datetime] = mapped_column(

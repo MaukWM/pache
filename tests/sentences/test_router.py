@@ -6,7 +6,7 @@ from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.auth.models import Session, User
-from src.core.constants import ItemType
+from src.core.constants import ItemType, Register
 from src.progress.models import UserItemProgress
 from src.sentences.models import ProductionSentence
 
@@ -16,7 +16,9 @@ async def _seed_authed(db: AsyncSession, token: str) -> ProductionSentence:
     db.add(user)
     await db.flush()
     db.add(Session(user_id=user.id, token=token))
-    sentence = ProductionSentence(user_id=user.id, english="5 more days", japanese="あと5日")
+    sentence = ProductionSentence(
+        user_id=user.id, english="5 more days", japanese="あと5日", register=Register.CASUAL
+    )
     db.add(sentence)
     await db.flush()
     db.add(

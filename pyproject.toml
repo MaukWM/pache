@@ -17,6 +17,7 @@ dependencies = [
     "jamdict-data>=1.5.0",
     "tqdm>=4.66.0",
     "orq-ai-sdk>=4.9.24",
+    "openai>=2.44.0",
 ]
 
 [project.optional-dependencies]

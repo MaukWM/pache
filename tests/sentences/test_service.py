@@ -7,7 +7,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.auth.models import User
-from src.core.constants import ItemType
+from src.core.constants import ItemType, Register
 from src.progress.models import UserItemProgress
 from src.sentences.models import ProductionSentence, ProductionSentenceReviewLog
 from src.sentences.schemas import SentenceReviewCreateRequest
@@ -25,7 +25,9 @@ async def _seed(
     user = User(username=f"composer-{datetime.now(UTC).timestamp()}")
     db.add(user)
     await db.flush()
-    sentence = ProductionSentence(user_id=user.id, english="5 more days", japanese=japanese)
+    sentence = ProductionSentence(
+        user_id=user.id, english="5 more days", japanese=japanese, register=Register.CASUAL
+    )
     db.add(sentence)
     await db.flush()
     db.add(

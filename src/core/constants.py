@@ -46,6 +46,17 @@ class ProgressSource(str, Enum):
     WANIKANI = "wanikani"
 
 
+class Register(str, Enum):
+    """Japanese politeness register of a production sentence.
+
+    Set at creation from the reference; shown to the learner as the target and passed to the judge.
+    """
+
+    POLITE = "polite"  # 丁寧語 (です/ます)
+    CASUAL = "casual"  # plain/casual (だ / plain)
+    MIXED = "mixed"  # genuine mix (e.g. casual quote inside polite)
+
+
 # Auth bootstrap defaults (trusted, self-hosted). The admin account is seeded on
 # first startup; new/backfilled users get the default password and change it.
 DEFAULT_ADMIN_USERNAME = "admin"
