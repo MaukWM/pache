@@ -4,7 +4,7 @@ Single structured completion — no agent, no tools. Provider-swappable: the Ope
 any OpenAI-compatible endpoint via `base_url` (OpenAI, OpenRouter, Orq, local). Everything the rest
 of the app needs goes through `judge()` — so swapping providers/libs is a one-file change.
 
-NOT yet wired into the review endpoint. Drive it via `scripts/eval_judge.py` to tune the prompt.
+NOT yet wired into the review endpoint. Tune it via `scripts/judge/eval_judge.py`.
 """
 
 from pathlib import Path
