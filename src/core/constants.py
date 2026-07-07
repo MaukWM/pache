@@ -36,6 +36,7 @@ class ItemType(str, Enum):
 
     KANJI = "kanji"
     VOCAB = "vocab"
+    SENTENCE = "sentence"  # production SRS: user-authored EN/JP pair, content in `sentences` table
 
 
 class ProgressSource(str, Enum):
