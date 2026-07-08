@@ -7,10 +7,11 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.auth.models import User
-from src.core.constants import ItemType, Register
+from src.core.constants import ItemType, Politeness
+from src.llm.validate import PairValidation
 from src.progress.models import UserItemProgress
 from src.sentences.models import ProductionSentence, ProductionSentenceReviewLog
-from src.sentences.schemas import SentenceReviewCreateRequest
+from src.sentences.schemas import SentenceCreateRequest, SentenceReviewCreateRequest
 from src.sentences.service import SentenceService
 
 
@@ -26,7 +27,7 @@ async def _seed(
     db.add(user)
     await db.flush()
     sentence = ProductionSentence(
-        user_id=user.id, english="5 more days", japanese=japanese, register=Register.CASUAL
+        user_id=user.id, english="5 more days", japanese=japanese, politeness=Politeness.CASUAL
     )
     db.add(sentence)
     await db.flush()
@@ -109,3 +110,67 @@ async def test_submit_not_due_raises(db_session: AsyncSession) -> None:
         await SentenceService(db_session).submit_review(
             user.id, SentenceReviewCreateRequest(sentence_id=sentence.id, submitted="あと5日")
         )
+
+
+# --- creation flow (③a): validate_pair is mocked so no network/LLM ---
+
+
+async def _user(db: AsyncSession) -> User:
+    user = User(username=f"author-{datetime.now(UTC).timestamp()}")
+    db.add(user)
+    await db.flush()
+    return user
+
+
+async def test_create_valid_inserts_and_enters_srs(db_session, monkeypatch) -> None:
+    async def fake_validate(en: str, ja: str) -> PairValidation:
+        return PairValidation(valid=True, reason="", politeness="casual")
+
+    monkeypatch.setattr("src.sentences.service.validate_pair", fake_validate)
+    user = await _user(db_session)
+
+    resp = await SentenceService(db_session).create(
+        user.id, SentenceCreateRequest(english="5 more days", japanese="あと5日")
+    )
+    assert resp.sentence_id > 0
+    assert resp.politeness == Politeness.CASUAL
+    assert resp.srs_stage == 1
+
+    # progress row exists, due now
+    progress = await db_session.scalar(
+        select(UserItemProgress).where(
+            UserItemProgress.item_type == ItemType.SENTENCE,
+            UserItemProgress.item_id == resp.sentence_id,
+        )
+    )
+    assert progress is not None and progress.srs_stage == 1 and progress.next_review_at is not None
+
+
+async def test_create_invalid_pair_raises_and_stores_nothing(db_session, monkeypatch) -> None:
+    async def fake_validate(en: str, ja: str) -> PairValidation:
+        return PairValidation(
+            valid=False, reason="Japanese does not match the English.", politeness="casual"
+        )
+
+    monkeypatch.setattr("src.sentences.service.validate_pair", fake_validate)
+    user = await _user(db_session)
+
+    with pytest.raises(ValueError, match="does not match"):
+        await SentenceService(db_session).create(
+            user.id, SentenceCreateRequest(english="hello", japanese="間違い")
+        )
+    # nothing persisted
+    assert await db_session.scalar(select(ProductionSentence)) is None
+
+
+async def test_create_uses_validator_politeness(db_session, monkeypatch) -> None:
+    async def fake_validate(en: str, ja: str) -> PairValidation:
+        return PairValidation(valid=True, reason="", politeness="polite")
+
+    monkeypatch.setattr("src.sentences.service.validate_pair", fake_validate)
+    user = await _user(db_session)
+
+    resp = await SentenceService(db_session).create(
+        user.id, SentenceCreateRequest(english="x", japanese="あります")
+    )
+    assert resp.politeness == Politeness.POLITE  # from the validator (no override anymore)

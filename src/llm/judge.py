@@ -7,16 +7,14 @@ of the app needs goes through `judge()` — so swapping providers/libs is a one-
 NOT yet wired into the review endpoint. Tune it via `scripts/judge/eval_judge.py`.
 """
 
-from pathlib import Path
-
-from openai import AsyncOpenAI
 from pydantic import BaseModel, Field
 
+from src.llm.client import get_client
+from src.llm.prompt_loader import load_system, load_template
 from src.settings import settings
 
-_PROMPTS = Path(__file__).parent / "prompts"
-_SYSTEM_PROMPT = (_PROMPTS / "judge_system.md").read_text(encoding="utf-8")
-_USER_TEMPLATE = (_PROMPTS / "judge_user.md").read_text(encoding="utf-8")
+_SYSTEM_PROMPT = load_system("judge_system.md")
+_USER_TEMPLATE = load_template("judge_user.md")
 
 # --- Structured judge output -------------------------------------------------
 # `reason` is TRANSIENT — shown in the eval harness for prompt tuning, never persisted.
@@ -28,10 +26,10 @@ class JudgeResult(BaseModel):
 
     reason: str = Field(
         ...,
-        description="Brief justification for the verdict (grammar/naturalness/register). "
+        description="Brief justification for the verdict (grammar/naturalness/politeness). "
         "For tuning + debugging only — not stored.",
     )
-    correct: bool = Field(..., description="True only if native-natural AND register-matched")
+    correct: bool = Field(..., description="True only if native-natural AND politeness-matched")
     feedback: str | None = Field(
         None,
         description="If wrong: the specific issue + the natural correction. "
@@ -42,18 +40,14 @@ class JudgeResult(BaseModel):
 # Prompts live in src/llm/prompts/*.md — edit those to tune the judge (no code change).
 
 
-def _client() -> AsyncOpenAI:
-    return AsyncOpenAI(api_key=settings.openai_api_key, base_url=settings.llm_base_url)
-
-
 async def judge(
     english: str,
     reference: str,
     submitted: str,
-    register: str,
+    politeness: str,
     override_reasons: list[str] | None = None,
 ) -> JudgeResult:
-    """Grade a submission against the reference + target register.
+    """Grade a submission against the reference + target politeness.
 
     `override_reasons` are the learner's prior justifications for overriding THIS sentence's verdict
     (per-sentence memory). If the submission fits one, the judge should accept it. Raises on
@@ -62,7 +56,7 @@ async def judge(
     override_notes = (
         "\n".join(f"- {r}" for r in override_reasons) if override_reasons else "none"
     )
-    completion = await _client().chat.completions.parse(
+    completion = await get_client().chat.completions.parse(
         model=settings.judge_model,
         messages=[
             {"role": "system", "content": _SYSTEM_PROMPT},
@@ -72,7 +66,7 @@ async def judge(
                     english=english,
                     reference=reference,
                     submitted=submitted,
-                    register=register,
+                    politeness=politeness,
                     override_notes=override_notes,
                 ),
             },

@@ -4,6 +4,27 @@ from datetime import datetime
 
 from pydantic import BaseModel, Field
 
+from src.core.constants import Politeness
+
+
+class SentenceCreateRequest(BaseModel):
+    """Add a production sentence. The EN/JP pair is validated server-side before insert."""
+
+    english: str = Field(..., min_length=1, description="English prompt")
+    japanese: str = Field(..., min_length=1, description="Japanese reference answer")
+
+
+class SentenceCreateResponse(BaseModel):
+    """A newly created production sentence, entered into SRS at Apprentice."""
+
+    sentence_id: int = Field(..., gt=0)
+    english: str
+    japanese: str
+    politeness: Politeness
+    srs_stage: int = Field(..., ge=1, le=9)
+
+    model_config = {"from_attributes": True}
+
 
 class DueSentenceResponse(BaseModel):
     """A production sentence due for review.

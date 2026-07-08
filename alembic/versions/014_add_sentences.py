@@ -34,7 +34,7 @@ def upgrade() -> None:
         sa.Column("user_id", sa.Integer(), nullable=False),
         sa.Column("english", sa.Text(), nullable=False),
         sa.Column("japanese", sa.Text(), nullable=False),
-        sa.Column("register", sa.Enum("polite", "casual", "mixed", name="register"), nullable=False),
+        sa.Column("politeness", sa.Enum("polite", "casual", "mixed", name="politeness"), nullable=False),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         sa.ForeignKeyConstraint(["user_id"], ["users.id"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("id"),

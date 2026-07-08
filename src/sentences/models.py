@@ -16,7 +16,7 @@ from datetime import UTC, datetime
 from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, Integer, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
-from src.core.constants import Register
+from src.core.constants import Politeness
 from src.database import Base
 
 
@@ -32,9 +32,9 @@ class ProductionSentence(Base):
     english: Mapped[str] = mapped_column(Text, nullable=False)  # prompt shown to the user
     japanese: Mapped[str] = mapped_column(Text, nullable=False)  # reference answer
     # Target politeness, classified from the reference at creation. Shown to the learner (they can't
-    # see the reference while producing) and passed to the judge as the explicit register target.
-    register: Mapped[Register] = mapped_column(
-        Enum(Register, values_callable=lambda e: [m.value for m in e]), nullable=False
+    # see the reference while producing) and passed to the judge as the explicit politeness target.
+    politeness: Mapped[Politeness] = mapped_column(
+        Enum(Politeness, values_callable=lambda e: [m.value for m in e]), nullable=False
     )
     # No `validated` column: the EN/JP pair is validated server-side at creation (POST /sentences),
     # inserted only on pass. A persisted row is valid by construction.

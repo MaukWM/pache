@@ -46,8 +46,8 @@ class ProgressSource(str, Enum):
     WANIKANI = "wanikani"
 
 
-class Register(str, Enum):
-    """Japanese politeness register of a production sentence.
+class Politeness(str, Enum):
+    """Japanese politeness level of a production sentence.
 
     Set at creation from the reference; shown to the learner as the target and passed to the judge.
     """

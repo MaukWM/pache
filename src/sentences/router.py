@@ -1,6 +1,7 @@
 """Production-SRS sentence API routes."""
 
 from fastapi import APIRouter, Depends, HTTPException
+from openai import OpenAIError
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -10,12 +11,51 @@ from src.database import get_db
 from src.logging import logger
 from src.sentences.schemas import (
     DueSentencesResponse,
+    SentenceCreateRequest,
+    SentenceCreateResponse,
     SentenceReviewCreateRequest,
     SentenceReviewResponse,
 )
 from src.sentences.service import SentenceService
 
 router = APIRouter(prefix="/me/sentences", tags=["sentences"])
+
+
+@router.post("", response_model=SentenceCreateResponse, status_code=201)
+async def create_sentence(
+    request: SentenceCreateRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> SentenceCreateResponse:
+    """Add a production sentence. Validates the EN/JP pair; inserts only on approval."""
+    try:
+        service = SentenceService(db)
+        return await service.create(user_id=current_user.id, request=request)
+    except ValueError as e:
+        # Pair rejected by the validator.
+        raise HTTPException(status_code=422, detail=str(e)) from e
+    except (OpenAIError, RuntimeError) as e:
+        logger.warning(
+            "llm_error_in_create_sentence_endpoint",
+            user_id=current_user.id,
+            error_type=type(e).__name__,
+            error=str(e),
+        )
+        raise HTTPException(
+            status_code=503,
+            detail="Validation service unavailable. Please try again.",
+        ) from e
+    except SQLAlchemyError as e:
+        logger.error(
+            "database_error_in_create_sentence_endpoint",
+            user_id=current_user.id,
+            error_type=type(e).__name__,
+            error=str(e),
+        )
+        raise HTTPException(
+            status_code=500,
+            detail="An error occurred while adding the sentence. Please try again later.",
+        ) from e
 
 
 @router.get("/reviews", response_model=DueSentencesResponse)

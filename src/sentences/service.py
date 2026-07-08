@@ -11,13 +11,16 @@ from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.core.constants import ItemType
+from src.core.constants import ItemType, Politeness
+from src.llm.validate import validate_pair
 from src.logging import logger
 from src.progress.models import UserItemProgress
 from src.reviews.srs import calculate_next_review, truncate_to_hour
 from src.sentences.models import ProductionSentence, ProductionSentenceReviewLog
 from src.sentences.schemas import (
     DueSentenceResponse,
+    SentenceCreateRequest,
+    SentenceCreateResponse,
     SentenceReviewCreateRequest,
     SentenceReviewResponse,
 )
@@ -58,6 +61,48 @@ class SentenceService:
 
     def __init__(self, db: AsyncSession):
         self.db = db
+
+    async def create(
+        self, user_id: int, request: SentenceCreateRequest
+    ) -> SentenceCreateResponse:
+        """Validate the EN/JP pair (server-side), then insert + enter it into SRS.
+
+        Raises ValueError if the pair is rejected (→ 422). LLM/DB errors propagate to the router.
+        The sentence enters SRS at Apprentice stage 1 (due now) — sentences skip lessons.
+        """
+        result = await validate_pair(request.english, request.japanese)
+        if not result.valid:
+            raise ValueError(result.reason or "The English/Japanese pair was rejected.")
+
+        politeness = Politeness(result.politeness)  # trust the validator's classification
+
+        now = datetime.now(UTC)
+        sentence = ProductionSentence(
+            user_id=user_id,
+            english=request.english,
+            japanese=request.japanese,
+            politeness=politeness,
+        )
+        self.db.add(sentence)
+        await self.db.flush()  # need sentence.id for the progress row
+        self.db.add(
+            UserItemProgress(
+                user_id=user_id,
+                item_type=ItemType.SENTENCE,
+                item_id=sentence.id,
+                srs_stage=1,
+                next_review_at=now,  # due immediately
+            )
+        )
+        await self.db.commit()
+
+        return SentenceCreateResponse(
+            sentence_id=sentence.id,
+            english=sentence.english,
+            japanese=sentence.japanese,
+            politeness=politeness,
+            srs_stage=1,
+        )
 
     async def get_due(self, user_id: int) -> list[DueSentenceResponse]:
         """Return the user's production sentences due for review (hour-batched, FR28).
