@@ -5,7 +5,7 @@ Creates `production_sentences` (personal EN/JP pairs) and `production_sentence_r
 table that stores it. Named to parallel the existing `vocab_sentences` example-sentence table.
 
 Revision ID: 014
-Revises: 013
+Revises: 015
 Create Date: 2026-07-07
 
 """
@@ -16,8 +16,8 @@ import sqlalchemy as sa
 
 from alembic import op  # type: ignore[attr-defined]
 
-revision: str = "014"
-down_revision: str | None = "013"
+revision: str = "016"
+down_revision: str | None = "015"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
@@ -34,7 +34,11 @@ def upgrade() -> None:
         sa.Column("user_id", sa.Integer(), nullable=False),
         sa.Column("english", sa.Text(), nullable=False),
         sa.Column("japanese", sa.Text(), nullable=False),
-        sa.Column("politeness", sa.Enum("polite", "casual", "mixed", name="politeness"), nullable=False),
+        sa.Column(
+            "politeness",
+            sa.Enum("polite", "casual", "mixed", name="politeness"),
+            nullable=False,
+        ),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         sa.ForeignKeyConstraint(["user_id"], ["users.id"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("id"),
