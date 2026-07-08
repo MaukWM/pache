@@ -57,11 +57,12 @@ shadowing. Theory + rationale in the idea doc.
   stage-tier palettes (guru/master trend gold) → reads as a stage, not a type.
 
 ### Feedback-loop features
-- **Override memory (per-sentence)** — DONE at judge level. `production_sentence_review_log.override_reason`
-  stores the learner's justification when they override a verdict; on future reviews of THAT sentence,
-  prior reasons are passed to `judge(override_reasons=[...])` and honored. Scoped per-sentence (not
-  global) to bound blast radius + gaming. Proven E2E in `scripts/judge/eval_override.py` (fail → reason →
-  pass). HTTP/service wiring (override endpoint + loading prior reasons on submit) lands with step 3/4.
+- **Override memory (per-sentence)** — FULLY WIRED (③c).
+  `POST /me/sentences/{id}/override {reason?}` overrides the latest rejected review: recomputes SRS
+  from `srs_stage_before` as correct, flags the log `overridden` (keeps the judge's `correct=False`
+  for analytics), stores `override_reason`. On future reviews, `submit_review` loads prior reasons
+  and passes them to `judge(override_reasons=[...])`, which honors them (③b). Scoped per-sentence to
+  bound blast radius + gaming. Proven E2E in `scripts/judge/eval_override.py` (fail → reason → pass).
 - **Recurring-mistake detection (DEFERRED)** — analytics OVER `production_sentence_review_log` (which
   already stores submitted + feedback + correct), NOT fed into every judge call (cost/context bloat).
   Build later as periodic LLM summarization of a user's logs, or add an `error_category` column for

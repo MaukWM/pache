@@ -13,6 +13,8 @@ from src.sentences.schemas import (
     DueSentencesResponse,
     SentenceCreateRequest,
     SentenceCreateResponse,
+    SentenceOverrideRequest,
+    SentenceOverrideResponse,
     SentenceReviewCreateRequest,
     SentenceReviewResponse,
 )
@@ -122,4 +124,33 @@ async def submit_sentence_review(
         raise HTTPException(
             status_code=500,
             detail="An error occurred while submitting the review. Please try again later.",
+        ) from e
+
+
+@router.post("/{sentence_id}/override", response_model=SentenceOverrideResponse, status_code=200)
+async def override_sentence_review(
+    sentence_id: int,
+    request: SentenceOverrideRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> SentenceOverrideResponse:
+    """Override the latest rejected review — accept the answer, advance SRS, store the reason."""
+    try:
+        service = SentenceService(db)
+        return await service.override_review(
+            user_id=current_user.id, sentence_id=sentence_id, reason=request.reason
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    except SQLAlchemyError as e:
+        logger.error(
+            "database_error_in_override_sentence_review_endpoint",
+            user_id=current_user.id,
+            sentence_id=sentence_id,
+            error_type=type(e).__name__,
+            error=str(e),
+        )
+        raise HTTPException(
+            status_code=500,
+            detail="An error occurred while overriding the review. Please try again later.",
         ) from e

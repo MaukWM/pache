@@ -23,6 +23,7 @@ from src.sentences.schemas import (
     DueSentenceResponse,
     SentenceCreateRequest,
     SentenceCreateResponse,
+    SentenceOverrideResponse,
     SentenceReviewCreateRequest,
     SentenceReviewResponse,
 )
@@ -244,6 +245,81 @@ class SentenceService:
                 "database_error_submitting_sentence_review",
                 user_id=user_id,
                 sentence_id=request.sentence_id,
+                error_type=type(e).__name__,
+                error=str(e),
+            )
+            raise
+
+    async def override_review(
+        self, user_id: int, sentence_id: int, reason: str | None
+    ) -> SentenceOverrideResponse:
+        """Override the latest rejected review — accept the answer, advance SRS, store the reason.
+
+        Recomputes SRS from the rejected review's `srs_stage_before` as if correct. The log keeps
+        the judge's verdict (`correct=False`) but is flagged `overridden`; the reason is fed to the
+        judge on future reviews of this sentence. Raises ValueError (→ 400) if nothing to override.
+        """
+        try:
+            now = datetime.now(UTC)
+
+            log = (
+                await self.db.execute(
+                    select(ProductionSentenceReviewLog)
+                    .where(
+                        ProductionSentenceReviewLog.user_id == user_id,
+                        ProductionSentenceReviewLog.sentence_id == sentence_id,
+                    )
+                    .order_by(ProductionSentenceReviewLog.reviewed_at.desc())
+                    .limit(1)
+                )
+            ).scalar_one_or_none()
+
+            if log is None:
+                raise ValueError("No review to override")
+            if log.correct:
+                raise ValueError("The last review was already correct")
+            if log.overridden:
+                raise ValueError("This review was already overridden")
+
+            progress = (
+                await self.db.execute(
+                    select(UserItemProgress)
+                    .where(
+                        UserItemProgress.user_id == user_id,
+                        UserItemProgress.item_type == ItemType.SENTENCE,
+                        UserItemProgress.item_id == sentence_id,
+                    )
+                    .with_for_update()
+                )
+            ).scalar_one_or_none()
+            if progress is None:
+                raise ValueError("Sentence not in progress")
+
+            before = log.srs_stage_before
+            new_stage, next_review_at = calculate_next_review(before, correct=True)
+
+            log.overridden = True
+            log.override_reason = reason
+            log.srs_stage_after = new_stage
+            progress.srs_stage = new_stage
+            progress.next_review_at = next_review_at
+            if new_stage == 9:
+                progress.burned_at = now
+
+            await self.db.commit()
+
+            return SentenceOverrideResponse(
+                sentence_id=sentence_id,
+                srs_stage_before=before,
+                srs_stage_after=new_stage,
+                next_review_at=next_review_at,
+            )
+        except SQLAlchemyError as e:
+            await self.db.rollback()
+            logger.error(
+                "database_error_overriding_sentence_review",
+                user_id=user_id,
+                sentence_id=sentence_id,
                 error_type=type(e).__name__,
                 error=str(e),
             )

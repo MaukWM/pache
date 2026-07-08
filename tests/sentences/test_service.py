@@ -235,3 +235,83 @@ async def test_create_uses_validator_politeness(db_session, monkeypatch) -> None
         user.id, SentenceCreateRequest(english="x", japanese="あります")
     )
     assert resp.politeness == Politeness.POLITE  # from the validator (no override anymore)
+
+
+# --- override endpoint (③c) ---
+
+
+async def test_override_advances_srs_and_stores_reason(db_session) -> None:
+    user, sentence = await _seed(db_session, stage=1)  # progress dropped to 1 after a miss
+    db_session.add(
+        ProductionSentenceReviewLog(
+            user_id=user.id,
+            sentence_id=sentence.id,
+            submitted="wrong",
+            exact_match=False,
+            correct=False,
+            srs_stage_before=3,
+            srs_stage_after=1,
+            reviewed_at=datetime.now(UTC),
+        )
+    )
+    await db_session.flush()
+
+    resp = await SentenceService(db_session).override_review(user.id, sentence.id, "polite is fine")
+    assert resp.srs_stage_before == 3
+    assert resp.srs_stage_after == 4  # calculate_next_review(3, correct=True) → advance
+    prog = await db_session.scalar(
+        select(UserItemProgress).where(
+            UserItemProgress.item_type == ItemType.SENTENCE,
+            UserItemProgress.item_id == sentence.id,
+        )
+    )
+    assert prog.srs_stage == 4
+    log = await db_session.scalar(select(ProductionSentenceReviewLog))
+    assert log.overridden is True
+    assert log.override_reason == "polite is fine"
+    assert log.correct is False  # judge verdict preserved for analytics
+
+
+async def test_override_no_review_raises(db_session) -> None:
+    user, sentence = await _seed(db_session)
+    with pytest.raises(ValueError, match="No review"):
+        await SentenceService(db_session).override_review(user.id, sentence.id, None)
+
+
+async def test_override_already_correct_raises(db_session) -> None:
+    user, sentence = await _seed(db_session)
+    db_session.add(
+        ProductionSentenceReviewLog(
+            user_id=user.id,
+            sentence_id=sentence.id,
+            submitted="ok",
+            exact_match=True,
+            correct=True,
+            srs_stage_before=1,
+            srs_stage_after=2,
+            reviewed_at=datetime.now(UTC),
+        )
+    )
+    await db_session.flush()
+    with pytest.raises(ValueError, match="already correct"):
+        await SentenceService(db_session).override_review(user.id, sentence.id, None)
+
+
+async def test_override_already_overridden_raises(db_session) -> None:
+    user, sentence = await _seed(db_session)
+    db_session.add(
+        ProductionSentenceReviewLog(
+            user_id=user.id,
+            sentence_id=sentence.id,
+            submitted="x",
+            exact_match=False,
+            correct=False,
+            overridden=True,
+            srs_stage_before=2,
+            srs_stage_after=2,
+            reviewed_at=datetime.now(UTC),
+        )
+    )
+    await db_session.flush()
+    with pytest.raises(ValueError, match="already overridden"):
+        await SentenceService(db_session).override_review(user.id, sentence.id, None)

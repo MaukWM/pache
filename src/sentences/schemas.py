@@ -54,6 +54,24 @@ class SentenceReviewCreateRequest(BaseModel):
     submitted: str = Field(..., min_length=1, description="The user's Japanese attempt")
 
 
+class SentenceOverrideRequest(BaseModel):
+    """Override the latest (rejected) review of a sentence, accepting the answer."""
+
+    reason: str | None = Field(
+        None, description="Why it should count as correct — fed to the judge on future reviews"
+    )
+
+
+class SentenceOverrideResponse(BaseModel):
+    """Outcome of an override: SRS advanced as if the answer were correct."""
+
+    sentence_id: int = Field(..., gt=0)
+    overridden: bool = True
+    srs_stage_before: int = Field(..., ge=1, le=9)
+    srs_stage_after: int = Field(..., ge=1, le=9)
+    next_review_at: datetime | None
+
+
 class SentenceReviewResponse(BaseModel):
     """Outcome of a submitted production review."""
 
