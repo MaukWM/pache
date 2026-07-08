@@ -133,6 +133,14 @@ resurrect free.
 
 ---
 
+## TECH DEBT — lock held across the LLM call (submit path)
+`SentenceService.submit_review` locks the progress row (`with_for_update`) then calls the LLM judge
+while holding it (~2–5s). Fine at personal scale — it only blocks a *concurrent submit of the same
+sentence* (double-click / two tabs); all other requests (other sentences, due list, kanji reviews)
+are unaffected. Improve when concurrency matters: judge BEFORE locking, then acquire the lock,
+re-verify still-due/not-burned, write log + update, commit — lock held for ~ms, not the network call.
+Marked `TODO(lock)` in the code.
+
 ## TECH DEBT — DRY review services later (deferred, don't break ReviewService)
 `SentenceService` + `ReviewService` share orchestration. SRS *math* already DRY
 (`calculate_next_review`, `truncate_to_hour`). Still duplicated — extract LATER, only when touching
