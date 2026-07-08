@@ -23,8 +23,11 @@ from src.sentences.schemas import (
     DueSentenceResponse,
     SentenceCreateRequest,
     SentenceCreateResponse,
+    SentenceDetailResponse,
+    SentenceListItem,
     SentenceOverrideResponse,
     SentenceReviewCreateRequest,
+    SentenceReviewLogItem,
     SentenceReviewResponse,
 )
 
@@ -135,6 +138,72 @@ class SentenceService:
                     )
                 )
         return due
+
+    async def list_sentences(self, user_id: int) -> list[SentenceListItem]:
+        """All of the user's production sentences (newest first), with SRS state.
+
+        Unlike get_due, this shows the reference japanese — it's the owner's own list.
+        """
+        query = (
+            select(UserItemProgress, ProductionSentence)
+            .join(
+                ProductionSentence,
+                ProductionSentence.id == UserItemProgress.item_id,
+            )
+            .where(
+                UserItemProgress.user_id == user_id,
+                UserItemProgress.item_type == ItemType.SENTENCE,
+            )
+            .order_by(ProductionSentence.created_at.desc())
+        )
+        rows = (await self.db.execute(query)).all()
+        return [
+            SentenceListItem(
+                sentence_id=sentence.id,
+                english=sentence.english,
+                japanese=sentence.japanese,
+                politeness=sentence.politeness,
+                srs_stage=progress.srs_stage,
+                next_review_at=progress.next_review_at,
+                created_at=sentence.created_at,
+            )
+            for progress, sentence in rows
+        ]
+
+    async def get_sentence(self, user_id: int, sentence_id: int) -> SentenceDetailResponse:
+        """One sentence with its full review history. Raises ValueError (→ 404) if not found."""
+        sentence = await self.db.get(ProductionSentence, sentence_id)
+        if sentence is None or sentence.user_id != user_id:
+            raise ValueError("Sentence not found")
+
+        progress = (
+            await self.db.execute(
+                select(UserItemProgress).where(
+                    UserItemProgress.user_id == user_id,
+                    UserItemProgress.item_type == ItemType.SENTENCE,
+                    UserItemProgress.item_id == sentence_id,
+                )
+            )
+        ).scalar_one_or_none()
+
+        logs = (
+            await self.db.execute(
+                select(ProductionSentenceReviewLog)
+                .where(ProductionSentenceReviewLog.sentence_id == sentence_id)
+                .order_by(ProductionSentenceReviewLog.reviewed_at.desc())
+            )
+        ).scalars().all()
+
+        return SentenceDetailResponse(
+            sentence_id=sentence.id,
+            english=sentence.english,
+            japanese=sentence.japanese,
+            politeness=sentence.politeness,
+            srs_stage=progress.srs_stage if progress else 1,
+            next_review_at=progress.next_review_at if progress else None,
+            created_at=sentence.created_at,
+            reviews=[SentenceReviewLogItem.model_validate(log) for log in logs],
+        )
 
     async def submit_review(
         self, user_id: int, request: SentenceReviewCreateRequest

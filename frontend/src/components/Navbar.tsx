@@ -18,6 +18,7 @@ const NAV_LINKS = [
   { to: '/', label: 'ダッシュボード', ink: 'text-foreground', rule: 'bg-foreground' },
   { to: '/kanji', label: '漢字', ink: 'text-wk-kanji', rule: 'bg-wk-kanji' },
   { to: '/vocab', label: '語彙', ink: 'text-wk-vocab', rule: 'bg-wk-vocab' },
+  { to: '/sentences', label: '作文', ink: 'text-wk-sentence', rule: 'bg-wk-sentence' },
 ];
 
 export function Navbar() {

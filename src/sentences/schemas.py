@@ -54,6 +54,56 @@ class SentenceReviewCreateRequest(BaseModel):
     submitted: str = Field(..., min_length=1, description="The user's Japanese attempt")
 
 
+class SentenceListItem(BaseModel):
+    """A production sentence in the management list (reference JP visible — this is YOUR list)."""
+
+    sentence_id: int = Field(..., gt=0)
+    english: str
+    japanese: str
+    politeness: Politeness
+    srs_stage: int = Field(..., ge=1, le=9)
+    next_review_at: datetime | None
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class SentenceListResponse(BaseModel):
+    """Envelope for the full sentence list."""
+
+    items: list[SentenceListItem]
+    count: int
+
+
+class SentenceReviewLogItem(BaseModel):
+    """One past review of a sentence, for the detail page history."""
+
+    submitted: str
+    exact_match: bool
+    correct: bool
+    feedback: str | None
+    overridden: bool
+    override_reason: str | None
+    srs_stage_before: int
+    srs_stage_after: int
+    reviewed_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class SentenceDetailResponse(BaseModel):
+    """A single production sentence with its full review history."""
+
+    sentence_id: int = Field(..., gt=0)
+    english: str
+    japanese: str
+    politeness: Politeness
+    srs_stage: int = Field(..., ge=1, le=9)
+    next_review_at: datetime | None
+    created_at: datetime
+    reviews: list[SentenceReviewLogItem]
+
+
 class SentenceOverrideRequest(BaseModel):
     """Override the latest (rejected) review of a sentence, accepting the answer."""
 

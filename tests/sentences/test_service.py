@@ -46,6 +46,52 @@ async def _seed(
     return user, sentence
 
 
+async def test_list_sentences_returns_reference_and_stage(db_session: AsyncSession) -> None:
+    user, sentence = await _seed(db_session, stage=3)
+    items = await SentenceService(db_session).list_sentences(user.id)
+    assert len(items) == 1
+    assert items[0].sentence_id == sentence.id
+    assert items[0].japanese == "あと5日"  # owner's list DOES show the reference
+    assert items[0].srs_stage == 3
+
+
+async def test_list_sentences_scoped_to_user(db_session: AsyncSession) -> None:
+    user, _ = await _seed(db_session)
+    other, _ = await _seed(db_session)
+    items = await SentenceService(db_session).list_sentences(user.id)
+    assert len(items) == 1  # only own sentences
+
+
+async def test_get_sentence_includes_review_history(db_session: AsyncSession) -> None:
+    user, sentence = await _seed(db_session, stage=1)
+    db_session.add(
+        ProductionSentenceReviewLog(
+            user_id=user.id,
+            sentence_id=sentence.id,
+            submitted="wrong",
+            exact_match=False,
+            correct=False,
+            feedback="not natural",
+            srs_stage_before=1,
+            srs_stage_after=1,
+            reviewed_at=datetime.now(UTC),
+        )
+    )
+    await db_session.flush()
+    detail = await SentenceService(db_session).get_sentence(user.id, sentence.id)
+    assert detail.sentence_id == sentence.id
+    assert detail.japanese == "あと5日"
+    assert len(detail.reviews) == 1
+    assert detail.reviews[0].feedback == "not natural"
+
+
+async def test_get_sentence_other_user_404(db_session: AsyncSession) -> None:
+    _, sentence = await _seed(db_session)
+    other, _ = await _seed(db_session)
+    with pytest.raises(ValueError, match="not found"):
+        await SentenceService(db_session).get_sentence(other.id, sentence.id)
+
+
 async def test_get_due_returns_due_without_leaking_reference(db_session: AsyncSession) -> None:
     user, sentence = await _seed(db_session)
     due = await SentenceService(db_session).get_due(user.id)

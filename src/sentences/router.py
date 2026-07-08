@@ -13,6 +13,8 @@ from src.sentences.schemas import (
     DueSentencesResponse,
     SentenceCreateRequest,
     SentenceCreateResponse,
+    SentenceDetailResponse,
+    SentenceListResponse,
     SentenceOverrideRequest,
     SentenceOverrideResponse,
     SentenceReviewCreateRequest,
@@ -57,6 +59,29 @@ async def create_sentence(
         raise HTTPException(
             status_code=500,
             detail="An error occurred while adding the sentence. Please try again later.",
+        ) from e
+
+
+@router.get("", response_model=SentenceListResponse)
+async def list_sentences(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> SentenceListResponse:
+    """List all of the user's production sentences (newest first). Reference JP included."""
+    try:
+        service = SentenceService(db)
+        items = await service.list_sentences(user_id=current_user.id)
+        return SentenceListResponse(items=items, count=len(items))
+    except SQLAlchemyError as e:
+        logger.error(
+            "database_error_in_list_sentences_endpoint",
+            user_id=current_user.id,
+            error_type=type(e).__name__,
+            error=str(e),
+        )
+        raise HTTPException(
+            status_code=500,
+            detail="An error occurred while retrieving sentences. Please try again later.",
         ) from e
 
 
@@ -124,6 +149,32 @@ async def submit_sentence_review(
         raise HTTPException(
             status_code=500,
             detail="An error occurred while submitting the review. Please try again later.",
+        ) from e
+
+
+@router.get("/{sentence_id}", response_model=SentenceDetailResponse)
+async def get_sentence(
+    sentence_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> SentenceDetailResponse:
+    """One sentence with its full review history. Reference JP included (owner's own)."""
+    try:
+        service = SentenceService(db)
+        return await service.get_sentence(user_id=current_user.id, sentence_id=sentence_id)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
+    except SQLAlchemyError as e:
+        logger.error(
+            "database_error_in_get_sentence_endpoint",
+            user_id=current_user.id,
+            sentence_id=sentence_id,
+            error_type=type(e).__name__,
+            error=str(e),
+        )
+        raise HTTPException(
+            status_code=500,
+            detail="An error occurred while retrieving the sentence. Please try again later.",
         ) from e
 
 

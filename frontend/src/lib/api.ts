@@ -194,6 +194,20 @@ export const api = {
       body: JSON.stringify(data),
     }),
 
+  // Production sentences (作文)
+  getSentences: async (): Promise<SentenceListItem[]> => {
+    const res = await request<{ items: SentenceListItem[]; count: number }>('/me/sentences');
+    return res.items;
+  },
+
+  getSentence: (id: number) => request<SentenceDetail>(`/me/sentences/${id}`),
+
+  createProductionSentence: (english: string, japanese: string) =>
+    request<SentenceCreated>('/me/sentences', {
+      method: 'POST',
+      body: JSON.stringify({ english, japanese }),
+    }),
+
   // Lessons
   completeLessons: (data: { item_ids: { item_type: string; item_id: number }[] }) =>
     request<unknown>('/me/lessons', {
@@ -360,6 +374,43 @@ export interface Sentence {
   en: string;
   added_by: number;
   created_at: string;
+}
+
+// Production-SRS sentences (作文) — personal EN→JP pairs, distinct from vocab example sentences.
+export type Politeness = 'polite' | 'casual' | 'mixed';
+
+export interface SentenceListItem {
+  sentence_id: number;
+  english: string;
+  japanese: string;
+  politeness: Politeness;
+  srs_stage: number;
+  next_review_at: string | null;
+  created_at: string;
+}
+
+export interface SentenceReviewLogItem {
+  submitted: string;
+  exact_match: boolean;
+  correct: boolean;
+  feedback: string | null;
+  overridden: boolean;
+  override_reason: string | null;
+  srs_stage_before: number;
+  srs_stage_after: number;
+  reviewed_at: string;
+}
+
+export interface SentenceDetail extends SentenceListItem {
+  reviews: SentenceReviewLogItem[];
+}
+
+export interface SentenceCreated {
+  sentence_id: number;
+  english: string;
+  japanese: string;
+  politeness: Politeness;
+  srs_stage: number;
 }
 
 export interface DictionarySense {
