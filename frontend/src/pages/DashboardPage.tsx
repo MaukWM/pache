@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { ExternalLink } from 'lucide-react';
@@ -11,17 +11,40 @@ import { ReviewForecast } from '../components/ReviewForecast';
 import { ActiveItemSpread } from '../components/ActiveItemSpread';
 import { SrsSpread } from '../components/SrsSpread';
 
-// A genkō-style stat slab: big mincho numeral, mono label, sharp bordered card.
+// A labelled pair of tiles bound into one bordered box (shared divider, no gap),
+// with a section header + colored rule above (漢字・語彙 = pink→purple, 作文 = green).
+function StatGroup({
+  label,
+  accent,
+  children,
+}: {
+  label: string;
+  accent: string;
+  children: ReactNode;
+}) {
+  return (
+    <section className="space-y-2">
+      <div className="flex items-center gap-3">
+        <span className="font-mono text-[11px] tracking-[0.2em] text-muted-foreground uppercase">
+          {label}
+        </span>
+        <span className={cn('h-0.5 flex-1', accent)} />
+      </div>
+      <div className="grid grid-cols-2 divide-x-2 divide-border border-2 border-border">
+        {children}
+      </div>
+    </section>
+  );
+}
+
+// A genkō-style stat cell: big mincho numeral, mono label. Lives inside a StatGroup.
 // "Ready" marker (not a loud color fill) signals there's something to do.
 function StatTile({ to, count, label }: { to: string; count: number; label: string }) {
   const active = count > 0;
   return (
     <Link
       to={to}
-      className={cn(
-        'group relative flex flex-col items-center justify-center border-2 bg-card p-10 transition-colors hover:bg-accent',
-        active ? 'border-foreground/40' : 'border-border',
-      )}
+      className="group relative flex flex-col items-center justify-center bg-card p-10 transition-colors hover:bg-accent"
     >
       {active && (
         <span className="absolute top-3 right-3 font-mono text-[10px] tracking-wider text-muted-foreground uppercase">
@@ -91,6 +114,14 @@ export function DashboardPage() {
 
   const reviews = useQuery({ queryKey: ['reviews'], queryFn: api.getReviews });
   const queue = useQuery({ queryKey: ['queue'], queryFn: api.getQueue });
+  const sentenceLessons = useQuery({
+    queryKey: ['sentenceLessons'],
+    queryFn: api.getSentenceLessons,
+  });
+  const sentenceReviews = useQuery({
+    queryKey: ['sentenceReviews'],
+    queryFn: api.getDueSentences,
+  });
   const progress = useQuery({ queryKey: ['progress'], queryFn: () => api.getProgress() });
   const wanikani = useQuery({
     queryKey: ['wanikani-status'],
@@ -111,6 +142,8 @@ export function DashboardPage() {
 
   const reviewCount = reviews.data?.length ?? 0;
   const lessonCount = queue.data?.filter((i) => !i.locked).length ?? 0;
+  const sentenceLessonCount = sentenceLessons.data?.length ?? 0;
+  const sentenceReviewCount = sentenceReviews.data?.length ?? 0;
   const wkConfigured = wanikani.data?.configured ?? false;
   const wkDue = wanikani.data?.reviews_due ?? 0;
   // Without a WK key only "this site" is meaningful.
@@ -150,9 +183,16 @@ export function DashboardPage() {
     <div className="space-y-6">
       <h1 className="text-2xl font-bold">おかえりなさい、{user?.username}！</h1>
 
-      <div className="grid grid-cols-2 gap-4">
-        <StatTile to="/lessons" count={lessonCount} label="レッスン" />
-        <StatTile to="/reviews" count={reviewCount} label="復習" />
+      {/* Two grouped pairs: 漢字・語彙 (pink→purple) over 作文 (green). */}
+      <div className="space-y-5">
+        <StatGroup label="漢字・語彙" accent="bg-gradient-to-r from-wk-kanji to-wk-vocab">
+          <StatTile to="/lessons" count={lessonCount} label="レッスン" />
+          <StatTile to="/reviews" count={reviewCount} label="復習" />
+        </StatGroup>
+        <StatGroup label="作文" accent="bg-wk-sentence">
+          <StatTile to="/sentences/lessons" count={sentenceLessonCount} label="レッスン" />
+          <StatTile to="/sentences/review" count={sentenceReviewCount} label="復習" />
+        </StatGroup>
       </div>
 
       {wkConfigured && (

@@ -208,6 +208,36 @@ export const api = {
       body: JSON.stringify({ english, japanese }),
     }),
 
+  // Pending sentence lessons (created but not yet learned).
+  getSentenceLessons: async (): Promise<SentenceLesson[]> => {
+    const res = await request<{ items: SentenceLesson[]; count: number }>('/me/sentences/lessons');
+    return res.items;
+  },
+
+  completeSentenceLessons: (sentence_ids: number[]) =>
+    request<{ learned: number[]; count: number }>('/me/sentences/lessons', {
+      method: 'POST',
+      body: JSON.stringify({ sentence_ids }),
+    }),
+
+  // Production sentences due for review (reference JP hidden — must produce it).
+  getDueSentences: async (): Promise<DueSentence[]> => {
+    const res = await request<{ items: DueSentence[]; count: number }>('/me/sentences/reviews');
+    return res.items;
+  },
+
+  submitSentenceReview: (sentence_id: number, submitted: string) =>
+    request<SentenceReviewResult>('/me/sentences/reviews', {
+      method: 'POST',
+      body: JSON.stringify({ sentence_id, submitted }),
+    }),
+
+  overrideSentenceReview: (sentence_id: number, reason?: string) =>
+    request<SentenceOverrideResult>(`/me/sentences/${sentence_id}/override`, {
+      method: 'POST',
+      body: JSON.stringify({ reason: reason || null }),
+    }),
+
   // Lessons
   completeLessons: (data: { item_ids: { item_type: string; item_id: number }[] }) =>
     request<unknown>('/me/lessons', {
@@ -384,9 +414,43 @@ export interface SentenceListItem {
   english: string;
   japanese: string;
   politeness: Politeness;
-  srs_stage: number;
+  srs_stage: number | null; // null = pending lesson (not yet learned)
   next_review_at: string | null;
   created_at: string;
+}
+
+// A pending sentence lesson — study card shows both sides.
+export interface SentenceLesson {
+  sentence_id: number;
+  english: string;
+  japanese: string;
+  politeness: Politeness;
+}
+
+// A sentence due for review — reference JP withheld until submit.
+export interface DueSentence {
+  sentence_id: number;
+  english: string;
+  srs_stage: number;
+}
+
+export interface SentenceReviewResult {
+  sentence_id: number;
+  correct: boolean;
+  exact_match: boolean;
+  feedback: string | null;
+  reference: string;
+  srs_stage_before: number;
+  srs_stage_after: number;
+  next_review_at: string | null;
+}
+
+export interface SentenceOverrideResult {
+  sentence_id: number;
+  overridden: boolean;
+  srs_stage_before: number;
+  srs_stage_after: number;
+  next_review_at: string | null;
 }
 
 export interface SentenceReviewLogItem {
@@ -410,7 +474,6 @@ export interface SentenceCreated {
   english: string;
   japanese: string;
   politeness: Politeness;
-  srs_stage: number;
 }
 
 export interface DictionarySense {

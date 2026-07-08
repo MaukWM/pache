@@ -25,7 +25,15 @@ export function PolitenessBadge({ value }: { value: Politeness }) {
   );
 }
 
-export function StageBadge({ stage }: { stage: number }) {
+export function StageBadge({ stage }: { stage: number | null }) {
+  // null = pending lesson (created, not yet learned).
+  if (stage == null) {
+    return (
+      <span className="shrink-0 whitespace-nowrap bg-wk-sentence/15 px-1.5 py-0.5 text-[10px] font-bold text-wk-sentence">
+        レッスン待ち
+      </span>
+    );
+  }
   return (
     <span
       className="shrink-0 px-1.5 py-0.5 text-[10px] font-bold whitespace-nowrap text-white"

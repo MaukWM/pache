@@ -85,7 +85,7 @@ async def test_create_sentence_endpoint(async_client, db_session, monkeypatch) -
     )
     assert resp.status_code == 201
     body = resp.json()
-    assert body["politeness"] == "casual" and body["srs_stage"] == 1
+    assert body["politeness"] == "casual" and "srs_stage" not in body
 
 
 async def test_create_sentence_rejected_422(async_client, db_session, monkeypatch) -> None:
