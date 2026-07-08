@@ -11,6 +11,8 @@ import { VocabPage } from './pages/VocabPage';
 import { VocabDetailPage } from './pages/VocabDetailPage';
 import { SentencesPage } from './pages/SentencesPage';
 import { SentenceDetailPage } from './pages/SentenceDetailPage';
+import { SentenceLessonsPage } from './pages/SentenceLessonsPage';
+import { SentenceReviewPage } from './pages/SentenceReviewPage';
 import { LessonsPage } from './pages/LessonsPage';
 import { ReviewPage } from './pages/ReviewPage';
 import { AccountPage } from './pages/AccountPage';
@@ -43,6 +45,8 @@ function ProtectedRoutes() {
       {/* Lessons + reviews run full-screen (no navbar) for an immersive session. */}
       <Route path="lessons" element={<LessonsPage />} />
       <Route path="reviews" element={<ReviewPage />} />
+      <Route path="sentences/lessons" element={<SentenceLessonsPage />} />
+      <Route path="sentences/review" element={<SentenceReviewPage />} />
     </Routes>
   );
 }

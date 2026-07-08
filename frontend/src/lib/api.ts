@@ -220,6 +220,13 @@ export const api = {
       body: JSON.stringify({ sentence_ids }),
     }),
 
+  // Stateless judge (no SRS) — used by the lesson quiz gate.
+  judgeSentence: (id: number, submitted: string) =>
+    request<SentenceJudgeResult>(`/me/sentences/${id}/judge`, {
+      method: 'POST',
+      body: JSON.stringify({ submitted }),
+    }),
+
   // Production sentences due for review (reference JP hidden — must produce it).
   getDueSentences: async (): Promise<DueSentence[]> => {
     const res = await request<{ items: DueSentence[]; count: number }>('/me/sentences/reviews');
@@ -431,7 +438,15 @@ export interface SentenceLesson {
 export interface DueSentence {
   sentence_id: number;
   english: string;
+  politeness: Politeness;
   srs_stage: number;
+}
+
+export interface SentenceJudgeResult {
+  correct: boolean;
+  exact_match: boolean;
+  feedback: string | null;
+  reference: string;
 }
 
 export interface SentenceReviewResult {

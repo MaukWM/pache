@@ -14,6 +14,8 @@ from src.sentences.schemas import (
     SentenceCreateRequest,
     SentenceCreateResponse,
     SentenceDetailResponse,
+    SentenceJudgeRequest,
+    SentenceJudgeResponse,
     SentenceLessonCompleteRequest,
     SentenceLessonCompleteResponse,
     SentenceLessonsResponse,
@@ -227,6 +229,35 @@ async def get_sentence(
         raise HTTPException(
             status_code=500,
             detail="An error occurred while retrieving the sentence. Please try again later.",
+        ) from e
+
+
+@router.post("/{sentence_id}/judge", response_model=SentenceJudgeResponse, status_code=200)
+async def judge_sentence(
+    sentence_id: int,
+    request: SentenceJudgeRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> SentenceJudgeResponse:
+    """Grade an attempt without changing SRS — used by the lesson quiz gate."""
+    try:
+        service = SentenceService(db)
+        return await service.judge_pair(
+            user_id=current_user.id, sentence_id=sentence_id, submitted=request.submitted
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
+    except (OpenAIError, RuntimeError) as e:
+        logger.warning(
+            "llm_error_in_judge_sentence_endpoint",
+            user_id=current_user.id,
+            sentence_id=sentence_id,
+            error_type=type(e).__name__,
+            error=str(e),
+        )
+        raise HTTPException(
+            status_code=503,
+            detail="Grading service unavailable. Please try again.",
         ) from e
 
 

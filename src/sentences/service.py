@@ -24,6 +24,7 @@ from src.sentences.schemas import (
     SentenceCreateRequest,
     SentenceCreateResponse,
     SentenceDetailResponse,
+    SentenceJudgeResponse,
     SentenceLessonItem,
     SentenceListItem,
     SentenceOverrideResponse,
@@ -200,6 +201,7 @@ class SentenceService:
                     DueSentenceResponse(
                         sentence_id=sentence.id,
                         english=sentence.english,
+                        politeness=sentence.politeness,
                         srs_stage=progress.srs_stage,
                     )
                 )
@@ -269,6 +271,33 @@ class SentenceService:
             next_review_at=progress.next_review_at if progress else None,
             created_at=sentence.created_at,
             reviews=[SentenceReviewLogItem.model_validate(log) for log in logs],
+        )
+
+    async def judge_pair(
+        self, user_id: int, sentence_id: int, submitted: str
+    ) -> SentenceJudgeResponse:
+        """Grade an attempt WITHOUT SRS side effects — for the lesson quiz gate.
+
+        Exact-match fast path (free, instant); otherwise the LLM judge. No progress row is
+        required (a pending lesson has none) and none is written. Raises ValueError (→ 404) if
+        the sentence isn't the user's. LLM errors propagate (→ 503).
+        """
+        sentence = await self.db.get(ProductionSentence, sentence_id)
+        if sentence is None or sentence.user_id != user_id:
+            raise ValueError("Sentence not found")
+
+        if _normalize(submitted) == _normalize(sentence.japanese):
+            return SentenceJudgeResponse(
+                correct=True, exact_match=True, feedback=None, reference=sentence.japanese
+            )
+        result = await judge(
+            sentence.english, sentence.japanese, submitted, sentence.politeness.value
+        )
+        return SentenceJudgeResponse(
+            correct=result.correct,
+            exact_match=False,
+            feedback=result.feedback,
+            reference=sentence.japanese,
         )
 
     async def submit_review(

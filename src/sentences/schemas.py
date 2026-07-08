@@ -34,6 +34,7 @@ class DueSentenceResponse(BaseModel):
 
     sentence_id: int = Field(..., gt=0)
     english: str = Field(..., description="The English prompt to translate")
+    politeness: Politeness = Field(..., description="Target politeness (not the answer)")
     srs_stage: int = Field(..., ge=1, le=9)
 
     model_config = {"from_attributes": True}
@@ -51,6 +52,21 @@ class SentenceReviewCreateRequest(BaseModel):
 
     sentence_id: int = Field(..., gt=0)
     submitted: str = Field(..., min_length=1, description="The user's Japanese attempt")
+
+
+class SentenceJudgeRequest(BaseModel):
+    """Grade an attempt WITHOUT touching SRS (used by the lesson quiz gate)."""
+
+    submitted: str = Field(..., min_length=1, description="The user's Japanese attempt")
+
+
+class SentenceJudgeResponse(BaseModel):
+    """Stateless judge verdict — no SRS change, no log written."""
+
+    correct: bool
+    exact_match: bool
+    feedback: str | None
+    reference: str
 
 
 class SentenceListItem(BaseModel):

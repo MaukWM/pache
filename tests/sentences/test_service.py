@@ -108,6 +108,36 @@ async def test_get_sentence_other_user_404(db_session: AsyncSession) -> None:
         await SentenceService(db_session).get_sentence(other.id, sentence.id)
 
 
+async def test_judge_pair_exact_match_no_llm(db_session: AsyncSession) -> None:
+    user, sentence = await _seed(db_session)
+    resp = await SentenceService(db_session).judge_pair(user.id, sentence.id, "あと5日")
+    assert resp.correct is True and resp.exact_match is True
+    assert resp.reference == "あと5日"
+
+
+async def test_judge_pair_uses_llm_and_no_srs(db_session: AsyncSession, monkeypatch) -> None:
+    user, sentence = await _seed(db_session, stage=1)
+
+    async def fake_judge(en, ja, sub, pol, override_reasons=None) -> JudgeResult:
+        return JudgeResult(reason="", correct=True, feedback="natural")
+
+    monkeypatch.setattr("src.sentences.service.judge", fake_judge)
+    resp = await SentenceService(db_session).judge_pair(user.id, sentence.id, "五日後")
+    assert resp.correct is True and resp.exact_match is False and resp.feedback == "natural"
+    # SRS untouched — judge_pair is stateless.
+    progress = await db_session.scalar(
+        select(UserItemProgress).where(UserItemProgress.item_id == sentence.id)
+    )
+    assert progress is not None and progress.srs_stage == 1
+
+
+async def test_judge_pair_other_user_404(db_session: AsyncSession) -> None:
+    _, sentence = await _seed(db_session)
+    other, _ = await _seed(db_session)
+    with pytest.raises(ValueError, match="not found"):
+        await SentenceService(db_session).judge_pair(other.id, sentence.id, "x")
+
+
 async def test_get_due_returns_due_without_leaking_reference(db_session: AsyncSession) -> None:
     user, sentence = await _seed(db_session)
     due = await SentenceService(db_session).get_due(user.id)

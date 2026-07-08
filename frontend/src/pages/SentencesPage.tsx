@@ -3,23 +3,32 @@ import { Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api, type Politeness } from '../lib/api';
 import { SRS_STAGE_COLORS, SRS_STAGE_NAMES } from '../lib/srs';
-import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card } from '@/components/ui/card';
 
-// Politeness → short JP label + tint. mixed = "anything goes" per design.
-const POLITENESS: Record<Politeness, { label: string; className: string }> = {
-  polite: { label: '丁寧', className: 'bg-wk-sentence/15 text-wk-sentence' },
-  casual: { label: '普通体', className: 'bg-muted text-muted-foreground' },
-  mixed: { label: '混在', className: 'bg-muted text-muted-foreground' },
+// Politeness = a formality dial, color-coded so it reads at a glance:
+// 丁寧 blue (formal) · 普通体 amber (relaxed) · 混在 slate (no constraint).
+// A colored square dot + tinted chip (mid-tone hues read on both light & dark).
+const POLITENESS: Record<Politeness, { label: string; color: string }> = {
+  polite: { label: '丁寧', color: '#5b8def' },
+  casual: { label: '普通体', color: '#d99a2b' },
+  mixed: { label: '混在', color: '#8a93a3' },
 };
 
 export function PolitenessBadge({ value }: { value: Politeness }) {
   const p = POLITENESS[value];
   return (
-    <span className={cn('shrink-0 px-1.5 py-0.5 font-mono text-[10px] tracking-wider uppercase', p.className)}>
+    <span
+      className="inline-flex shrink-0 items-center gap-1.5 border px-2 py-0.5 font-mono text-[10px] font-semibold tracking-wider uppercase"
+      style={{
+        color: p.color,
+        backgroundColor: `color-mix(in srgb, ${p.color} 14%, transparent)`,
+        borderColor: `color-mix(in srgb, ${p.color} 40%, transparent)`,
+      }}
+    >
+      <span className="size-1.5" style={{ backgroundColor: p.color }} />
       {p.label}
     </span>
   );
