@@ -1,7 +1,15 @@
 # Production SRS — design decisions & surface map
 
-Status: **design in progress**. Captured 2026-07-05. Phase 1 scope. Companion to
-`production-srs-idea-and-data-sources.md` (idea/theory/data) and `production-srs-data-licensing.md`.
+Status: **backend COMPLETE (③a/③b/③c), frontend ④ next.** Updated 2026-07-08. Phase 1 scope.
+Companion to `production-srs-idea-and-data-sources.md` (idea/theory/data) and
+`production-srs-data-licensing.md`. Judge tuning: `production-srs-grading-research.md`.
+
+Progress:
+- ① schema · ② review slice · ③ judge plumbing · ③a create+validate · ③b judge→submit · ③c override
+  → ALL DONE, committed. 316 tests, ruff + mypy clean.
+- Live LLM (OpenAI gpt-5.5) via `scripts/judge/{eval_judge,eval_override,eval_submit}.py` (harness,
+  not committed by choice). Judge scored 15/15 on the calibration set.
+- ④ frontend = only remaining piece (see "FRONTEND HANDOFF" at bottom).
 
 Feature: an SRS that trains **production** (write Japanese from English prompt), judged by LLM,
 progressing through the existing WaniKani SRS stages. Complements recognition (flashcards) +
@@ -17,7 +25,7 @@ shadowing. Theory + rationale in the idea doc.
 - **Grading flow:** exact-match (normalized) → SRS up, **no LLM call**. On miss → **reference-anchored
   LLM judge** (naturalness + closeness to reference meaning). Verdict drives SRS up/down.
 - **Judge = LLM with a rubric** (grammar / naturalness / register), NOT embedding-cosine alone
-  (cosine misses particles/register/naturalness). Returns verdict + score + feedback + natural version.
+  (cosine misses particles/register/naturalness). Returns `{correct, feedback}` (see DECISIONS #2).
 - **Assumption:** user submits correct EN/JP pairs — but this is NOT trusted (learners err). Mitigated
   by pair-validation at creation (below).
 - **Override:** user may override a judge **rejection**. Secondary action + confirm step (harder than
@@ -49,6 +57,13 @@ shadowing. Theory + rationale in the idea doc.
 - **Separate review screen**, sibling of `ReviewPage`. Reuse `QuizShell` (fullscreen chrome, progress,
   exit). **New card body** (can't reuse single-line `QuizCard`): textarea/IME + async judge state +
   rich feedback panel.
+- **Review interaction — Option A (LOCKED):** Submit = commit + judge in one call (one shot, no
+  retry-till-pass — that would game SRS). Show verdict + feedback. Correct → Enter advances. Wrong →
+  feedback + **[Override]** button (→ override endpoint, optional reason) OR Enter to accept the miss.
+  Kanji's Backspace-redo does NOT map (it's typo-fix; here retry = gaming). Override = principled
+  disagreement, not redo. SRS momentarily drops then rises on override (invisible, final state right).
+- **Show the politeness target** ("write: casual/polite") on the review card — the user can't see the
+  reference while producing, so the target must be shown (fairness).
 - Route `/sentences`, **outside Layout** (focused mode, like `/reviews` `/lessons`).
 - Dashboard: 3rd StatTile **作文** next to レッスン/復習, with due count.
 - **Latency** is the one genuinely new UX problem: LLM ~2–5s vs instant local grade → needs loading
@@ -107,30 +122,32 @@ SRS state -> user_item_progress (item_type=SENTENCE, item_id -> production_sente
              app-level rule: progress.user_id == production_sentences.user_id
              enum widen ×3 (metadata-only in MySQL 8)
 
-get_due_reviews -> add filter item_type IN (KANJI, VOCAB)  (sentences use own /sentences/due)
+get_due_reviews -> add filter item_type IN (KANJI, VOCAB)  (sentences use own /me/sentences/reviews)
 ```
 2 new tables + cheap enum widen. Personal content, standard SRS machinery, unified dashboard/burn/
 resurrect free.
 
 ---
 
-## OTHER OPEN DECISIONS
-1. **LLM provider/model** — rec Claude **Haiku** for judge (cheap, fast, structured output). Same for
-   pair-validator. Confirm provider (Anthropic) + model id.
-2. **Judge output contract — DECIDED:** `{correct: bool, feedback: str | None}`. `correct` drives SRS;
-   `feedback` is independent (why-wrong OR a better phrasing even when correct). No `score` — reasoning
-   model does CoT natively, emits verdict directly. `feedback` not persisted as `reasoning` (transient).
-3. **SRS bump parity** — exact-match and LLM-pass bump SRS the same (rec: same bump). No threshold
-   (verdict is a direct bool, not a scored cutoff).
-4. **Exact-match normalization** — whitespace strip, trailing 。, fullwidth↔halfwidth, kana handling.
-   Define rules (can borrow `evaluateAnswer` normalization approach).
-5. **Pair-validation timing** — sync gate at creation (rec) vs async background.
-6. **LLM failure/timeout** — don't advance SRS, allow retry, surface "judge unavailable". Graceful degrade.
-7. **Cost controls** — one LLM call per non-exact review. Cache identical submissions? Rate-limit?
-   Budget ceiling? (Can defer; flagged.)
-8. **Authoring UX** — where users add sentences: dedicated screen? dashboard entry? bulk import
-   (jkindrix seed) later?
-9. **Due-batching** — reuse hourly `truncate_to_hour` batching like reviews? (rec: yes.)
+## DECISIONS — all resolved (was "open")
+1. **LLM provider/model** ✅ **OpenAI `gpt-5.5`** (user set `OPENAI_API_KEY`). Provider-swappable via
+   `settings.llm_base_url` (OpenAI/OpenRouter/Orq/local) — one file (`src/llm/client.py`).
+2. **Judge output** ✅ `{reason (transient), correct, feedback}` → DB stores `correct` + `feedback`.
+   Feedback in ENGLISH, targeted fix, no reference-restatement, + one usage mini-example on grammar.
+3. **SRS bump parity** ✅ exact-match and LLM-pass bump the same; no threshold (verdict is a bool).
+4. **Exact-match normalization** ✅ strip whitespace + spaces (incl. 　) + trailing 。/. (`_normalize`).
+   Minimal — LLM is the safety net for near-misses.
+5. **Pair-validation timing** ✅ sync gate in `POST /me/sentences` — insert only on `valid`, else 422.
+6. **LLM failure/timeout** ✅ rollback, SRS unchanged, → 503 with clear message. (create + submit.)
+7. **Politeness** ✅ classified at create (`validate_pair` → polite/casual/mixed), stored, shown as
+   target, judge matches; `mixed` = any register accepted. No user override of the classification.
+8. **Prompts** ✅ in `src/llm/prompts/*.md`; shared `{{include: _core_rubric.md}}` fragment so judge +
+   validator share the grammar/naturalness/meaning/politeness rubric (can't drift). Loader:
+   `src/llm/prompt_loader.py`.
+9. **Due-batching** ✅ reuses hourly `truncate_to_hour`.
+10. **Cost controls** — DEFERRED. One LLM call per non-exact review; ~cents/mo at 20–30/day. No cache
+    /rate-limit yet.
+11. **Authoring UX** — ④ frontend decision (form location). Bulk jkindrix seed = phase 2.
 
 ---
 
@@ -178,7 +195,8 @@ Marked `TODO(lock)` in the code.
   judge state, feedback panel, override action)
 - **NEW** authoring UI — add-sentence form + creation-validation feedback
 - `src/pages/DashboardPage.tsx` — StatTile 作文 + due-count query
-- `src/lib/api.ts` — endpoints: list-due, submit-review, create-sentence, validate-pair
+- `src/lib/api.ts` — endpoints: create-sentence, list-due, submit-review, override (validation is
+  server-side inside create — no separate validate endpoint)
 - theme — green tokens / badge color
 - localization — JP strings (作文 etc.)
 
@@ -187,9 +205,40 @@ Marked `TODO(lock)` in the code.
 
 ---
 
-## Endpoints (draft)
-- `POST /api/v1/sentences` — create (runs pair-validation gate)
-- `GET  /api/v1/sentences/due` — due queue (query `user_item_progress WHERE item_type=SENTENCE`
-  + join `production_sentences`)
-- `POST /api/v1/sentences/{id}/review` — submit answer → exact-match or LLM judge → SRS update + log
-- `GET  /api/v1/sentences` — list user's sentences (management)
+## FRONTEND HANDOFF (④) — backend is DONE, build against this
+
+### API contract (implemented, prefix `/api/v1`, auth `Bearer <token>`)
+```
+POST /me/sentences {english, japanese}
+  201 {sentence_id, english, japanese, politeness, srs_stage}   politeness: polite|casual|mixed
+  422 {detail}   pair rejected — show detail near the input (English, actionable)
+  503            LLM validator down — try again
+GET  /me/sentences/reviews
+  200 {items:[{sentence_id, english, srs_stage}], count}        japanese HIDDEN (must produce it)
+POST /me/sentences/reviews {sentence_id, submitted}
+  200 {sentence_id, correct, exact_match, feedback, reference, srs_stage_before, srs_stage_after,
+       next_review_at}                                          reference revealed after submit
+  400 not due / burned / unknown       503 LLM down (SRS unchanged)
+POST /me/sentences/{sentence_id}/override {reason?}
+  200 {sentence_id, overridden, srs_stage_before, srs_stage_after, next_review_at}
+  400 nothing to override
+```
+
+### Screens
+- `src/App.tsx` — route `/sentences`, OUTSIDE Layout (focused, like `/reviews` `/lessons`)
+- **NEW** review page — reuse `QuizShell`; card body = textarea/IME + async "判定中…" state + feedback
+  panel + [Override] button (Option A flow, see Frontend/UX above). Show politeness target on card.
+- **NEW** authoring form — POST create; on 422 render `detail`
+- `DashboardPage` — 作文 StatTile + due count (mirror レッスン/復習 tiles)
+- `src/lib/api.ts` — createSentence, getDueSentences, submitSentenceReview, overrideSentenceReview
+- theme — GREEN tint (kanji=pink, vocab=purple)
+
+### Prereqs (or calls fail)
+1. **CORS** — `main.py` has no CORS middleware; Vite dev (:5173) → API (:8000) is cross-origin.
+   Fix: Vite dev proxy (no backend change) OR add `CORSMiddleware`. DECIDE.
+2. Confirm login endpoint shape when wiring `api.ts` (auth_router IS mounted).
+3. Product is now **pache** (from remote merge) — naming in UI.
+
+### Reference implementations already in repo
+`src/pages/ReviewPage.tsx`, `components/QuizShell.tsx`, `components/QuizCard.tsx`,
+`lib/quiz.ts` (grading/normalize), `DashboardPage.tsx` StatTile pattern, `lib/api.ts`.
