@@ -7,11 +7,13 @@ one-place change. Do NOT scatter `select(ProductionSentence)` into other domains
 from dataclasses import dataclass
 from datetime import UTC, datetime
 
+from openai import OpenAIError
 from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.constants import ItemType, Politeness
+from src.llm.judge import judge
 from src.llm.validate import validate_pair
 from src.logging import logger
 from src.progress.models import UserItemProgress
@@ -43,17 +45,6 @@ class Judgment:
     correct: bool  # drives SRS
     exact_match: bool  # passed via normalized exact-match (no LLM)
     feedback: str | None = None  # why wrong, or a better phrasing when correct
-
-
-def _judge(submitted: str, reference: str) -> Judgment:
-    """Judge a submission.
-
-    ponytail: exact-match only for now. Step 3 swaps the miss-branch for an LLM call that
-    judges naturalness/closeness and returns feedback. Return type stays `Judgment`.
-    """
-    if _normalize(submitted) == _normalize(reference):
-        return Judgment(correct=True, exact_match=True)
-    return Judgment(correct=False, exact_match=False)  # step 3: miss -> LLM judge
 
 
 class SentenceService:
@@ -168,6 +159,9 @@ class SentenceService:
             # ponytail: guard + due-check + outcome below duplicate ReviewService orchestration.
             # DRY later (hour_reached / apply_review_outcome in srs.py) — see
             # production-srs-design.md "TECH DEBT". Deferred: don't touch mature ReviewService now.
+            # TODO(lock): row lock is held across the LLM call below (~seconds). Fine at personal
+            # scale (only blocks a concurrent submit of THE SAME sentence). Improve: judge before
+            # locking, then lock → re-verify due → write. See production-srs-design.md "TECH DEBT".
             if progress is None:
                 raise ValueError("Sentence not in progress")
             if progress.srs_stage >= 9:
@@ -183,7 +177,23 @@ class SentenceService:
             if sentence is None or sentence.user_id != user_id:
                 raise ValueError("Sentence not found")
 
-            verdict = _judge(request.submitted, sentence.japanese)
+            # Fast path: exact reproduction of the reference → correct, no LLM. Otherwise judge with
+            # the LLM, honoring the learner's prior overrides for this sentence.
+            if _normalize(request.submitted) == _normalize(sentence.japanese):
+                verdict = Judgment(correct=True, exact_match=True)
+            else:
+                overrides = await self._prior_override_reasons(sentence.id)
+                result = await judge(
+                    sentence.english,
+                    sentence.japanese,
+                    request.submitted,
+                    sentence.politeness.value,
+                    override_reasons=overrides,
+                )
+                verdict = Judgment(
+                    correct=result.correct, exact_match=False, feedback=result.feedback
+                )
+
             current_stage = progress.srs_stage
             new_stage, next_review_at = calculate_next_review(current_stage, verdict.correct)
 
@@ -217,6 +227,17 @@ class SentenceService:
                 srs_stage_after=new_stage,
                 next_review_at=next_review_at,
             )
+        except (OpenAIError, RuntimeError) as e:
+            # LLM judge failed — leave SRS untouched so the user can retry (router → 503).
+            await self.db.rollback()
+            logger.warning(
+                "llm_error_submitting_sentence_review",
+                user_id=user_id,
+                sentence_id=request.sentence_id,
+                error_type=type(e).__name__,
+                error=str(e),
+            )
+            raise
         except SQLAlchemyError as e:
             await self.db.rollback()
             logger.error(
@@ -227,3 +248,14 @@ class SentenceService:
                 error=str(e),
             )
             raise
+
+    async def _prior_override_reasons(self, sentence_id: int) -> list[str]:
+        """Past learner justifications for overriding THIS sentence — fed to the judge."""
+        rows = await self.db.execute(
+            select(ProductionSentenceReviewLog.override_reason).where(
+                ProductionSentenceReviewLog.sentence_id == sentence_id,
+                ProductionSentenceReviewLog.overridden.is_(True),
+                ProductionSentenceReviewLog.override_reason.isnot(None),
+            )
+        )
+        return [r for r in rows.scalars().all() if r]

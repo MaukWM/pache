@@ -99,6 +99,18 @@ async def submit_sentence_review(
             error=str(e),
         )
         raise HTTPException(status_code=400, detail=str(e)) from e
+    except (OpenAIError, RuntimeError) as e:
+        logger.warning(
+            "llm_error_in_submit_sentence_review_endpoint",
+            user_id=current_user.id,
+            sentence_id=request.sentence_id,
+            error_type=type(e).__name__,
+            error=str(e),
+        )
+        raise HTTPException(
+            status_code=503,
+            detail="Grading service unavailable — your progress was not changed. Please try again.",
+        ) from e
     except SQLAlchemyError as e:
         logger.error(
             "database_error_in_submit_sentence_review_endpoint",

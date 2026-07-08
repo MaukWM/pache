@@ -3,11 +3,13 @@
 from datetime import UTC, datetime, timedelta
 
 import pytest
+from openai import OpenAIError
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.auth.models import User
 from src.core.constants import ItemType, Politeness
+from src.llm.judge import JudgeResult
 from src.llm.validate import PairValidation
 from src.progress.models import UserItemProgress
 from src.sentences.models import ProductionSentence, ProductionSentenceReviewLog
@@ -85,15 +87,74 @@ async def test_submit_normalizes_whitespace_and_trailing_period(db_session: Asyn
     assert resp.exact_match is True
 
 
-async def test_submit_miss_does_not_advance(db_session: AsyncSession) -> None:
+async def test_submit_non_exact_judged_incorrect(db_session, monkeypatch) -> None:
+    async def fake_judge(en, ref, sub, pol, override_reasons=None):
+        return JudgeResult(reason="wrong word", correct=False, feedback="use を, not は")
+
+    monkeypatch.setattr("src.sentences.service.judge", fake_judge)
     user, sentence = await _seed(db_session, japanese="あと5日", stage=3)
     resp = await SentenceService(db_session).submit_review(
         user.id, SentenceReviewCreateRequest(sentence_id=sentence.id, submitted="間違い")
     )
-    # step 2: any non-exact answer is a miss (LLM judge arrives in step 3).
     assert resp.correct is False
     assert resp.exact_match is False
+    assert resp.feedback == "use を, not は"  # judge feedback surfaced + stored
     assert resp.srs_stage_after < 3  # incorrect penalty applied
+
+
+async def test_submit_non_exact_judged_correct_advances(db_session, monkeypatch) -> None:
+    async def fake_judge(en, ref, sub, pol, override_reasons=None):
+        return JudgeResult(reason="natural alternate", correct=True, feedback=None)
+
+    monkeypatch.setattr("src.sentences.service.judge", fake_judge)
+    user, sentence = await _seed(db_session, japanese="あと5日", stage=1)
+    resp = await SentenceService(db_session).submit_review(
+        user.id, SentenceReviewCreateRequest(sentence_id=sentence.id, submitted="あと五日間")
+    )
+    assert resp.correct is True and resp.exact_match is False and resp.srs_stage_after == 2
+
+
+async def test_submit_feeds_prior_override_reasons_to_judge(db_session, monkeypatch) -> None:
+    captured: dict = {}
+
+    async def fake_judge(en, ref, sub, pol, override_reasons=None):
+        captured["overrides"] = override_reasons
+        return JudgeResult(reason="ok", correct=True, feedback=None)
+
+    monkeypatch.setattr("src.sentences.service.judge", fake_judge)
+    user, sentence = await _seed(db_session, japanese="あと5日", stage=1)
+    db_session.add(
+        ProductionSentenceReviewLog(
+            user_id=user.id,
+            sentence_id=sentence.id,
+            submitted="past attempt",
+            exact_match=False,
+            correct=False,
+            overridden=True,
+            override_reason="polite form is fine here",
+            srs_stage_before=1,
+            srs_stage_after=1,
+            reviewed_at=datetime.now(UTC),
+        )
+    )
+    await db_session.flush()
+
+    await SentenceService(db_session).submit_review(
+        user.id, SentenceReviewCreateRequest(sentence_id=sentence.id, submitted="別の文")
+    )
+    assert captured["overrides"] == ["polite form is fine here"]
+
+
+async def test_submit_llm_error_leaves_srs_unchanged(db_session, monkeypatch) -> None:
+    async def boom(en, ref, sub, pol, override_reasons=None):
+        raise OpenAIError("service down")
+
+    monkeypatch.setattr("src.sentences.service.judge", boom)
+    user, sentence = await _seed(db_session, japanese="あと5日", stage=2)
+    with pytest.raises(OpenAIError):
+        await SentenceService(db_session).submit_review(
+            user.id, SentenceReviewCreateRequest(sentence_id=sentence.id, submitted="miss")
+        )
 
 
 async def test_submit_unknown_sentence_raises(db_session: AsyncSession) -> None:
