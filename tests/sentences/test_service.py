@@ -62,6 +62,22 @@ async def test_list_sentences_scoped_to_user(db_session: AsyncSession) -> None:
     assert len(items) == 1  # only own sentences
 
 
+async def test_list_includes_pending_lessons_with_null_stage(db_session: AsyncSession) -> None:
+    user, _ = await _seed(db_session, stage=3)  # a learned one
+    # A pending-lesson sentence: sentence row, no progress.
+    pending = ProductionSentence(
+        user_id=user.id, english="pending", japanese="保留", politeness=Politeness.CASUAL
+    )
+    db_session.add(pending)
+    await db_session.flush()
+
+    items = await SentenceService(db_session).list_sentences(user.id)
+    assert len(items) == 2
+    by_id = {i.sentence_id: i for i in items}
+    assert by_id[pending.id].srs_stage is None
+    assert by_id[pending.id].next_review_at is None
+
+
 async def test_get_sentence_includes_review_history(db_session: AsyncSession) -> None:
     user, sentence = await _seed(db_session, stage=1)
     db_session.add(
@@ -229,7 +245,7 @@ async def _user(db: AsyncSession) -> User:
     return user
 
 
-async def test_create_valid_inserts_and_enters_srs(db_session, monkeypatch) -> None:
+async def test_create_valid_inserts_as_pending_lesson(db_session, monkeypatch) -> None:
     async def fake_validate(en: str, ja: str) -> PairValidation:
         return PairValidation(valid=True, reason="", politeness="casual")
 
@@ -241,16 +257,44 @@ async def test_create_valid_inserts_and_enters_srs(db_session, monkeypatch) -> N
     )
     assert resp.sentence_id > 0
     assert resp.politeness == Politeness.CASUAL
-    assert resp.srs_stage == 1
 
-    # progress row exists, due now
+    # No SRS progress yet — it's a pending lesson until learned.
     progress = await db_session.scalar(
         select(UserItemProgress).where(
             UserItemProgress.item_type == ItemType.SENTENCE,
             UserItemProgress.item_id == resp.sentence_id,
         )
     )
+    assert progress is None
+    # ...and it shows up as a pending lesson.
+    lessons = await SentenceService(db_session).get_lessons(user.id)
+    assert [x.sentence_id for x in lessons] == [resp.sentence_id]
+
+
+async def test_complete_lessons_enters_srs(db_session, monkeypatch) -> None:
+    async def fake_validate(en: str, ja: str) -> PairValidation:
+        return PairValidation(valid=True, reason="", politeness="casual")
+
+    monkeypatch.setattr("src.sentences.service.validate_pair", fake_validate)
+    user = await _user(db_session)
+    svc = SentenceService(db_session)
+    created = await svc.create(
+        user.id, SentenceCreateRequest(english="5 more days", japanese="あと5日")
+    )
+
+    learned = await svc.complete_lessons(user.id, [created.sentence_id])
+    assert learned == [created.sentence_id]
+
+    progress = await db_session.scalar(
+        select(UserItemProgress).where(
+            UserItemProgress.item_type == ItemType.SENTENCE,
+            UserItemProgress.item_id == created.sentence_id,
+        )
+    )
     assert progress is not None and progress.srs_stage == 1 and progress.next_review_at is not None
+    # No longer a pending lesson; re-learning is a no-op.
+    assert await svc.get_lessons(user.id) == []
+    assert await svc.complete_lessons(user.id, [created.sentence_id]) == []
 
 
 async def test_create_invalid_pair_raises_and_stores_nothing(db_session, monkeypatch) -> None:

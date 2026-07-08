@@ -15,13 +15,12 @@ class SentenceCreateRequest(BaseModel):
 
 
 class SentenceCreateResponse(BaseModel):
-    """A newly created production sentence, entered into SRS at Apprentice."""
+    """A newly created production sentence. It waits as a pending lesson until learned."""
 
     sentence_id: int = Field(..., gt=0)
     english: str
     japanese: str
     politeness: Politeness
-    srs_stage: int = Field(..., ge=1, le=9)
 
     model_config = {"from_attributes": True}
 
@@ -55,17 +54,51 @@ class SentenceReviewCreateRequest(BaseModel):
 
 
 class SentenceListItem(BaseModel):
-    """A production sentence in the management list (reference JP visible — this is YOUR list)."""
+    """A production sentence in the management list (reference JP visible — this is YOUR list).
+
+    srs_stage is None while the sentence is a pending lesson (not yet learned).
+    """
 
     sentence_id: int = Field(..., gt=0)
     english: str
     japanese: str
     politeness: Politeness
-    srs_stage: int = Field(..., ge=1, le=9)
+    srs_stage: int | None = Field(None, ge=1, le=9)
     next_review_at: datetime | None
     created_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+class SentenceLessonItem(BaseModel):
+    """A pending sentence lesson — study card shows BOTH english and japanese."""
+
+    sentence_id: int = Field(..., gt=0)
+    english: str
+    japanese: str
+    politeness: Politeness
+
+    model_config = {"from_attributes": True}
+
+
+class SentenceLessonsResponse(BaseModel):
+    """Envelope for pending sentence lessons."""
+
+    items: list[SentenceLessonItem]
+    count: int
+
+
+class SentenceLessonCompleteRequest(BaseModel):
+    """Learn a batch of pending sentences — they enter SRS at Apprentice 1."""
+
+    sentence_ids: list[int] = Field(..., min_length=1)
+
+
+class SentenceLessonCompleteResponse(BaseModel):
+    """Outcome of completing sentence lessons."""
+
+    learned: list[int]
+    count: int
 
 
 class SentenceListResponse(BaseModel):
@@ -98,7 +131,7 @@ class SentenceDetailResponse(BaseModel):
     english: str
     japanese: str
     politeness: Politeness
-    srs_stage: int = Field(..., ge=1, le=9)
+    srs_stage: int | None = Field(None, ge=1, le=9)  # None while a pending lesson
     next_review_at: datetime | None
     created_at: datetime
     reviews: list[SentenceReviewLogItem]

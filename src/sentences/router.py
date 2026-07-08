@@ -14,6 +14,9 @@ from src.sentences.schemas import (
     SentenceCreateRequest,
     SentenceCreateResponse,
     SentenceDetailResponse,
+    SentenceLessonCompleteRequest,
+    SentenceLessonCompleteResponse,
+    SentenceLessonsResponse,
     SentenceListResponse,
     SentenceOverrideRequest,
     SentenceOverrideResponse,
@@ -82,6 +85,55 @@ async def list_sentences(
         raise HTTPException(
             status_code=500,
             detail="An error occurred while retrieving sentences. Please try again later.",
+        ) from e
+
+
+@router.get("/lessons", response_model=SentenceLessonsResponse)
+async def get_sentence_lessons(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> SentenceLessonsResponse:
+    """Pending sentence lessons (created but not yet learned). Study cards show EN + JP."""
+    try:
+        service = SentenceService(db)
+        items = await service.get_lessons(user_id=current_user.id)
+        return SentenceLessonsResponse(items=items, count=len(items))
+    except SQLAlchemyError as e:
+        logger.error(
+            "database_error_in_get_sentence_lessons_endpoint",
+            user_id=current_user.id,
+            error_type=type(e).__name__,
+            error=str(e),
+        )
+        raise HTTPException(
+            status_code=500,
+            detail="An error occurred while retrieving lessons. Please try again later.",
+        ) from e
+
+
+@router.post("/lessons", response_model=SentenceLessonCompleteResponse, status_code=200)
+async def complete_sentence_lessons(
+    request: SentenceLessonCompleteRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> SentenceLessonCompleteResponse:
+    """Learn a batch of pending sentences — they enter SRS at Apprentice 1 (first review ~4h)."""
+    try:
+        service = SentenceService(db)
+        learned = await service.complete_lessons(
+            user_id=current_user.id, sentence_ids=request.sentence_ids
+        )
+        return SentenceLessonCompleteResponse(learned=learned, count=len(learned))
+    except SQLAlchemyError as e:
+        logger.error(
+            "database_error_in_complete_sentence_lessons_endpoint",
+            user_id=current_user.id,
+            error_type=type(e).__name__,
+            error=str(e),
+        )
+        raise HTTPException(
+            status_code=500,
+            detail="An error occurred while completing lessons. Please try again later.",
         ) from e
 
 

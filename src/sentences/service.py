@@ -12,7 +12,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.core.constants import ItemType, Politeness
+from src.core.constants import SRS_INTERVALS, ItemType, Politeness, ProgressSource
 from src.llm.judge import judge
 from src.llm.validate import validate_pair
 from src.logging import logger
@@ -24,6 +24,7 @@ from src.sentences.schemas import (
     SentenceCreateRequest,
     SentenceCreateResponse,
     SentenceDetailResponse,
+    SentenceLessonItem,
     SentenceListItem,
     SentenceOverrideResponse,
     SentenceReviewCreateRequest,
@@ -60,10 +61,11 @@ class SentenceService:
     async def create(
         self, user_id: int, request: SentenceCreateRequest
     ) -> SentenceCreateResponse:
-        """Validate the EN/JP pair (server-side), then insert + enter it into SRS.
+        """Validate the EN/JP pair (server-side), then insert it as a PENDING LESSON.
 
         Raises ValueError if the pair is rejected (→ 422). LLM/DB errors propagate to the router.
-        The sentence enters SRS at Apprentice stage 1 (due now) — sentences skip lessons.
+        No SRS progress row yet — the sentence waits as a lesson (get_lessons) until the user
+        learns it (complete_lessons), which is when it enters SRS at Apprentice 1.
         """
         result = await validate_pair(request.english, request.japanese)
         if not result.valid:
@@ -71,7 +73,6 @@ class SentenceService:
 
         politeness = Politeness(result.politeness)  # trust the validator's classification
 
-        now = datetime.now(UTC)
         sentence = ProductionSentence(
             user_id=user_id,
             english=request.english,
@@ -79,16 +80,6 @@ class SentenceService:
             politeness=politeness,
         )
         self.db.add(sentence)
-        await self.db.flush()  # need sentence.id for the progress row
-        self.db.add(
-            UserItemProgress(
-                user_id=user_id,
-                item_type=ItemType.SENTENCE,
-                item_id=sentence.id,
-                srs_stage=1,
-                next_review_at=now,  # due immediately
-            )
-        )
         await self.db.commit()
 
         return SentenceCreateResponse(
@@ -96,8 +87,83 @@ class SentenceService:
             english=sentence.english,
             japanese=sentence.japanese,
             politeness=politeness,
-            srs_stage=1,
         )
+
+    async def get_lessons(self, user_id: int) -> list[SentenceLessonItem]:
+        """Pending sentence lessons: the user's sentences that have no SRS progress row yet."""
+        query = (
+            select(ProductionSentence)
+            .outerjoin(
+                UserItemProgress,
+                (UserItemProgress.item_id == ProductionSentence.id)
+                & (UserItemProgress.item_type == ItemType.SENTENCE)
+                & (UserItemProgress.user_id == user_id),
+            )
+            .where(
+                ProductionSentence.user_id == user_id,
+                UserItemProgress.id.is_(None),  # no progress → not yet learned
+            )
+            .order_by(ProductionSentence.created_at.asc())
+        )
+        rows = (await self.db.execute(query)).scalars().all()
+        return [
+            SentenceLessonItem(
+                sentence_id=s.id,
+                english=s.english,
+                japanese=s.japanese,
+                politeness=s.politeness,
+            )
+            for s in rows
+        ]
+
+    async def complete_lessons(
+        self, user_id: int, sentence_ids: list[int]
+    ) -> list[int]:
+        """Learn pending sentences → create SRS progress at Apprentice 1 (first review ~4h).
+
+        Skips ids that aren't the user's or already have progress (idempotent). Returns the ids
+        that were newly learned.
+        """
+        # Own, still-pending sentences only.
+        owned = set(
+            (
+                await self.db.execute(
+                    select(ProductionSentence.id).where(
+                        ProductionSentence.id.in_(sentence_ids),
+                        ProductionSentence.user_id == user_id,
+                    )
+                )
+            ).scalars().all()
+        )
+        already = set(
+            (
+                await self.db.execute(
+                    select(UserItemProgress.item_id).where(
+                        UserItemProgress.user_id == user_id,
+                        UserItemProgress.item_type == ItemType.SENTENCE,
+                        UserItemProgress.item_id.in_(sentence_ids),
+                    )
+                )
+            ).scalars().all()
+        )
+        to_learn = owned - already
+        if not to_learn:
+            return []
+
+        next_review = datetime.now(UTC) + SRS_INTERVALS[1]  # Apprentice-1 wait (~4h)
+        for sid in to_learn:
+            self.db.add(
+                UserItemProgress(
+                    user_id=user_id,
+                    item_type=ItemType.SENTENCE,
+                    item_id=sid,
+                    srs_stage=1,
+                    next_review_at=next_review,
+                    source=ProgressSource.MANUAL,
+                )
+            )
+        await self.db.commit()
+        return sorted(to_learn)
 
     async def get_due(self, user_id: int) -> list[DueSentenceResponse]:
         """Return the user's production sentences due for review (hour-batched, FR28).
@@ -144,16 +210,16 @@ class SentenceService:
 
         Unlike get_due, this shows the reference japanese — it's the owner's own list.
         """
+        # LEFT join so pending-lesson sentences (no progress row yet) still appear.
         query = (
-            select(UserItemProgress, ProductionSentence)
-            .join(
-                ProductionSentence,
-                ProductionSentence.id == UserItemProgress.item_id,
+            select(ProductionSentence, UserItemProgress)
+            .outerjoin(
+                UserItemProgress,
+                (UserItemProgress.item_id == ProductionSentence.id)
+                & (UserItemProgress.item_type == ItemType.SENTENCE)
+                & (UserItemProgress.user_id == user_id),
             )
-            .where(
-                UserItemProgress.user_id == user_id,
-                UserItemProgress.item_type == ItemType.SENTENCE,
-            )
+            .where(ProductionSentence.user_id == user_id)
             .order_by(ProductionSentence.created_at.desc())
         )
         rows = (await self.db.execute(query)).all()
@@ -163,11 +229,11 @@ class SentenceService:
                 english=sentence.english,
                 japanese=sentence.japanese,
                 politeness=sentence.politeness,
-                srs_stage=progress.srs_stage,
-                next_review_at=progress.next_review_at,
+                srs_stage=progress.srs_stage if progress else None,
+                next_review_at=progress.next_review_at if progress else None,
                 created_at=sentence.created_at,
             )
-            for progress, sentence in rows
+            for sentence, progress in rows
         ]
 
     async def get_sentence(self, user_id: int, sentence_id: int) -> SentenceDetailResponse:
@@ -199,7 +265,7 @@ class SentenceService:
             english=sentence.english,
             japanese=sentence.japanese,
             politeness=sentence.politeness,
-            srs_stage=progress.srs_stage if progress else 1,
+            srs_stage=progress.srs_stage if progress else None,  # None = pending lesson
             next_review_at=progress.next_review_at if progress else None,
             created_at=sentence.created_at,
             reviews=[SentenceReviewLogItem.model_validate(log) for log in logs],
