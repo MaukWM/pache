@@ -11,6 +11,7 @@ from fastapi.staticfiles import StaticFiles
 from sqlalchemy import func, select
 
 from src.auth.router import router as auth_router
+from src.core.rate_limit import setup_rate_limiting
 from src.database import async_session_maker
 from src.kanji.models import Kanji
 from src.kanji.router import router as kanji_router
@@ -57,6 +58,9 @@ app = FastAPI(
     version=settings.api_version,
     lifespan=lifespan,
 )
+
+# Per-account rate limiting (slowapi) — see src/core/rate_limit.py
+setup_rate_limiting(app)
 
 # Compress large JSON responses (kanji/vocab lists shrink ~10x)
 app.add_middleware(GZipMiddleware, minimum_size=1024)

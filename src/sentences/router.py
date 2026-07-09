@@ -1,12 +1,13 @@
 """Production-SRS sentence API routes."""
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from openai import OpenAIError
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.auth.dependencies import get_current_user, require_sentences_access
 from src.auth.models import User
+from src.core.rate_limit import limiter
 from src.database import get_db
 from src.logging import logger
 from src.sentences.schemas import (
@@ -26,6 +27,7 @@ from src.sentences.schemas import (
     SentenceReviewResponse,
 )
 from src.sentences.service import SentenceService
+from src.settings import settings
 
 # Every 作文 endpoint requires access (admin or the per-account flag) — one gate here.
 router = APIRouter(
@@ -34,17 +36,23 @@ router = APIRouter(
     dependencies=[Depends(require_sentences_access)],
 )
 
+# Per-account rate limits (slowapi). LLM endpoints (create/submit/judge) get the tight
+# limit; reads and non-LLM writes get looser ones. The `request: Request` param on each
+# route is required by slowapi (do not remove); Pydantic bodies are named `payload`.
+
 
 @router.post("", response_model=SentenceCreateResponse, status_code=201)
+@limiter.limit(settings.rate_limit_llm)
 async def create_sentence(
-    request: SentenceCreateRequest,
+    request: Request,
+    payload: SentenceCreateRequest,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> SentenceCreateResponse:
     """Add a production sentence. Validates the EN/JP pair; inserts only on approval."""
     try:
         service = SentenceService(db)
-        return await service.create(user_id=current_user.id, request=request)
+        return await service.create(user_id=current_user.id, request=payload)
     except ValueError as e:
         # Pair rejected by the validator.
         raise HTTPException(status_code=422, detail=str(e)) from e
@@ -73,7 +81,9 @@ async def create_sentence(
 
 
 @router.get("", response_model=SentenceListResponse)
+@limiter.limit(settings.rate_limit_read)
 async def list_sentences(
+    request: Request,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> SentenceListResponse:
@@ -96,7 +106,9 @@ async def list_sentences(
 
 
 @router.get("/lessons", response_model=SentenceLessonsResponse)
+@limiter.limit(settings.rate_limit_read)
 async def get_sentence_lessons(
+    request: Request,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> SentenceLessonsResponse:
@@ -119,8 +131,10 @@ async def get_sentence_lessons(
 
 
 @router.post("/lessons", response_model=SentenceLessonCompleteResponse, status_code=200)
+@limiter.limit(settings.rate_limit_write)
 async def complete_sentence_lessons(
-    request: SentenceLessonCompleteRequest,
+    request: Request,
+    payload: SentenceLessonCompleteRequest,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> SentenceLessonCompleteResponse:
@@ -128,7 +142,7 @@ async def complete_sentence_lessons(
     try:
         service = SentenceService(db)
         learned = await service.complete_lessons(
-            user_id=current_user.id, sentence_ids=request.sentence_ids
+            user_id=current_user.id, sentence_ids=payload.sentence_ids
         )
         return SentenceLessonCompleteResponse(learned=learned, count=len(learned))
     except SQLAlchemyError as e:
@@ -145,7 +159,9 @@ async def complete_sentence_lessons(
 
 
 @router.get("/reviews", response_model=DueSentencesResponse)
+@limiter.limit(settings.rate_limit_read)
 async def get_due_sentences(
+    request: Request,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> DueSentencesResponse:
@@ -168,20 +184,22 @@ async def get_due_sentences(
 
 
 @router.post("/reviews", response_model=SentenceReviewResponse, status_code=200)
+@limiter.limit(settings.rate_limit_llm)
 async def submit_sentence_review(
-    request: SentenceReviewCreateRequest,
+    request: Request,
+    payload: SentenceReviewCreateRequest,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> SentenceReviewResponse:
     """Submit a written attempt; judge it, update SRS, and reveal the reference."""
     try:
         service = SentenceService(db)
-        return await service.submit_review(user_id=current_user.id, request=request)
+        return await service.submit_review(user_id=current_user.id, request=payload)
     except ValueError as e:
         logger.warning(
             "validation_error_in_submit_sentence_review_endpoint",
             user_id=current_user.id,
-            sentence_id=request.sentence_id,
+            sentence_id=payload.sentence_id,
             error=str(e),
         )
         raise HTTPException(status_code=400, detail=str(e)) from e
@@ -189,7 +207,7 @@ async def submit_sentence_review(
         logger.warning(
             "llm_error_in_submit_sentence_review_endpoint",
             user_id=current_user.id,
-            sentence_id=request.sentence_id,
+            sentence_id=payload.sentence_id,
             error_type=type(e).__name__,
             error=str(e),
         )
@@ -201,7 +219,7 @@ async def submit_sentence_review(
         logger.error(
             "database_error_in_submit_sentence_review_endpoint",
             user_id=current_user.id,
-            sentence_id=request.sentence_id,
+            sentence_id=payload.sentence_id,
             error_type=type(e).__name__,
             error=str(e),
         )
@@ -212,7 +230,9 @@ async def submit_sentence_review(
 
 
 @router.get("/{sentence_id}", response_model=SentenceDetailResponse)
+@limiter.limit(settings.rate_limit_read)
 async def get_sentence(
+    request: Request,
     sentence_id: int,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
@@ -238,9 +258,11 @@ async def get_sentence(
 
 
 @router.post("/{sentence_id}/judge", response_model=SentenceJudgeResponse, status_code=200)
+@limiter.limit(settings.rate_limit_llm)
 async def judge_sentence(
+    request: Request,
     sentence_id: int,
-    request: SentenceJudgeRequest,
+    payload: SentenceJudgeRequest,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> SentenceJudgeResponse:
@@ -248,7 +270,7 @@ async def judge_sentence(
     try:
         service = SentenceService(db)
         return await service.judge_pair(
-            user_id=current_user.id, sentence_id=sentence_id, submitted=request.submitted
+            user_id=current_user.id, sentence_id=sentence_id, submitted=payload.submitted
         )
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e)) from e
@@ -267,9 +289,11 @@ async def judge_sentence(
 
 
 @router.post("/{sentence_id}/override", response_model=SentenceOverrideResponse, status_code=200)
+@limiter.limit(settings.rate_limit_write)
 async def override_sentence_review(
+    request: Request,
     sentence_id: int,
-    request: SentenceOverrideRequest,
+    payload: SentenceOverrideRequest,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> SentenceOverrideResponse:
@@ -277,7 +301,7 @@ async def override_sentence_review(
     try:
         service = SentenceService(db)
         return await service.override_review(
-            user_id=current_user.id, sentence_id=sentence_id, reason=request.reason
+            user_id=current_user.id, sentence_id=sentence_id, reason=payload.reason
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e

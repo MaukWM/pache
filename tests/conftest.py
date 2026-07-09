@@ -22,6 +22,11 @@ from src.sentences.models import (  # noqa: F401
 )
 from src.vocab.models import Tag, Vocab  # noqa: F401
 
+# Disable rate limiting in tests — the suite fires many requests per client fast.
+from src.core.rate_limit import limiter  # noqa: E402
+
+limiter.enabled = False
+
 # Create test database engine (in-memory SQLite)
 test_engine = create_async_engine(
     "sqlite+aiosqlite:///:memory:",

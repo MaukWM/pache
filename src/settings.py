@@ -28,6 +28,16 @@ class Settings(BaseSettings):
     judge_model: str = "gpt-5.5"
     llm_base_url: str | None = None  # None = OpenAI default endpoint
 
+    # Rate limiting (slowapi), per account. Tuned to never bother normal use but hard-stop
+    # scripted attacks (which fire far faster than a human). Disable in tests.
+    rate_limit_enabled: bool = True
+    rate_limit_llm: str = "30/minute;500/hour"    # LLM endpoints: create, submit review, judge
+    rate_limit_write: str = "60/minute"           # non-LLM writes: complete lessons, override
+    rate_limit_read: str = "120/minute"           # reads: list, detail, due, lessons
+    # Operational escape hatch: requests with header `X-Rate-Limit-Bypass: <token>` skip
+    # limits (for your own bulk/admin runs). Empty = disabled. Keep this secret.
+    rate_limit_bypass_token: str = ""
+
     model_config = SettingsConfigDict(
         case_sensitive=False,
     )
