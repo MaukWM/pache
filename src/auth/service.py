@@ -142,6 +142,22 @@ class AuthService:
         logger.info("admin_status_changed", user_id=user_id, is_admin=is_admin)
         return user
 
+    async def set_sentences_access(self, user_id: int, enabled: bool) -> User:
+        """Grant or revoke 作文 access on another user (admin).
+
+        Non-destructive: toggling off only blocks access — the user's sentences and
+        SRS state are untouched, so re-enabling resumes exactly where they left off.
+        """
+        user = await self.db.get(User, user_id)
+        if user is None:
+            raise UserNotFoundError(f"User with id {user_id} not found")
+
+        user.sentences_enabled = enabled
+        await self.db.commit()
+        await self.db.refresh(user)
+        logger.info("sentences_access_changed", user_id=user_id, enabled=enabled)
+        return user
+
     async def reset_user_password(self, user_id: int, new_password: str | None) -> str:
         """Reset another user's password (admin). Returns the effective password."""
         user = await self.db.get(User, user_id)

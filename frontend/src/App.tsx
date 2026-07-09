@@ -1,6 +1,7 @@
+import { type ReactElement } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { AuthProvider, useAuth } from './lib/auth';
+import { AuthProvider, useAuth, useSentencesAccess } from './lib/auth';
 import { Toaster } from '@/components/ui/sonner';
 import { Layout } from './components/Layout';
 import { LoginPage } from './pages/LoginPage';
@@ -28,7 +29,11 @@ const queryClient = new QueryClient({
 
 function ProtectedRoutes() {
   const { isAuthenticated } = useAuth();
+  const canSentences = useSentencesAccess();
   if (!isAuthenticated) return <Navigate to="/login" replace />;
+
+  // 作文 routes only for accounts with access; others redirect home (backend 403s too).
+  const sentenceEl = (el: ReactElement) => (canSentences ? el : <Navigate to="/" replace />);
 
   return (
     <Routes>
@@ -38,15 +43,15 @@ function ProtectedRoutes() {
         <Route path="kanji/:char" element={<KanjiDetailPage />} />
         <Route path="vocab" element={<VocabPage />} />
         <Route path="vocab/:id" element={<VocabDetailPage />} />
-        <Route path="sentences" element={<SentencesPage />} />
-        <Route path="sentences/:id" element={<SentenceDetailPage />} />
+        <Route path="sentences" element={sentenceEl(<SentencesPage />)} />
+        <Route path="sentences/:id" element={sentenceEl(<SentenceDetailPage />)} />
         <Route path="account" element={<AccountPage />} />
       </Route>
       {/* Lessons + reviews run full-screen (no navbar) for an immersive session. */}
       <Route path="lessons" element={<LessonsPage />} />
       <Route path="reviews" element={<ReviewPage />} />
-      <Route path="sentences/lessons" element={<SentenceLessonsPage />} />
-      <Route path="sentences/review" element={<SentenceReviewPage />} />
+      <Route path="sentences/lessons" element={sentenceEl(<SentenceLessonsPage />)} />
+      <Route path="sentences/review" element={sentenceEl(<SentenceReviewPage />)} />
     </Routes>
   );
 }

@@ -5,7 +5,7 @@ from openai import OpenAIError
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.auth.dependencies import get_current_user
+from src.auth.dependencies import get_current_user, require_sentences_access
 from src.auth.models import User
 from src.database import get_db
 from src.logging import logger
@@ -27,7 +27,12 @@ from src.sentences.schemas import (
 )
 from src.sentences.service import SentenceService
 
-router = APIRouter(prefix="/me/sentences", tags=["sentences"])
+# Every 作文 endpoint requires access (admin or the per-account flag) — one gate here.
+router = APIRouter(
+    prefix="/me/sentences",
+    tags=["sentences"],
+    dependencies=[Depends(require_sentences_access)],
+)
 
 
 @router.post("", response_model=SentenceCreateResponse, status_code=201)

@@ -39,12 +39,19 @@ class AdminStatusRequest(BaseModel):
     is_admin: bool
 
 
+class SentencesAccessRequest(BaseModel):
+    """Request schema for granting/revoking 作文 access on another user."""
+
+    enabled: bool
+
+
 class UserResponse(BaseModel):
     """Response schema for user data."""
 
     id: int
     username: str
     is_admin: bool = False
+    sentences_enabled: bool = False
 
     model_config = {"from_attributes": True}
 

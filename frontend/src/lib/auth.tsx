@@ -47,3 +47,9 @@ export function useAuth() {
   if (!ctx) throw new Error('useAuth must be inside AuthProvider');
   return ctx;
 }
+
+// 作文 access = admin (always) OR the per-account flag. Mirrors the backend gate.
+export function useSentencesAccess(): boolean {
+  const { user } = useAuth();
+  return !!(user?.is_admin || user?.sentences_enabled);
+}

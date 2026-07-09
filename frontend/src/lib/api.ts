@@ -51,6 +51,7 @@ export interface User {
   id: number;
   username: string;
   is_admin?: boolean;
+  sentences_enabled?: boolean;
 }
 
 export interface CreatedUser extends User {
@@ -133,6 +134,12 @@ export const api = {
     request<User>(`/auth/users/${userId}/admin`, {
       method: 'POST',
       body: JSON.stringify({ is_admin }),
+    }),
+
+  setUserSentences: (userId: number, enabled: boolean) =>
+    request<User>(`/auth/users/${userId}/sentences`, {
+      method: 'POST',
+      body: JSON.stringify({ enabled }),
     }),
 
   // Settings

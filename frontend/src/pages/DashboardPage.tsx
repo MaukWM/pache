@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { ExternalLink } from 'lucide-react';
 import { api } from '../lib/api';
-import { useAuth } from '../lib/auth';
+import { useAuth, useSentencesAccess } from '../lib/auth';
 import { cn } from '@/lib/utils';
 import { buildHourlyForecast, buildDailyForecast } from '../lib/forecast';
 import { buildStageCounts, type SpreadMode } from '../lib/spread';
@@ -110,6 +110,7 @@ function SourceToggle({
 
 export function DashboardPage() {
   const { user } = useAuth();
+  const canSentences = useSentencesAccess();
   const [rawMode, setRawMode] = useState<SpreadMode>('combined');
 
   const reviews = useQuery({ queryKey: ['reviews'], queryFn: api.getReviews });
@@ -169,18 +170,22 @@ export function DashboardPage() {
   const wkNow = forecast.data?.available_now ?? 0;
   const wkForecastConfigured = forecast.data?.configured ?? false;
 
+  const sentenceForecast = canSentences ? sentenceIso : [];
   const { hourly, daily } = useMemo(() => {
     const now = new Date();
     return {
-      hourly: buildHourlyForecast(now, oursIso, sentenceIso, wkUpcoming, wkNow),
-      daily: buildDailyForecast(now, oursIso, sentenceIso, wkUpcoming, wkNow),
+      hourly: buildHourlyForecast(now, oursIso, sentenceForecast, wkUpcoming, wkNow),
+      daily: buildDailyForecast(now, oursIso, sentenceForecast, wkUpcoming, wkNow),
     };
-  }, [oursIso, sentenceIso, wkUpcoming, wkNow]);
+  }, [oursIso, sentenceForecast, wkUpcoming, wkNow]);
 
-  const spreadStages = useMemo(
-    () => buildStageCounts(mode, progress.data ?? [], spread.data?.stages ?? []),
-    [mode, progress.data, spread.data],
-  );
+  const spreadStages = useMemo(() => {
+    // Hide residual sentence data for accounts without access (disable is non-destructive).
+    const rows = canSentences
+      ? (progress.data ?? [])
+      : (progress.data ?? []).filter((p) => p.item_type !== 'sentence');
+    return buildStageCounts(mode, rows, spread.data?.stages ?? []);
+  }, [mode, progress.data, spread.data, canSentences]);
 
   const forecastLoading = progress.isLoading || forecast.isLoading;
   const spreadLoading = progress.isLoading || (mode !== 'site' && spread.isLoading);
@@ -195,10 +200,12 @@ export function DashboardPage() {
           <StatTile to="/lessons" count={lessonCount} label="レッスン" />
           <StatTile to="/reviews" count={reviewCount} label="復習" />
         </StatGroup>
-        <StatGroup label="作文" accent="bg-wk-sentence">
-          <StatTile to="/sentences/lessons" count={sentenceLessonCount} label="レッスン" />
-          <StatTile to="/sentences/review" count={sentenceReviewCount} label="復習" />
-        </StatGroup>
+        {canSentences && (
+          <StatGroup label="作文" accent="bg-wk-sentence">
+            <StatTile to="/sentences/lessons" count={sentenceLessonCount} label="レッスン" />
+            <StatTile to="/sentences/review" count={sentenceReviewCount} label="復習" />
+          </StatGroup>
+        )}
       </div>
 
       {wkConfigured && (
@@ -237,6 +244,7 @@ export function DashboardPage() {
             buckets={hourly}
             wkConfigured={wkForecastConfigured}
             mode={mode}
+            includeSentence={canSentences}
             hideEmpty
             dropCurrent
             loading={forecastLoading}
@@ -246,6 +254,7 @@ export function DashboardPage() {
             buckets={daily}
             wkConfigured={wkForecastConfigured}
             mode={mode}
+            includeSentence={canSentences}
             loading={forecastLoading}
           />
         </div>

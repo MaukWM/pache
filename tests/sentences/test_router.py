@@ -12,7 +12,7 @@ from src.sentences.models import ProductionSentence
 
 
 async def _seed_authed(db: AsyncSession, token: str) -> ProductionSentence:
-    user = User(username=f"u-{token}")
+    user = User(username=f"u-{token}", sentences_enabled=True)
     db.add(user)
     await db.flush()
     db.add(Session(user_id=user.id, token=token))
@@ -72,7 +72,7 @@ async def test_create_sentence_endpoint(async_client, db_session, monkeypatch) -
 
     monkeypatch.setattr("src.sentences.service.validate_pair", fake_validate)
 
-    user = User(username="creator1")
+    user = User(username="creator1", sentences_enabled=True)
     db_session.add(user)
     await db_session.flush()
     db_session.add(Session(user_id=user.id, token="tok-create-1"))
@@ -96,7 +96,7 @@ async def test_create_sentence_rejected_422(async_client, db_session, monkeypatc
 
     monkeypatch.setattr("src.sentences.service.validate_pair", fake_validate)
 
-    user = User(username="creator2")
+    user = User(username="creator2", sentences_enabled=True)
     db_session.add(user)
     await db_session.flush()
     db_session.add(Session(user_id=user.id, token="tok-create-2"))
@@ -109,3 +109,31 @@ async def test_create_sentence_rejected_422(async_client, db_session, monkeypatc
     )
     assert resp.status_code == 422
     assert "unnatural" in resp.json()["detail"]
+
+
+async def test_sentences_blocked_without_access(async_client, db_session) -> None:
+    # Non-admin, flag off → 403 on any 作文 endpoint.
+    user = User(username="noaccess", sentences_enabled=False)
+    db_session.add(user)
+    await db_session.flush()
+    db_session.add(Session(user_id=user.id, token="tok-noaccess"))
+    await db_session.commit()
+
+    resp = await async_client.get(
+        "/api/v1/me/sentences", headers={"Authorization": "Bearer tok-noaccess"}
+    )
+    assert resp.status_code == 403
+
+
+async def test_sentences_allowed_for_admin_without_flag(async_client, db_session) -> None:
+    # Admin always has access, even with the flag off.
+    user = User(username="adminuser", is_admin=True, sentences_enabled=False)
+    db_session.add(user)
+    await db_session.flush()
+    db_session.add(Session(user_id=user.id, token="tok-admin"))
+    await db_session.commit()
+
+    resp = await async_client.get(
+        "/api/v1/me/sentences", headers={"Authorization": "Bearer tok-admin"}
+    )
+    assert resp.status_code == 200

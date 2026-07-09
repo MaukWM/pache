@@ -1,6 +1,6 @@
 import { Link, useLocation } from 'react-router-dom';
 import { LogOut, User } from 'lucide-react';
-import { useAuth } from '../lib/auth';
+import { useAuth, useSentencesAccess } from '../lib/auth';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import {
@@ -24,6 +24,9 @@ const NAV_LINKS = [
 export function Navbar() {
   const { user, logout } = useAuth();
   const location = useLocation();
+  const canSentences = useSentencesAccess();
+  // 作文 tab only for accounts with access (admin or flag).
+  const navLinks = NAV_LINKS.filter((l) => l.to !== '/sentences' || canSentences);
 
   return (
     <nav className="sticky top-0 z-30 border-b border-border bg-background/85 backdrop-blur">
@@ -41,7 +44,7 @@ export function Navbar() {
         </Link>
 
         <div className="flex h-full items-stretch gap-1 justify-self-center">
-          {NAV_LINKS.map(({ to, label, rule }) => {
+          {navLinks.map(({ to, label, rule }) => {
             const active = location.pathname === to;
             return (
               <Link

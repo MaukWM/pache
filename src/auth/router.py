@@ -12,6 +12,7 @@ from src.auth.schemas import (
     LoginRequest,
     LoginResponse,
     PasswordUpdateRequest,
+    SentencesAccessRequest,
     SettingsResponse,
     SettingsUpdateRequest,
     UserCreateRequest,
@@ -87,6 +88,22 @@ async def set_user_admin(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e)) from e
     except LastAdminError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
+    return UserResponse.model_validate(user)
+
+
+@router.post("/users/{user_id}/sentences", response_model=UserResponse)
+async def set_user_sentences_access(
+    user_id: int,
+    request: SentencesAccessRequest,
+    _admin: User = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db),
+) -> UserResponse:
+    """Grant or revoke 作文 (production-SRS) access on another user (admin only)."""
+    service = AuthService(db)
+    try:
+        user = await service.set_sentences_access(user_id, request.enabled)
+    except UserNotFoundError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e)) from e
     return UserResponse.model_validate(user)
 
 

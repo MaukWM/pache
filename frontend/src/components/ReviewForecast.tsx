@@ -15,6 +15,7 @@ export function ReviewForecast({
   buckets,
   wkConfigured,
   mode,
+  includeSentence = true,
   hideEmpty = false,
   dropCurrent = false,
   loading = false,
@@ -23,6 +24,8 @@ export function ReviewForecast({
   buckets: ForecastBucket[];
   wkConfigured: boolean;
   mode: SpreadMode;
+  /** Whether to show the 作文 (sentence) series — off for accounts without access. */
+  includeSentence?: boolean;
   /** Drop buckets where nothing new arrives (keeps the hourly view compact). */
   hideEmpty?: boolean;
   /**
@@ -33,7 +36,7 @@ export function ReviewForecast({
   loading?: boolean;
 }) {
   const showOurs = mode !== 'wanikani';
-  const showSentence = mode !== 'wanikani'; // 作文 is local content, shown with the site
+  const showSentence = includeSentence && mode !== 'wanikani'; // 作文 = local, if user has access
   const showWk = wkConfigured && mode !== 'site';
   const valueOf = (b: ForecastBucket) =>
     (showOurs ? b.addOurs : 0) + (showSentence ? b.addSentence : 0) + (showWk ? b.addWk : 0);

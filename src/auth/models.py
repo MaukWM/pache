@@ -23,6 +23,9 @@ class User(Base):
     username: Mapped[str] = mapped_column(String(50), unique=True, nullable=False, index=True)
     password_hash: Mapped[str | None] = mapped_column(String(255), nullable=True)
     is_admin: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    # Gates access to the 作文 (production-SRS) feature. Admins always have access
+    # regardless (see require_sentences_access); this flag grants it to non-admins.
+    sentences_enabled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     wk_api_key: Mapped[str | None] = mapped_column(String(255), nullable=True)
     # Review session ordering: "paired" (reading+meaning back-to-back per item)
     # or "scrambled" (all cards shuffled). Default is paired.

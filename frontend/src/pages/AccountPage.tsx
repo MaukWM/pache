@@ -82,6 +82,16 @@ function AdminUsers({ queryClient }: { queryClient: ReturnType<typeof useQueryCl
     onError: (err: Error) => setMsg(`⚠ ${err.message}`),
   });
 
+  const sentencesMutation = useMutation({
+    mutationFn: ({ userId, enabled }: { userId: number; enabled: boolean }) =>
+      api.setUserSentences(userId, enabled),
+    onSuccess: (updated) => {
+      setMsg(`「${updated.username}」の作文アクセスを${updated.sentences_enabled ? '有効' : '無効'}にしました。`);
+      queryClient.invalidateQueries({ queryKey: ['users'] });
+    },
+    onError: (err: Error) => setMsg(`⚠ ${err.message}`),
+  });
+
   const adminCount = (users.data ?? []).filter((u) => u.is_admin).length;
   const isOnlyAdmin = (u: { id: number; is_admin?: boolean }) =>
     u.id === currentUser?.id && !!u.is_admin && adminCount <= 1;
@@ -151,11 +161,25 @@ function AdminUsers({ queryClient }: { queryClient: ReturnType<typeof useQueryCl
                 {u.is_admin && (
                   <Badge className="bg-wk-kanji/15 text-wk-kanji text-[10px]">管理者</Badge>
                 )}
+                {(u.is_admin || u.sentences_enabled) && (
+                  <Badge className="bg-wk-sentence/15 text-wk-sentence text-[10px]">作文</Badge>
+                )}
+                <button
+                  onClick={() =>
+                    !u.is_admin &&
+                    (setMsg(''), sentencesMutation.mutate({ userId: u.id, enabled: !u.sentences_enabled }))
+                  }
+                  disabled={sentencesMutation.isPending || u.is_admin}
+                  title={u.is_admin ? '管理者は作文に常にアクセスできます' : undefined}
+                  className="ml-auto text-xs text-muted-foreground hover:text-wk-sentence font-bold disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {u.sentences_enabled ? '作文を無効' : '作文を有効'}
+                </button>
                 <button
                   onClick={() => handleToggleAdmin(u)}
                   disabled={adminMutation.isPending || isOnlyAdmin(u)}
                   title={isOnlyAdmin(u) ? 'あなたは唯一の管理者です。先に別のユーザーを昇格させてください' : undefined}
-                  className="ml-auto text-xs text-muted-foreground hover:text-wk-kanji font-bold disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="text-xs text-muted-foreground hover:text-wk-kanji font-bold disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {u.is_admin ? '管理者を解除' : '管理者にする'}
                 </button>

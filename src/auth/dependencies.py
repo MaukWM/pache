@@ -43,3 +43,18 @@ async def get_current_admin(current_user: User = Depends(get_current_user)) -> U
             detail="Admin privileges required",
         )
     return current_user
+
+
+def has_sentences_access(user: User) -> bool:
+    """作文 access = admin (always) OR the per-account feature flag."""
+    return user.is_admin or user.sentences_enabled
+
+
+async def require_sentences_access(current_user: User = Depends(get_current_user)) -> User:
+    """Require the current user to have 作文 (production-SRS) access."""
+    if not has_sentences_access(current_user):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Production sentence access is not enabled for this account.",
+        )
+    return current_user
