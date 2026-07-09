@@ -7,7 +7,8 @@
 
 export interface ForecastBucket {
   label: string;
-  addOurs: number; // local reviews unlocking in this bucket
+  addOurs: number; // local kanji/vocab reviews unlocking in this bucket
+  addSentence: number; // local production-sentence reviews unlocking in this bucket
   addWk: number; // WaniKani reviews unlocking in this bucket
 }
 
@@ -25,11 +26,13 @@ function accumulate(
   labels: string[],
   now: Date,
   ours: Date[],
+  sentences: Date[],
   wkUpcoming: Date[],
   wkNow: number,
 ): ForecastBucket[] {
   const n = starts.length;
   const addOurs = new Array<number>(n).fill(0);
+  const addSentence = new Array<number>(n).fill(0);
   const addWk = new Array<number>(n).fill(0);
 
   // Items already due fold into the first (current) bucket.
@@ -44,26 +47,37 @@ function accumulate(
     return Math.floor((ms - base) / stepMs);
   };
 
-  for (const t of ours) {
-    if (t.getTime() <= now.getTime()) {
-      addOurs[0]++; // already due
-      continue;
+  // Local reviews (kanji/vocab and sentences): already-due fold into bucket 0.
+  const tally = (times: Date[], into: number[]) => {
+    for (const t of times) {
+      if (t.getTime() <= now.getTime()) {
+        into[0]++;
+        continue;
+      }
+      const i = bucketOf(t);
+      if (i >= 0) into[i]++;
     }
-    const i = bucketOf(t);
-    if (i >= 0) addOurs[i]++;
-  }
+  };
+  tally(ours, addOurs);
+  tally(sentences, addSentence);
   for (const t of wkUpcoming) {
     const i = bucketOf(t);
     if (i >= 0) addWk[i]++;
   }
 
-  return starts.map((_, i) => ({ label: labels[i], addOurs: addOurs[i], addWk: addWk[i] }));
+  return starts.map((_, i) => ({
+    label: labels[i],
+    addOurs: addOurs[i],
+    addSentence: addSentence[i],
+    addWk: addWk[i],
+  }));
 }
 
 // Next 24 hours, one bucket per clock hour starting from the current hour.
 export function buildHourlyForecast(
   now: Date,
   oursIso: string[],
+  sentenceIso: string[],
   wkUpcomingIso: string[],
   wkNow: number,
 ): ForecastBucket[] {
@@ -71,13 +85,17 @@ export function buildHourlyForecast(
   start.setMinutes(0, 0, 0);
   const starts = Array.from({ length: 24 }, (_, i) => new Date(start.getTime() + i * HOUR_MS));
   const labels = starts.map((d) => `${d.getHours()}時`);
-  return accumulate(starts, HOUR_MS, labels, now, parseTimes(oursIso), parseTimes(wkUpcomingIso), wkNow);
+  return accumulate(
+    starts, HOUR_MS, labels, now,
+    parseTimes(oursIso), parseTimes(sentenceIso), parseTimes(wkUpcomingIso), wkNow,
+  );
 }
 
 // Next 7 days, one bucket per calendar day starting today (local).
 export function buildDailyForecast(
   now: Date,
   oursIso: string[],
+  sentenceIso: string[],
   wkUpcomingIso: string[],
   wkNow: number,
 ): ForecastBucket[] {
@@ -87,5 +105,8 @@ export function buildDailyForecast(
   const labels = starts.map((d, i) =>
     i === 0 ? '今日' : i === 1 ? '明日' : WEEKDAYS_JA[d.getDay()],
   );
-  return accumulate(starts, DAY_MS, labels, now, parseTimes(oursIso), parseTimes(wkUpcomingIso), wkNow);
+  return accumulate(
+    starts, DAY_MS, labels, now,
+    parseTimes(oursIso), parseTimes(sentenceIso), parseTimes(wkUpcomingIso), wkNow,
+  );
 }

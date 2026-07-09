@@ -8,7 +8,7 @@ import { cn } from '@/lib/utils';
 // is a stateless judge gate), so only the shared UI + helpers live here — not the state.
 
 // Faint green study-block tint, matching the kanji/vocab lesson hero pattern.
-export const GREEN_TINT = 'color-mix(in srgb, var(--card) 93%, #1a9e5c)';
+export const GREEN_TINT = 'color-mix(in srgb, var(--card) 93%, #00c46a)';
 
 // Backend exact-match normalization: ignore spaces + trailing period.
 export const normalize = (s: string) =>

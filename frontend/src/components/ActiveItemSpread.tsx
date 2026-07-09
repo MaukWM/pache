@@ -1,5 +1,5 @@
 import { SRS_STAGE_NAMES, getSrsGroup, getSrsGroupColor } from '../lib/srs';
-import { type StageCounts, stageTotal, hasRadicals } from '../lib/spread';
+import { type StageCounts, stageTotal, hasRadicals, hasSentences } from '../lib/spread';
 import { cn } from '@/lib/utils';
 import { Card } from '@/components/ui/card';
 
@@ -26,6 +26,7 @@ export function ActiveItemSpread({
   className?: string;
 }) {
   const showRadical = hasRadicals(stages);
+  const showSentence = hasSentences(stages);
   const total = ACTIVE_STAGES.reduce((s, st) => s + stageTotal(stages[st]), 0);
   const max = Math.max(...ACTIVE_STAGES.map((st) => stageTotal(stages[st])));
   const top = niceCeil(max);
@@ -49,6 +50,11 @@ export function ActiveItemSpread({
         <span className="flex items-center gap-1.5">
           <span className="size-2.5 bg-wk-vocab" /> 語彙
         </span>
+        {showSentence && (
+          <span className="flex items-center gap-1.5">
+            <span className="size-2.5 bg-wk-sentence" /> 作文
+          </span>
+        )}
       </div>
 
       {loading ? (
@@ -75,13 +81,13 @@ export function ActiveItemSpread({
               {/* bars — columns stretch to full chart height so the % heights resolve */}
               <div className="absolute inset-0 flex items-stretch gap-1.5">
                 {ACTIVE_STAGES.map((st) => {
-                  const { radical, kanji, vocab } = stages[st];
-                  const stTotal = radical + kanji + vocab;
+                  const { radical, kanji, vocab, sentence } = stages[st];
+                  const stTotal = radical + kanji + vocab + sentence;
                   return (
                     <div
                       key={st}
                       className="group/bar relative flex h-full flex-1 flex-col justify-end"
-                      title={`${SRS_STAGE_NAMES[st]} — 部首 ${radical} · 漢字 ${kanji} · 語彙 ${vocab}`}
+                      title={`${SRS_STAGE_NAMES[st]} — 部首 ${radical} · 漢字 ${kanji} · 語彙 ${vocab} · 作文 ${sentence}`}
                     >
                       {/* WaniKani-style count, just above the bar on hover */}
                       {stTotal > 0 && (
@@ -92,6 +98,7 @@ export function ActiveItemSpread({
                           {stTotal}
                         </span>
                       )}
+                      <div className="shrink-0 bg-wk-sentence transition-all" style={{ height: `${(sentence / top) * 100}%` }} />
                       <div className="shrink-0 bg-wk-vocab transition-all" style={{ height: `${(vocab / top) * 100}%` }} />
                       <div className="shrink-0 bg-wk-kanji transition-all" style={{ height: `${(kanji / top) * 100}%` }} />
                       <div className="shrink-0 bg-wk-radical transition-all" style={{ height: `${(radical / top) * 100}%` }} />

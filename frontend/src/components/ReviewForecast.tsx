@@ -33,8 +33,10 @@ export function ReviewForecast({
   loading?: boolean;
 }) {
   const showOurs = mode !== 'wanikani';
+  const showSentence = mode !== 'wanikani'; // 作文 is local content, shown with the site
   const showWk = wkConfigured && mode !== 'site';
-  const valueOf = (b: ForecastBucket) => (showOurs ? b.addOurs : 0) + (showWk ? b.addWk : 0);
+  const valueOf = (b: ForecastBucket) =>
+    (showOurs ? b.addOurs : 0) + (showSentence ? b.addSentence : 0) + (showWk ? b.addWk : 0);
 
   // Cumulative running total over the whole window (respects the source toggle).
   // The current block seeds the baseline even when its row is dropped, so the
@@ -65,7 +67,12 @@ export function ReviewForecast({
       <div className="flex items-center gap-4 font-mono text-[10px] tracking-wider text-muted-foreground uppercase">
         {showOurs && (
           <span className="flex items-center gap-1.5">
-            <span className="size-2.5 bg-foreground" /> このサイト
+            <span className="size-2.5 bg-foreground" /> 漢字・語彙
+          </span>
+        )}
+        {showSentence && (
+          <span className="flex items-center gap-1.5">
+            <span className="size-2.5 bg-wk-sentence" /> 作文
           </span>
         )}
         {showWk && (
@@ -90,21 +97,23 @@ export function ReviewForecast({
                 {showOurs && (
                   <div className="bg-foreground transition-all" style={{ width: `${(b.addOurs / max) * 100}%` }} />
                 )}
+                {showSentence && (
+                  <div className="bg-wk-sentence transition-all" style={{ width: `${(b.addSentence / max) * 100}%` }} />
+                )}
                 {showWk && (
                   <div className="transition-all" style={{ width: `${(b.addWk / max) * 100}%`, backgroundColor: 'var(--forecast-wk)' }} />
                 )}
               </div>
-              {/* Per-source increments, aligned column-wise (ours / 鰐蟹) so the
-                  split reads vertically. The `/` only shows when both sources do. */}
+              {/* Per-source increments — kanji/vocab · 作文 (green) · 鰐蟹. */}
               <span
                 className={cn(
-                  'flex shrink-0 items-center justify-end gap-px font-mono text-[11px] tabular-nums',
+                  'flex shrink-0 items-center justify-end gap-1 font-mono text-[11px] tabular-nums',
                   increment > 0 ? 'text-muted-foreground' : 'text-muted-foreground/40',
                 )}
               >
-                {showOurs && <span className="w-7 text-right">+{b.addOurs}</span>}
-                {showOurs && showWk && <span className="text-muted-foreground/40">/</span>}
-                {showWk && <span className="w-7 text-left">+{b.addWk}</span>}
+                {showOurs && <span className="w-6 text-right">+{b.addOurs}</span>}
+                {showSentence && <span className="w-6 text-right text-wk-sentence">+{b.addSentence}</span>}
+                {showWk && <span className="w-6 text-right">+{b.addWk}</span>}
               </span>
               <span className="w-10 shrink-0 text-right font-mono tabular-nums text-foreground">
                 {cumulative}

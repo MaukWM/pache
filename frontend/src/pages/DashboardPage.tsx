@@ -152,12 +152,18 @@ export function DashboardPage() {
   // Local review times — must mirror /me/reviews exactly: only MANUAL-source,
   // non-burned items count as our reviews. WaniKani-source items review on WK
   // (any next_review_at they carry is stale) and belong to the 鰐蟹 forecast.
-  const oursIso = useMemo(
-    () =>
-      (progress.data ?? [])
-        .filter((p) => p.source === 'manual' && p.srs_stage < 9 && !!p.next_review_at)
-        .map((p) => p.next_review_at as string),
+  const localDue = useMemo(
+    () => (progress.data ?? []).filter((p) => p.source === 'manual' && p.srs_stage < 9 && !!p.next_review_at),
     [progress.data],
+  );
+  // Split local reviews: kanji/vocab (black) vs production sentences (green).
+  const oursIso = useMemo(
+    () => localDue.filter((p) => p.item_type !== 'sentence').map((p) => p.next_review_at as string),
+    [localDue],
+  );
+  const sentenceIso = useMemo(
+    () => localDue.filter((p) => p.item_type === 'sentence').map((p) => p.next_review_at as string),
+    [localDue],
   );
   const wkUpcoming = forecast.data?.upcoming ?? [];
   const wkNow = forecast.data?.available_now ?? 0;
@@ -166,10 +172,10 @@ export function DashboardPage() {
   const { hourly, daily } = useMemo(() => {
     const now = new Date();
     return {
-      hourly: buildHourlyForecast(now, oursIso, wkUpcoming, wkNow),
-      daily: buildDailyForecast(now, oursIso, wkUpcoming, wkNow),
+      hourly: buildHourlyForecast(now, oursIso, sentenceIso, wkUpcoming, wkNow),
+      daily: buildDailyForecast(now, oursIso, sentenceIso, wkUpcoming, wkNow),
     };
-  }, [oursIso, wkUpcoming, wkNow]);
+  }, [oursIso, sentenceIso, wkUpcoming, wkNow]);
 
   const spreadStages = useMemo(
     () => buildStageCounts(mode, progress.data ?? [], spread.data?.stages ?? []),

@@ -12,13 +12,14 @@ export interface TypeCounts {
   radical: number;
   kanji: number;
   vocab: number;
+  sentence: number;
 }
 
 export type StageCounts = Record<number, TypeCounts>;
 
 function emptyStages(): StageCounts {
   const out: StageCounts = {};
-  for (let stage = 1; stage <= 9; stage++) out[stage] = { radical: 0, kanji: 0, vocab: 0 };
+  for (let stage = 1; stage <= 9; stage++) out[stage] = { radical: 0, kanji: 0, vocab: 0, sentence: 0 };
   return out;
 }
 
@@ -37,6 +38,7 @@ export function buildStageCounts(
       const bucket = out[item.srs_stage];
       if (!bucket) continue; // skip locked (0)
       if (item.item_type === 'vocab') bucket.vocab++;
+      else if (item.item_type === 'sentence') bucket.sentence++;
       else bucket.kanji++;
     }
   }
@@ -55,10 +57,15 @@ export function buildStageCounts(
 }
 
 export function stageTotal(c: TypeCounts): number {
-  return c.radical + c.kanji + c.vocab;
+  return c.radical + c.kanji + c.vocab + c.sentence;
 }
 
 // Whether any stage carries radicals — drives whether the 部首 column/series shows.
 export function hasRadicals(stages: StageCounts): boolean {
   return Object.values(stages).some((c) => c.radical > 0);
+}
+
+// Whether any stage carries sentences — drives whether the 作文 column/series shows.
+export function hasSentences(stages: StageCounts): boolean {
+  return Object.values(stages).some((c) => c.sentence > 0);
 }
