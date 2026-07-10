@@ -71,6 +71,7 @@ export function QuizCard({
   input,
   onInput,
   onKeyDown,
+  onSubmit,
   inputRef,
   inputError,
   warning,
@@ -88,6 +89,9 @@ export function QuizCard({
   input: string;
   onInput: (value: string) => void;
   onKeyDown: (e: React.KeyboardEvent) => void;
+  /** Tap target equivalent to pressing Enter (submit, or advance once answered).
+   *  Needed on mobile, where answering disables the field and dismisses the keyboard. */
+  onSubmit: () => void;
   inputRef: React.RefObject<HTMLInputElement | null>;
   inputError: string;
   warning?: string;
@@ -168,28 +172,42 @@ export function QuizCard({
       {/* Input */}
       <div className="bg-card">
         <div className="mx-auto max-w-2xl p-4">
-          <Input
-            ref={inputRef}
-            type="text"
-            value={input}
-            onChange={(e) =>
-              onInput(cardType === 'reading' ? romajiToHiraganaLive(e.target.value) : e.target.value)
-            }
-            onKeyDown={onKeyDown}
-            onAnimationEnd={() => setShaking(false)}
-            placeholder={cardType === 'reading' ? '答え' : '意味を入力'}
-            disabled={answered}
-            lang={cardType === 'reading' ? 'ja' : 'en'}
-            className={cn(
-              'h-auto rounded-lg border-2 py-3 text-center !text-2xl transition-colors disabled:opacity-100',
-              inputStateClass,
-              shaking && 'animate-shake',
-            )}
-            autoComplete="off"
-            autoCapitalize="none"
-            autoCorrect="off"
-            spellCheck={false}
-          />
+          <div className="relative">
+            <Input
+              ref={inputRef}
+              type="text"
+              value={input}
+              onChange={(e) =>
+                onInput(cardType === 'reading' ? romajiToHiraganaLive(e.target.value) : e.target.value)
+              }
+              onKeyDown={onKeyDown}
+              onAnimationEnd={() => setShaking(false)}
+              placeholder={cardType === 'reading' ? '答え' : '意味を入力'}
+              disabled={answered}
+              lang={cardType === 'reading' ? 'ja' : 'en'}
+              className={cn(
+                'h-auto rounded-lg border-2 py-3 pr-14 text-center !text-2xl transition-colors disabled:opacity-100',
+                inputStateClass,
+                shaking && 'animate-shake',
+              )}
+              autoComplete="off"
+              autoCapitalize="none"
+              autoCorrect="off"
+              spellCheck={false}
+            />
+            {/* WaniKani-style submit/advance arrow — always tappable (mobile fallback for Enter). */}
+            <button
+              type="button"
+              onClick={onSubmit}
+              aria-label={answered ? (correct ? continueLabel : wrongLabel) : '答えを確認'}
+              className={cn(
+                'absolute top-1/2 right-2 grid size-9 -translate-y-1/2 place-items-center rounded-md transition-colors',
+                answered ? 'text-white/90 hover:bg-white/20' : 'text-muted-foreground hover:bg-accent hover:text-foreground',
+              )}
+            >
+              <ChevronRight className="size-6" strokeWidth={2.5} />
+            </button>
+          </div>
           {inputError && <p className="mt-2 text-center text-sm text-destructive">{inputError}</p>}
           {warning && !inputError && (
             <p className="mt-2 text-center text-sm font-medium text-[#c08400]">{warning}</p>

@@ -311,6 +311,7 @@ export function ReviewPage() {
           input={input}
           onInput={setInput}
           onKeyDown={handleKeyDown}
+          onSubmit={() => (answered ? commitAndAdvance() : checkAnswer())}
           inputRef={inputRef}
           inputError={inputError}
           warning={warning}
