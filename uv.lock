@@ -825,7 +825,7 @@ wheels = [
 
 [[package]]
 name = "pache"
-version = "1.6.1"
+version = "1.6.2"
 source = { virtual = "." }
 dependencies = [
     { name = "alembic" },
