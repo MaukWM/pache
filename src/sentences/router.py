@@ -26,7 +26,7 @@ from src.sentences.schemas import (
     SentenceReviewCreateRequest,
     SentenceReviewResponse,
 )
-from src.sentences.service import SentenceService
+from src.sentences.service import ReviewCancelledError, SentenceService
 from src.settings import settings
 
 # Every 作文 endpoint requires access (admin or the per-account flag) — one gate here.
@@ -194,7 +194,14 @@ async def submit_sentence_review(
     """Submit a written attempt; judge it, update SRS, and reveal the reference."""
     try:
         service = SentenceService(db)
-        return await service.submit_review(user_id=current_user.id, request=payload)
+        return await service.submit_review(
+            user_id=current_user.id,
+            request=payload,
+            is_disconnected=request.is_disconnected,
+        )
+    except ReviewCancelledError as e:
+        # Client cancelled mid-judge (accidental submit) — nothing committed. 499 = client closed.
+        raise HTTPException(status_code=499, detail="Review cancelled.") from e
     except ValueError as e:
         logger.warning(
             "validation_error_in_submit_sentence_review_endpoint",

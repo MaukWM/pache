@@ -14,7 +14,7 @@ from src.llm.validate import PairValidation
 from src.progress.models import UserItemProgress
 from src.sentences.models import ProductionSentence, ProductionSentenceReviewLog
 from src.sentences.schemas import SentenceCreateRequest, SentenceReviewCreateRequest
-from src.sentences.service import SentenceService
+from src.sentences.service import ReviewCancelledError, SentenceService
 
 
 async def _seed(
@@ -106,6 +106,41 @@ async def test_get_sentence_other_user_404(db_session: AsyncSession) -> None:
     other, _ = await _seed(db_session)
     with pytest.raises(ValueError, match="not found"):
         await SentenceService(db_session).get_sentence(other.id, sentence.id)
+
+
+async def test_submit_review_cancelled_leaves_srs_untouched(db_session, monkeypatch) -> None:
+    user, sentence = await _seed(db_session, stage=3)
+    user_id, sentence_id = user.id, sentence.id
+    await db_session.commit()  # persist seed so the cancel's rollback only undoes the review
+
+    async def fake_judge(en, ja, sub, pol, override_reasons=None) -> JudgeResult:
+        return JudgeResult(reason="", correct=False, feedback="x")
+
+    monkeypatch.setattr("src.sentences.service.judge", fake_judge)
+
+    async def disconnected() -> bool:
+        return True  # client cancelled during 判定中
+
+    with pytest.raises(ReviewCancelledError):
+        await SentenceService(db_session).submit_review(
+            user_id,
+            SentenceReviewCreateRequest(sentence_id=sentence_id, submitted="違う文"),
+            is_disconnected=disconnected,
+        )
+
+    # SRS unchanged and no review logged.
+    prog = await db_session.scalar(
+        select(UserItemProgress).where(UserItemProgress.item_id == sentence_id)
+    )
+    assert prog is not None and prog.srs_stage == 3
+    logs = (
+        await db_session.execute(
+            select(ProductionSentenceReviewLog).where(
+                ProductionSentenceReviewLog.sentence_id == sentence_id
+            )
+        )
+    ).scalars().all()
+    assert logs == []
 
 
 async def test_judge_pair_exact_match_no_llm(db_session: AsyncSession) -> None:

@@ -28,6 +28,7 @@ export function SentenceLessonsPage() {
   const [quizShake, setQuizShake] = useState(false);
   const quizRef = useRef<HTMLTextAreaElement>(null);
   const quizJudgedAt = useRef(0); // guards the 確認-Enter from also advancing
+  const quizAbortRef = useRef<AbortController | null>(null);
 
   const lessons = useQuery({ queryKey: ['sentenceLessons'], queryFn: api.getSentenceLessons });
   const items = lessons.data ?? [];
@@ -95,8 +96,10 @@ export function SentenceLessonsPage() {
   // Quiz: LLM-judged (accepts natural variants; exact match is the free fast path).
   // Show the verdict + reference; correct waits for 続ける, a miss stays editable to retry.
   const judgeMutation = useMutation({
-    mutationFn: ({ id, submitted }: { id: number; submitted: string }) =>
-      api.judgeSentence(id, submitted),
+    mutationFn: ({ id, submitted }: { id: number; submitted: string }) => {
+      quizAbortRef.current = new AbortController();
+      return api.judgeSentence(id, submitted, quizAbortRef.current.signal);
+    },
     onSuccess: (res) => {
       setQuizResult(res);
       quizJudgedAt.current = Date.now();
@@ -108,6 +111,12 @@ export function SentenceLessonsPage() {
     const q = quizItems[quizIndex];
     if (!q || !quizInput.trim() || judgeMutation.isPending) return;
     judgeMutation.mutate({ id: q.sentence_id, submitted: quizInput.trim() });
+  };
+
+  // Cancel an in-flight judge (accidental submit) — abort, keep editing (stateless, no SRS).
+  const cancelQuiz = () => {
+    quizAbortRef.current?.abort();
+    setTimeout(() => quizRef.current?.focus(), 50);
   };
 
   const goForward = () => {
@@ -263,7 +272,7 @@ export function SentenceLessonsPage() {
             </div>
           )}
 
-          <div className="flex justify-center pt-4">
+          <div className="flex justify-center gap-2 pt-4">
             {quizResult ? (
               <Button size="lg" onClick={advanceQuiz} disabled={completeMutation.isPending}>
                 {completeMutation.isPending
@@ -275,16 +284,19 @@ export function SentenceLessonsPage() {
                   <kbd className="ml-2 bg-primary-foreground/20 px-1.5 py-0.5 font-mono text-[10px]">Enter</kbd>
                 )}
               </Button>
+            ) : judgeMutation.isPending ? (
+              <>
+                <Button size="lg" disabled>判定中…</Button>
+                <Button size="lg" variant="outline" onClick={cancelQuiz}>キャンセル</Button>
+              </>
             ) : (
-              <Button size="lg" onClick={checkQuiz} disabled={!quizInput.trim() || judgeMutation.isPending}>
-                {judgeMutation.isPending ? '判定中…' : '確認'}
-                {!judgeMutation.isPending && (
-                  <kbd className="ml-2 bg-primary-foreground/20 px-1.5 py-0.5 font-mono text-[10px]">Enter</kbd>
-                )}
+              <Button size="lg" onClick={checkQuiz} disabled={!quizInput.trim()}>
+                確認
+                <kbd className="ml-2 bg-primary-foreground/20 px-1.5 py-0.5 font-mono text-[10px]">Enter</kbd>
               </Button>
             )}
           </div>
-          {judgeMutation.isError && (
+          {judgeMutation.isError && (judgeMutation.error as Error).name !== 'AbortError' && (
             <p className="pt-3 text-center text-sm text-destructive">{(judgeMutation.error as Error).message}</p>
           )}
           {completeMutation.isError && (

@@ -1,19 +1,19 @@
 import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { api, type DueSentence, type SentenceReviewResult } from '../lib/api';
+import { api, type DueSentence, type SentenceJudgeResult } from '../lib/api';
 import { QuizShell } from '../components/QuizShell';
-import { SentencePromptHero, SentenceInput, ReferenceBlock, FeedbackBlock, normalize } from '../components/SentenceQuiz';
+import { SentencePromptHero, SentenceInput, ReferenceBlock, FeedbackBlock } from '../components/SentenceQuiz';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
-// A queued card. Graded cards hit the LLM + commit SRS. A missed card is requeued
-// to the end as a `practice` card: reproduce the reference from memory, no API,
-// no SRS change (so it can't game Option A — the miss is already committed).
+// A queued card. The first attempt at an item commits SRS (submitSentenceReview). A miss
+// requeues the SAME item back-to-back as a `retry` card that re-grades for real (fast-path
+// → LLM via judgeSentence) but WITHOUT touching SRS — the miss is already committed (+4h),
+// so the redo can't game the stage. Mirrors the kanji/vocab in-session retry-till-pass.
 interface Card {
   sentence: DueSentence;
-  practice: boolean;
-  reference: string | null; // set when a graded miss spawns its practice card
+  retry: boolean;
 }
 
 export function SentenceReviewPage() {
@@ -23,30 +23,47 @@ export function SentenceReviewPage() {
   const [cards, setCards] = useState<Card[]>([]);
   const [index, setIndex] = useState(0);
   const [input, setInput] = useState('');
-  const [result, setResult] = useState<SentenceReviewResult | null>(null);
+  const [result, setResult] = useState<SentenceJudgeResult | null>(null);
   const [overridden, setOverridden] = useState(false);
   const [showReason, setShowReason] = useState(false);
   const [reason, setReason] = useState('');
-  const [revealed, setRevealed] = useState(false); // practice: reference shown after a miss
   const [shake, setShake] = useState(false);
   const [correctCount, setCorrectCount] = useState(0);
   const [wrongCount, setWrongCount] = useState(0);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const judgedAt = useRef(0); // guards the submit-Enter from also advancing
+  const abortRef = useRef<AbortController | null>(null);
 
   const dueQuery = useQuery({ queryKey: ['sentenceReviews'], queryFn: api.getDueSentences });
 
   const card = cards[index];
 
+  // First attempt → submitSentenceReview (commits SRS). Retry → judgeSentence (grade only,
+  // no SRS): the miss is already committed, the redo just gates advancing to the next item.
   const submitMutation = useMutation({
-    mutationFn: (submitted: string) => api.submitSentenceReview(card.sentence.sentence_id, submitted),
+    mutationFn: (submitted: string) => {
+      abortRef.current = new AbortController();
+      if (card.retry) {
+        return api.judgeSentence(card.sentence.sentence_id, submitted, abortRef.current.signal);
+      }
+      return api.submitSentenceReview(card.sentence.sentence_id, submitted, abortRef.current.signal);
+    },
     onSuccess: (res) => {
       setResult(res);
       judgedAt.current = Date.now();
-      queryClient.invalidateQueries({ queryKey: ['progressMap'] });
-      queryClient.invalidateQueries({ queryKey: ['sentences'] });
+      if (!card.retry) {
+        queryClient.invalidateQueries({ queryKey: ['progressMap'] });
+        queryClient.invalidateQueries({ queryKey: ['sentences'] });
+      }
     },
   });
+
+  // Cancel an in-flight judge (accidental submit) — abort the request (server rolls back
+  // before commit) and return to editing with the text intact.
+  const cancelSubmit = () => {
+    abortRef.current?.abort();
+    setTimeout(() => inputRef.current?.focus(), 50);
+  };
 
   const overrideMutation = useMutation({
     mutationFn: () => api.overrideSentenceReview(card.sentence.sentence_id, reason.trim() || undefined),
@@ -60,7 +77,7 @@ export function SentenceReviewPage() {
   // Build the queue once loaded (a populated queue is itself the "started" flag).
   useEffect(() => {
     if (cards.length === 0 && dueQuery.data && dueQuery.data.length > 0) {
-      setCards(dueQuery.data.map((s) => ({ sentence: s, practice: false, reference: null })));
+      setCards(dueQuery.data.map((s) => ({ sentence: s, retry: false })));
     }
   }, [cards.length, dueQuery.data]);
 
@@ -77,44 +94,37 @@ export function SentenceReviewPage() {
     setOverridden(false);
     setShowReason(false);
     setReason('');
-    setRevealed(false);
     setInput('');
   };
 
-  // Advance a GRADED card. Correct/overridden closes the item now; a miss requeues a
-  // practice card and defers its tally until that retry clears (so the bar only fills
-  // when the item is truly done).
-  const advanceGraded = () => {
+  // Requeue the current item as a back-to-back retry (real re-grade, no SRS).
+  const requeueRetry = () => {
+    setCards((prev) => {
+      const next = [...prev];
+      next.splice(index + 1, 0, { sentence: card.sentence, retry: true });
+      return next;
+    });
+  };
+
+  // Advance after a judged card. First attempt: tally + (on miss) requeue a retry. Retry:
+  // no tally (already counted on the first miss) — pass moves on, another miss requeues again.
+  const advance = () => {
     if (!result) return;
-    if (result.correct || overridden) {
+    if (card.retry) {
+      if (!result.correct) requeueRetry();
+    } else if (result.correct || overridden) {
       setCorrectCount((c) => c + 1);
     } else {
-      setCards((prev) => [
-        ...prev,
-        { sentence: card.sentence, practice: true, reference: result.reference },
-      ]);
+      setWrongCount((c) => c + 1);
+      requeueRetry();
     }
     reset();
     setIndex((i) => i + 1);
   };
 
-  // Practice card: check the retyped reference locally. Match → close the item (now
-  // counts as the deferred miss); miss → reveal + shake.
-  const checkPractice = () => {
-    if (!card.reference) return;
-    if (normalize(input) === normalize(card.reference)) {
-      setWrongCount((c) => c + 1);
-      reset();
-      setIndex((i) => i + 1);
-    } else {
-      setRevealed(true);
-      setShake(true);
-    }
-  };
-
-  // When a graded card is judged, Enter advances (outside any textarea).
+  // When a card is judged, Enter advances (outside the textarea).
   useEffect(() => {
-    if (!judged || card?.practice) return;
+    if (!judged) return;
     const handler = (e: KeyboardEvent) => {
       // Ignore the same Enter that submitted (fast exact-match) — require a fresh press.
       if (
@@ -123,7 +133,7 @@ export function SentenceReviewPage() {
         !(e.target instanceof HTMLTextAreaElement) &&
         Date.now() - judgedAt.current > 250
       ) {
-        advanceGraded();
+        advance();
       }
     };
     window.addEventListener('keydown', handler);
@@ -190,7 +200,7 @@ export function SentenceReviewPage() {
         </span>
       }
     >
-      {/* Progress bar (graded cards only) */}
+      {/* Progress bar (first attempts only) */}
       <div className="flex h-2 shrink-0 overflow-hidden bg-secondary">
         {correctCount > 0 && (
           <div className="h-full bg-success/75 transition-all" style={{ width: `${(correctCount / gradedTotal) * 100}%` }} />
@@ -201,7 +211,7 @@ export function SentenceReviewPage() {
       </div>
 
       <SentencePromptHero
-        label={card.practice ? '練習 — もう一度' : '英語 → 日本語'}
+        label={card.retry ? 'もう一度 — 英語 → 日本語' : '英語 → 日本語'}
         english={card.sentence.english}
         politeness={card.sentence.politeness}
       />
@@ -211,42 +221,30 @@ export function SentenceReviewPage() {
           ref={inputRef}
           value={input}
           onChange={setInput}
-          onEnter={() => (card.practice ? checkPractice() : !judged && submit())}
-          disabled={!card.practice && (judged || judging)}
+          onEnter={() => !judged && submit()}
+          disabled={judged || judging}
           shake={shake}
           onAnimationEnd={() => setShake(false)}
         />
 
-        {/* Practice card — local check, reveals the reference after a miss. */}
-        {card.practice && (
-          <>
-            {revealed && card.reference && (
-              <div className="mt-4">
-                <ReferenceBlock reference={card.reference} />
-              </div>
-            )}
-            <div className="flex justify-center pt-4">
-              <Button size="lg" onClick={checkPractice} disabled={!input.trim()}>
-                確認
+        {/* Submit → judge. Cancellable while judging (accidental submit). */}
+        {!judged && (
+          <div className="flex justify-center gap-2 pt-4">
+            {judging ? (
+              <>
+                <Button size="lg" disabled>判定中…</Button>
+                <Button size="lg" variant="outline" onClick={cancelSubmit}>キャンセル</Button>
+              </>
+            ) : (
+              <Button size="lg" onClick={submit} disabled={!input.trim()}>
+                提出
                 <kbd className="ml-2 bg-primary-foreground/20 px-1.5 py-0.5 font-mono text-[10px]">Enter</kbd>
               </Button>
-            </div>
-          </>
-        )}
-
-        {/* Graded card — submit → judge. */}
-        {!card.practice && !judged && (
-          <div className="flex justify-center pt-4">
-            <Button size="lg" onClick={submit} disabled={!input.trim() || judging}>
-              {judging ? '判定中…' : '提出'}
-              {!judging && (
-                <kbd className="ml-2 bg-primary-foreground/20 px-1.5 py-0.5 font-mono text-[10px]">Enter</kbd>
-              )}
-            </Button>
+            )}
           </div>
         )}
 
-        {!card.practice && judged && result && (
+        {judged && result && (
           <div className="space-y-4 pt-5">
             <div className="text-center">
               <span className={cn('text-xl font-bold', finalCorrect ? 'text-success' : 'text-destructive/80')}>
@@ -254,11 +252,14 @@ export function SentenceReviewPage() {
               </span>
             </div>
 
-            <ReferenceBlock reference={result.reference} tone={finalCorrect ? 'correct' : 'wrong'} />
+            {/* Reference shown on the first attempt (learn it); hidden on a retry redo (recall it). */}
+            {!card.retry && (
+              <ReferenceBlock reference={result.reference} tone={finalCorrect ? 'correct' : 'wrong'} />
+            )}
             <FeedbackBlock feedback={result.feedback} />
 
-            {/* Override — only when judged wrong and not yet overridden. */}
-            {!result.correct && !overridden && (
+            {/* Override — first-attempt miss only (retries don't touch SRS, nothing to override). */}
+            {!card.retry && !result.correct && !overridden && (
               showReason ? (
                 <div className="space-y-2">
                   <textarea
@@ -289,8 +290,8 @@ export function SentenceReviewPage() {
 
             {!showReason && (
               <div className="flex justify-center pt-1">
-                <Button size="lg" onClick={advanceGraded}>
-                  {result.correct || overridden ? '続ける' : '続ける（後でもう一度）'}
+                <Button size="lg" onClick={advance}>
+                  {result.correct || overridden ? '続ける' : '続ける（もう一度）'}
                   <kbd className="ml-2 bg-primary-foreground/20 px-1.5 py-0.5 font-mono text-[10px]">Enter</kbd>
                 </Button>
               </div>
@@ -298,7 +299,7 @@ export function SentenceReviewPage() {
           </div>
         )}
 
-        {submitMutation.isError && !judged && (
+        {submitMutation.isError && !judged && (submitMutation.error as Error).name !== 'AbortError' && (
           <p className="pt-3 text-center text-sm text-destructive">
             {(submitMutation.error as Error).message}
           </p>
