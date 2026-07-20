@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 
 from openai import OpenAIError
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -31,6 +31,7 @@ from src.sentences.schemas import (
     SentenceReviewCreateRequest,
     SentenceReviewLogItem,
     SentenceReviewResponse,
+    SentenceUpdateRequest,
 )
 
 
@@ -88,6 +89,36 @@ class SentenceService:
             english=sentence.english,
             japanese=sentence.japanese,
             politeness=politeness,
+        )
+
+    async def update_sentence(
+        self, user_id: int, sentence_id: int, request: SentenceUpdateRequest
+    ) -> SentenceCreateResponse:
+        """Edit the user's sentence EN/JP pair (re-validated); politeness re-derived. SRS kept.
+
+        Owner-scoped. Raises LookupError if not the user's (→ 404) and ValueError if the new
+        pair is rejected (→ 422) — two codes, so the router can tell them apart. Review history
+        and SRS progress are left untouched (an edit is a correction, not a relearn). LLM/DB
+        errors propagate to the router.
+        """
+        sentence = await self.db.get(ProductionSentence, sentence_id)
+        if sentence is None or sentence.user_id != user_id:
+            raise LookupError("Sentence not found")
+
+        result = await validate_pair(request.english, request.japanese)
+        if not result.valid:
+            raise ValueError(result.reason or "The English/Japanese pair was rejected.")
+
+        sentence.english = request.english
+        sentence.japanese = request.japanese
+        sentence.politeness = Politeness(result.politeness)  # trust the validator, as on create
+        await self.db.commit()
+
+        return SentenceCreateResponse(
+            sentence_id=sentence.id,
+            english=sentence.english,
+            japanese=sentence.japanese,
+            politeness=sentence.politeness,
         )
 
     async def get_lessons(self, user_id: int) -> list[SentenceLessonItem]:
@@ -272,6 +303,33 @@ class SentenceService:
             created_at=sentence.created_at,
             reviews=[SentenceReviewLogItem.model_validate(log) for log in logs],
         )
+
+    async def delete_sentence(self, user_id: int, sentence_id: int) -> None:
+        """Delete one of the user's production sentences + its progress & review rows.
+
+        Owner-scoped (sentences are per-user). Review logs FK-cascade, but progress uses a
+        polymorphic (non-FK) reference — so both are removed explicitly (mirrors delete_vocab,
+        and keeps it correct under SQLite tests where FK cascades may be off). Raises
+        ValueError (→ 404) if the sentence isn't the user's.
+        """
+        sentence = await self.db.get(ProductionSentence, sentence_id)
+        if sentence is None or sentence.user_id != user_id:
+            raise ValueError("Sentence not found")
+
+        await self.db.execute(
+            delete(ProductionSentenceReviewLog).where(
+                ProductionSentenceReviewLog.sentence_id == sentence_id
+            )
+        )
+        await self.db.execute(
+            delete(UserItemProgress).where(
+                UserItemProgress.user_id == user_id,
+                UserItemProgress.item_type == ItemType.SENTENCE,
+                UserItemProgress.item_id == sentence_id,
+            )
+        )
+        await self.db.delete(sentence)
+        await self.db.commit()
 
     async def judge_pair(
         self, user_id: int, sentence_id: int, submitted: str

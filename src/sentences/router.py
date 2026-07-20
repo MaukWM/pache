@@ -25,6 +25,7 @@ from src.sentences.schemas import (
     SentenceOverrideResponse,
     SentenceReviewCreateRequest,
     SentenceReviewResponse,
+    SentenceUpdateRequest,
 )
 from src.sentences.service import SentenceService
 from src.settings import settings
@@ -254,6 +255,80 @@ async def get_sentence(
         raise HTTPException(
             status_code=500,
             detail="An error occurred while retrieving the sentence. Please try again later.",
+        ) from e
+
+
+@router.delete("/{sentence_id}", status_code=204)
+@limiter.limit(settings.rate_limit_read)
+async def delete_sentence(
+    request: Request,
+    sentence_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> None:
+    """Delete one of the user's production sentences (+ its progress & review history)."""
+    try:
+        service = SentenceService(db)
+        await service.delete_sentence(user_id=current_user.id, sentence_id=sentence_id)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
+    except SQLAlchemyError as e:
+        logger.error(
+            "database_error_in_delete_sentence_endpoint",
+            user_id=current_user.id,
+            sentence_id=sentence_id,
+            error_type=type(e).__name__,
+            error=str(e),
+        )
+        raise HTTPException(
+            status_code=500,
+            detail="An error occurred while deleting the sentence. Please try again later.",
+        ) from e
+
+
+@router.patch("/{sentence_id}", response_model=SentenceCreateResponse)
+@limiter.limit(settings.rate_limit_llm)
+async def update_sentence(
+    request: Request,
+    sentence_id: int,
+    payload: SentenceUpdateRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> SentenceCreateResponse:
+    """Edit a sentence's EN/JP pair (re-validated; politeness re-derived). SRS/history kept."""
+    try:
+        service = SentenceService(db)
+        return await service.update_sentence(
+            user_id=current_user.id, sentence_id=sentence_id, request=payload
+        )
+    except LookupError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
+    except ValueError as e:
+        # New pair rejected by the validator.
+        raise HTTPException(status_code=422, detail=str(e)) from e
+    except (OpenAIError, RuntimeError) as e:
+        logger.warning(
+            "llm_error_in_update_sentence_endpoint",
+            user_id=current_user.id,
+            sentence_id=sentence_id,
+            error_type=type(e).__name__,
+            error=str(e),
+        )
+        raise HTTPException(
+            status_code=503,
+            detail="Validation service unavailable. Please try again.",
+        ) from e
+    except SQLAlchemyError as e:
+        logger.error(
+            "database_error_in_update_sentence_endpoint",
+            user_id=current_user.id,
+            sentence_id=sentence_id,
+            error_type=type(e).__name__,
+            error=str(e),
+        )
+        raise HTTPException(
+            status_code=500,
+            detail="An error occurred while updating the sentence. Please try again later.",
         ) from e
 
 

@@ -215,6 +215,13 @@ export const api = {
       body: JSON.stringify({ english, japanese }),
     }),
 
+  // Edit a production sentence's EN/JP pair (re-validated; politeness re-derived). SRS kept.
+  editSentence: (id: number, english: string, japanese: string) =>
+    request<SentenceCreated>(`/me/sentences/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ english, japanese }),
+    }),
+
   // Pending sentence lessons (created but not yet learned).
   getSentenceLessons: async (): Promise<SentenceLesson[]> => {
     const res = await request<{ items: SentenceLesson[]; count: number }>('/me/sentences/lessons');
@@ -251,6 +258,9 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ reason: reason || null }),
     }),
+
+  deleteSentence: (id: number) =>
+    requestNoBody(`/me/sentences/${id}`, { method: 'DELETE' }),
 
   // Lessons
   completeLessons: (data: { item_ids: { item_type: string; item_id: number }[] }) =>

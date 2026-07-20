@@ -25,6 +25,13 @@ class SentenceCreateResponse(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class SentenceUpdateRequest(BaseModel):
+    """Edit a production sentence's EN/JP pair. Re-validated server-side (like create)."""
+
+    english: str = Field(..., min_length=1, description="English prompt")
+    japanese: str = Field(..., min_length=1, description="Japanese reference answer")
+
+
 class DueSentenceResponse(BaseModel):
     """A production sentence due for review.
 

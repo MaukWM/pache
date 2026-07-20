@@ -13,7 +13,11 @@ from src.llm.judge import JudgeResult
 from src.llm.validate import PairValidation
 from src.progress.models import UserItemProgress
 from src.sentences.models import ProductionSentence, ProductionSentenceReviewLog
-from src.sentences.schemas import SentenceCreateRequest, SentenceReviewCreateRequest
+from src.sentences.schemas import (
+    SentenceCreateRequest,
+    SentenceReviewCreateRequest,
+    SentenceUpdateRequest,
+)
 from src.sentences.service import SentenceService
 
 
@@ -106,6 +110,49 @@ async def test_get_sentence_other_user_404(db_session: AsyncSession) -> None:
     other, _ = await _seed(db_session)
     with pytest.raises(ValueError, match="not found"):
         await SentenceService(db_session).get_sentence(other.id, sentence.id)
+
+
+async def test_delete_sentence_removes_progress_and_logs(db_session: AsyncSession) -> None:
+    user, sentence = await _seed(db_session, stage=3)
+    db_session.add(
+        ProductionSentenceReviewLog(
+            user_id=user.id,
+            sentence_id=sentence.id,
+            submitted="x",
+            exact_match=False,
+            correct=False,
+            feedback=None,
+            srs_stage_before=3,
+            srs_stage_after=1,
+        )
+    )
+    await db_session.commit()
+
+    await SentenceService(db_session).delete_sentence(user.id, sentence.id)
+
+    assert await db_session.get(ProductionSentence, sentence.id) is None
+    prog = await db_session.scalar(
+        select(UserItemProgress).where(
+            UserItemProgress.item_type == ItemType.SENTENCE,
+            UserItemProgress.item_id == sentence.id,
+        )
+    )
+    assert prog is None
+    logs = (
+        await db_session.execute(
+            select(ProductionSentenceReviewLog).where(
+                ProductionSentenceReviewLog.sentence_id == sentence.id
+            )
+        )
+    ).scalars().all()
+    assert logs == []
+
+
+async def test_delete_sentence_other_user_404(db_session: AsyncSession) -> None:
+    _, sentence = await _seed(db_session)
+    other, _ = await _seed(db_session)
+    with pytest.raises(ValueError, match="not found"):
+        await SentenceService(db_session).delete_sentence(other.id, sentence.id)
 
 
 async def test_judge_pair_exact_match_no_llm(db_session: AsyncSession) -> None:
@@ -299,6 +346,77 @@ async def test_create_valid_inserts_as_pending_lesson(db_session, monkeypatch) -
     # ...and it shows up as a pending lesson.
     lessons = await SentenceService(db_session).get_lessons(user.id)
     assert [x.sentence_id for x in lessons] == [resp.sentence_id]
+
+
+async def test_update_revalidates_and_keeps_srs(db_session, monkeypatch) -> None:
+    async def fake_validate(en: str, ja: str) -> PairValidation:
+        return PairValidation(valid=True, reason="", politeness="polite")
+
+    monkeypatch.setattr("src.sentences.service.validate_pair", fake_validate)
+    user, sentence = await _seed(db_session, stage=4)  # learned → has progress
+    db_session.add(
+        ProductionSentenceReviewLog(
+            user_id=user.id,
+            sentence_id=sentence.id,
+            submitted="past",
+            exact_match=False,
+            correct=True,
+            feedback=None,
+            srs_stage_before=3,
+            srs_stage_after=4,
+        )
+    )
+    await db_session.commit()
+
+    resp = await SentenceService(db_session).update_sentence(
+        user.id,
+        sentence.id,
+        SentenceUpdateRequest(english="brand new prompt", japanese="新しい文です。"),
+    )
+    assert resp.english == "brand new prompt"
+    assert resp.japanese == "新しい文です。"
+    assert resp.politeness == Politeness.POLITE  # re-derived by the validator
+
+    # SRS stage + review history preserved (edit = correction, not relearn).
+    prog = await db_session.scalar(
+        select(UserItemProgress).where(
+            UserItemProgress.item_type == ItemType.SENTENCE,
+            UserItemProgress.item_id == sentence.id,
+        )
+    )
+    assert prog is not None and prog.srs_stage == 4
+    logs = (
+        await db_session.execute(
+            select(ProductionSentenceReviewLog).where(
+                ProductionSentenceReviewLog.sentence_id == sentence.id
+            )
+        )
+    ).scalars().all()
+    assert len(logs) == 1
+
+
+async def test_update_rejected_pair_raises_valueerror(db_session, monkeypatch) -> None:
+    async def fake_validate(en: str, ja: str) -> PairValidation:
+        return PairValidation(valid=False, reason="unnatural", politeness="casual")
+
+    monkeypatch.setattr("src.sentences.service.validate_pair", fake_validate)
+    user, sentence = await _seed(db_session, japanese="あと5日")
+
+    with pytest.raises(ValueError, match="unnatural"):
+        await SentenceService(db_session).update_sentence(
+            user.id, sentence.id, SentenceUpdateRequest(english="x", japanese="y")
+        )
+    assert sentence.japanese == "あと5日"  # unchanged (raised before any write)
+
+
+async def test_update_other_user_raises_lookuperror(db_session: AsyncSession) -> None:
+    # Ownership is checked before validation, so no validate_pair mock is needed.
+    _, sentence = await _seed(db_session)
+    other, _ = await _seed(db_session)
+    with pytest.raises(LookupError):
+        await SentenceService(db_session).update_sentence(
+            other.id, sentence.id, SentenceUpdateRequest(english="x", japanese="y")
+        )
 
 
 async def test_complete_lessons_enters_srs(db_session, monkeypatch) -> None:
