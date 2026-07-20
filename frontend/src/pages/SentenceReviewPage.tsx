@@ -32,7 +32,6 @@ export function SentenceReviewPage() {
   const [wrongCount, setWrongCount] = useState(0);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const judgedAt = useRef(0); // guards the submit-Enter from also advancing
-  const abortRef = useRef<AbortController | null>(null);
 
   const dueQuery = useQuery({ queryKey: ['sentenceReviews'], queryFn: api.getDueSentences });
 
@@ -41,13 +40,10 @@ export function SentenceReviewPage() {
   // First attempt → submitSentenceReview (commits SRS). Retry → judgeSentence (grade only,
   // no SRS): the miss is already committed, the redo just gates advancing to the next item.
   const submitMutation = useMutation({
-    mutationFn: (submitted: string) => {
-      abortRef.current = new AbortController();
-      if (card.retry) {
-        return api.judgeSentence(card.sentence.sentence_id, submitted, abortRef.current.signal);
-      }
-      return api.submitSentenceReview(card.sentence.sentence_id, submitted, abortRef.current.signal);
-    },
+    mutationFn: (submitted: string) =>
+      card.retry
+        ? api.judgeSentence(card.sentence.sentence_id, submitted)
+        : api.submitSentenceReview(card.sentence.sentence_id, submitted),
     onSuccess: (res) => {
       setResult(res);
       judgedAt.current = Date.now();
@@ -57,13 +53,6 @@ export function SentenceReviewPage() {
       }
     },
   });
-
-  // Cancel an in-flight judge (accidental submit) — abort the request (server rolls back
-  // before commit) and return to editing with the text intact.
-  const cancelSubmit = () => {
-    abortRef.current?.abort();
-    setTimeout(() => inputRef.current?.focus(), 50);
-  };
 
   const overrideMutation = useMutation({
     mutationFn: () => api.overrideSentenceReview(card.sentence.sentence_id, reason.trim() || undefined),
@@ -227,20 +216,15 @@ export function SentenceReviewPage() {
           onAnimationEnd={() => setShake(false)}
         />
 
-        {/* Submit → judge. Cancellable while judging (accidental submit). */}
+        {/* Submit → judge. */}
         {!judged && (
-          <div className="flex justify-center gap-2 pt-4">
-            {judging ? (
-              <>
-                <Button size="lg" disabled>判定中…</Button>
-                <Button size="lg" variant="outline" onClick={cancelSubmit}>キャンセル</Button>
-              </>
-            ) : (
-              <Button size="lg" onClick={submit} disabled={!input.trim()}>
-                提出
+          <div className="flex justify-center pt-4">
+            <Button size="lg" onClick={submit} disabled={!input.trim() || judging}>
+              {judging ? '判定中…' : '提出'}
+              {!judging && (
                 <kbd className="ml-2 bg-primary-foreground/20 px-1.5 py-0.5 font-mono text-[10px]">Enter</kbd>
-              </Button>
-            )}
+              )}
+            </Button>
           </div>
         )}
 
@@ -299,7 +283,7 @@ export function SentenceReviewPage() {
           </div>
         )}
 
-        {submitMutation.isError && !judged && (submitMutation.error as Error).name !== 'AbortError' && (
+        {submitMutation.isError && !judged && (
           <p className="pt-3 text-center text-sm text-destructive">
             {(submitMutation.error as Error).message}
           </p>

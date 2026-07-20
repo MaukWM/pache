@@ -4,7 +4,6 @@ Owner-scoped reads live HERE (single funnel) — so adding a visibility/sharing 
 one-place change. Do NOT scatter `select(ProductionSentence)` into other domains.
 """
 
-from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
 
@@ -33,10 +32,6 @@ from src.sentences.schemas import (
     SentenceReviewLogItem,
     SentenceReviewResponse,
 )
-
-
-class ReviewCancelledError(Exception):
-    """The client cancelled the review before it committed (accidental submit)."""
 
 
 def _normalize(text: str) -> str:
@@ -306,17 +301,9 @@ class SentenceService:
         )
 
     async def submit_review(
-        self,
-        user_id: int,
-        request: SentenceReviewCreateRequest,
-        is_disconnected: Callable[[], Awaitable[bool]] | None = None,
+        self, user_id: int, request: SentenceReviewCreateRequest
     ) -> SentenceReviewResponse:
-        """Judge a submitted attempt, advance/reset SRS, and log it.
-
-        `is_disconnected` (the request's disconnect check) is consulted AFTER the LLM
-        judge but BEFORE committing: if the client cancelled (accidental submit), nothing
-        is written and SRS is untouched. This is the cancel window during 判定中.
-        """
+        """Judge a submitted attempt, advance/reset SRS, and log it."""
         try:
             now = datetime.now(UTC)
 
@@ -371,12 +358,6 @@ class SentenceService:
                 verdict = Judgment(
                     correct=result.correct, exact_match=False, feedback=result.feedback
                 )
-
-            # Cancel window: the LLM judge has run, but if the client bailed (accidental
-            # submit → cancelled), write nothing and leave SRS untouched.
-            if is_disconnected is not None and await is_disconnected():
-                await self.db.rollback()
-                raise ReviewCancelledError("Review cancelled by the client")
 
             current_stage = progress.srs_stage
             new_stage, next_review_at = calculate_next_review(current_stage, verdict.correct)

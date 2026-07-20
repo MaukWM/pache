@@ -227,12 +227,11 @@ export const api = {
       body: JSON.stringify({ sentence_ids }),
     }),
 
-  // Stateless judge (no SRS) — used by the lesson quiz gate. Abortable (cancel button).
-  judgeSentence: (id: number, submitted: string, signal?: AbortSignal) =>
+  // Stateless judge (no SRS) — used by the lesson quiz gate.
+  judgeSentence: (id: number, submitted: string) =>
     request<SentenceJudgeResult>(`/me/sentences/${id}/judge`, {
       method: 'POST',
       body: JSON.stringify({ submitted }),
-      signal,
     }),
 
   // Production sentences due for review (reference JP hidden — must produce it).
@@ -241,11 +240,10 @@ export const api = {
     return res.items;
   },
 
-  submitSentenceReview: (sentence_id: number, submitted: string, signal?: AbortSignal) =>
+  submitSentenceReview: (sentence_id: number, submitted: string) =>
     request<SentenceReviewResult>('/me/sentences/reviews', {
       method: 'POST',
       body: JSON.stringify({ sentence_id, submitted }),
-      signal,
     }),
 
   overrideSentenceReview: (sentence_id: number, reason?: string) =>
