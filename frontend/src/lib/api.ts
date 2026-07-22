@@ -484,11 +484,18 @@ export interface DueSentence {
   srs_stage: number;
 }
 
+export interface SentencePointResult {
+  key: string;
+  ok: boolean;
+  feedback: string | null;
+}
+
 export interface SentenceJudgeResult {
   correct: boolean;
   exact_match: boolean;
   feedback: string | null;
   reference: string;
+  point_results?: SentencePointResult[]; // absent on the stateless judge/retry path
 }
 
 export interface SentenceReviewResult {
@@ -500,6 +507,7 @@ export interface SentenceReviewResult {
   srs_stage_before: number;
   srs_stage_after: number;
   next_review_at: string | null;
+  point_results: SentencePointResult[];
 }
 
 export interface SentenceOverrideResult {
@@ -534,6 +542,8 @@ export interface GrammarPointListItem {
   key: string;
   meaning_en: string;
   sentence_count: number;
+  review_count: number;
+  correct_count: number;
   created_at: string;
 }
 
@@ -549,6 +559,8 @@ export interface GrammarPointDetail {
   grammar_point_id: number;
   key: string;
   meaning_en: string;
+  review_count: number;
+  correct_count: number;
   created_at: string;
   sentences: GrammarSentenceItem[];
 }

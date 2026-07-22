@@ -3,6 +3,34 @@ import { useQuery } from '@tanstack/react-query';
 import { api } from '../lib/api';
 import { Card } from '@/components/ui/card';
 
+// Production accuracy from first-attempt reviews. Muted washes, not vivid alert colors —
+// this is an indicator, not an alarm.
+export function AccuracyBadge({ correct, total }: { correct: number; total: number }) {
+  if (total === 0) {
+    return (
+      <span className="shrink-0 font-mono text-[10px] uppercase tracking-wider text-muted-foreground/60">
+        未復習
+      </span>
+    );
+  }
+  const pct = Math.round((correct / total) * 100);
+  const color = pct >= 80 ? '#5a9a68' : pct >= 50 ? '#d99a2b' : '#c25b5b';
+  return (
+    <span
+      className="inline-flex shrink-0 items-center gap-1 border px-1.5 py-0.5 font-mono text-[10px] font-semibold"
+      style={{
+        color,
+        backgroundColor: `color-mix(in srgb, ${color} 12%, transparent)`,
+        borderColor: `color-mix(in srgb, ${color} 35%, transparent)`,
+      }}
+      title={`${correct}/${total} 正解`}
+    >
+      {pct}%
+      <span className="opacity-60">({total})</span>
+    </span>
+  );
+}
+
 // The personal grammar bank: minted automatically from production sentences (no direct add).
 // Sorted most-used first by the API; noise sinks to the bottom naturally.
 export function GrammarPage() {
@@ -41,8 +69,11 @@ export function GrammarPage() {
               <span className="min-w-0 truncate text-sm text-muted-foreground">
                 {p.meaning_en}
               </span>
-              <span className="ml-auto shrink-0 bg-wk-sentence/15 px-1.5 py-0.5 font-mono text-[10px] font-bold text-wk-sentence">
-                {p.sentence_count}文
+              <span className="ml-auto flex shrink-0 items-center gap-2">
+                <AccuracyBadge correct={p.correct_count} total={p.review_count} />
+                <span className="bg-wk-sentence/15 px-1.5 py-0.5 font-mono text-[10px] font-bold text-wk-sentence">
+                  {p.sentence_count}文
+                </span>
               </span>
             </Link>
           ))}

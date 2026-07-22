@@ -362,3 +362,154 @@ async def test_grammar_endpoints_roundtrip(async_client, db_session, monkeypatch
     )
     assert patch.status_code == 200
     assert patch.json()["key"] == "〜によって"
+
+
+# --- per-point scoring ---------------------------------------------------------------------------
+
+
+async def _make_due(db: AsyncSession, user: User, sentence: ProductionSentence) -> None:
+    from datetime import timedelta
+
+    from src.core.constants import ItemType, ProgressSource
+    from src.progress.models import UserItemProgress
+
+    db.add(
+        UserItemProgress(
+            user_id=user.id,
+            item_type=ItemType.SENTENCE,
+            item_id=sentence.id,
+            srs_stage=2,
+            next_review_at=datetime.now(UTC) - timedelta(hours=1),
+            source=ProgressSource.MANUAL,
+        )
+    )
+    await db.flush()
+
+
+async def test_submit_exact_match_marks_all_points_ok(db_session) -> None:
+    from src.sentences.models import GrammarPointReviewLog
+    from src.sentences.schemas import SentenceReviewCreateRequest
+
+    user, sentence, point = await _seed_bank(db_session)
+    await _make_due(db_session, user, sentence)
+
+    await SentenceService(db_session).submit_review(
+        user.id, SentenceReviewCreateRequest(sentence_id=sentence.id, submitted="ja")
+    )
+
+    rows = ((await db_session.execute(select(GrammarPointReviewLog))).scalars().all())
+    assert len(rows) == 1
+    assert rows[0].grammar_point_id == point.id
+    assert rows[0].ok is True
+
+
+async def test_submit_judged_attributes_point_mistakes(db_session, monkeypatch) -> None:
+    from src.llm.judge import JudgeResult, PointVerdict
+    from src.sentences.models import GrammarPointReviewLog
+    from src.sentences.schemas import SentenceReviewCreateRequest
+
+    user, sentence, point = await _seed_bank(db_session)
+    other = GrammarPoint(user_id=user.id, key="〜んです", meaning_en="explanatory")
+    db_session.add(other)
+    await db_session.flush()
+    db_session.add(SentenceGrammarPoint(sentence_id=sentence.id, grammar_point_id=other.id))
+    await _make_due(db_session, user, sentence)
+
+    seen_points: dict = {}
+
+    async def fake_judge(en, ref, sub, pol, override_reasons=None, grammar_points=None, **kw):
+        seen_points.update(grammar_points or {})
+        return JudgeResult(
+            reason="",
+            correct=False,
+            feedback="による misused",
+            point_verdicts=[PointVerdict(key="〜による", ok=False)],  # 〜んです unflagged
+        )
+
+    monkeypatch.setattr("src.sentences.service.judge", fake_judge)
+
+    await SentenceService(db_session).submit_review(
+        user.id, SentenceReviewCreateRequest(sentence_id=sentence.id, submitted="wrong ja")
+    )
+
+    # The judge received the linked points...
+    assert set(seen_points) == {"〜による", "〜んです"}
+    # ...flagged one wrong; the unflagged one defaults ok.
+    rows = ((await db_session.execute(select(GrammarPointReviewLog))).scalars().all())
+    by_point = {r.grammar_point_id: r.ok for r in rows}
+    assert by_point == {point.id: False, other.id: True}
+
+
+async def test_override_flips_point_verdicts(db_session, monkeypatch) -> None:
+    from src.llm.judge import JudgeResult, PointVerdict
+    from src.sentences.models import GrammarPointReviewLog
+    from src.sentences.schemas import SentenceReviewCreateRequest
+
+    user, sentence, point = await _seed_bank(db_session)
+    await _make_due(db_session, user, sentence)
+
+    async def fake_judge(en, ref, sub, pol, override_reasons=None, **kw):
+        return JudgeResult(
+            reason="",
+            correct=False,
+            feedback="bad",
+            point_verdicts=[PointVerdict(key="〜による", ok=False)],
+        )
+
+    monkeypatch.setattr("src.sentences.service.judge", fake_judge)
+
+    service = SentenceService(db_session)
+    await service.submit_review(
+        user.id, SentenceReviewCreateRequest(sentence_id=sentence.id, submitted="wrong ja")
+    )
+    await service.override_review(user.id, sentence.id, reason="it was fine")
+
+    rows = ((await db_session.execute(select(GrammarPointReviewLog))).scalars().all())
+    assert len(rows) == 1
+    assert rows[0].ok is True  # judge's attribution voided with the override
+
+
+async def test_list_grammar_includes_accuracy(db_session) -> None:
+    from src.sentences.schemas import SentenceReviewCreateRequest
+
+    user, sentence, point = await _seed_bank(db_session)
+    await _make_due(db_session, user, sentence)
+    await SentenceService(db_session).submit_review(
+        user.id, SentenceReviewCreateRequest(sentence_id=sentence.id, submitted="ja")
+    )
+
+    items = await SentenceService(db_session).list_grammar(user.id)
+    assert items[0].review_count == 1
+    assert items[0].correct_count == 1
+
+    detail = await SentenceService(db_session).get_grammar_point(user.id, point.id)
+    assert detail.review_count == 1
+    assert detail.correct_count == 1
+
+
+async def test_point_verdict_key_with_gloss_suffix_still_matches(db_session, monkeypatch) -> None:
+    """The model sometimes echoes 'key — gloss' as the verdict key — must still match."""
+    from src.llm.judge import JudgeResult, PointVerdict
+    from src.sentences.models import GrammarPointReviewLog
+    from src.sentences.schemas import SentenceReviewCreateRequest
+
+    user, sentence, point = await _seed_bank(db_session)
+    await _make_due(db_session, user, sentence)
+
+    async def fake_judge(en, ref, sub, pol, override_reasons=None, **kw):
+        return JudgeResult(
+            reason="",
+            correct=False,
+            feedback="bad",
+            point_verdicts=[PointVerdict(key="〜による — depending on", ok=False)],
+        )
+
+    monkeypatch.setattr("src.sentences.service.judge", fake_judge)
+    await SentenceService(db_session).submit_review(
+        user.id, SentenceReviewCreateRequest(sentence_id=sentence.id, submitted="wrong ja")
+    )
+
+    rows = ((await db_session.execute(select(GrammarPointReviewLog))).scalars().all())
+    assert len(rows) == 1
+    assert rows[0].grammar_point_id == point.id
+    assert rows[0].ok is False  # gloss suffix stripped, matched, attributed

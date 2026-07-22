@@ -90,6 +90,10 @@ class SentenceJudgeResponse(BaseModel):
     exact_match: bool
     feedback: str | None
     reference: str
+    point_results: list["SentencePointResult"] = Field(
+        default_factory=list,
+        description="Per-grammar-point verdicts, display only (nothing logged on this path)",
+    )
 
 
 class SentenceListItem(BaseModel):
@@ -198,12 +202,14 @@ class SentenceOverrideResponse(BaseModel):
 
 
 class GrammarPointListItem(BaseModel):
-    """One personal grammar point in the bank list, with usage count."""
+    """One personal grammar point in the bank list, with usage count + review accuracy."""
 
     grammar_point_id: int = Field(..., gt=0)
     key: str
     meaning_en: str
     sentence_count: int = Field(..., ge=0)
+    review_count: int = Field(0, ge=0, description="First-attempt reviews touching this point")
+    correct_count: int = Field(0, ge=0, description="Of those, how many produced it correctly")
     created_at: datetime
 
 
@@ -232,6 +238,8 @@ class GrammarPointDetailResponse(BaseModel):
     grammar_point_id: int = Field(..., gt=0)
     key: str
     meaning_en: str
+    review_count: int = Field(0, ge=0)
+    correct_count: int = Field(0, ge=0)
     created_at: datetime
     sentences: list[GrammarSentenceItem]
 
@@ -241,6 +249,16 @@ class GrammarPointUpdateRequest(BaseModel):
 
     key: str | None = Field(None, min_length=1, max_length=100)
     meaning_en: str | None = Field(None, min_length=1, max_length=255)
+
+
+class SentencePointResult(BaseModel):
+    """Per-grammar-point outcome of one submission (judge-attributed)."""
+
+    key: str
+    ok: bool
+    feedback: str | None = Field(
+        None, description="For failed points: one-line note — broken fragment + rule violated"
+    )
 
 
 class SentenceReviewResponse(BaseModel):
@@ -254,3 +272,7 @@ class SentenceReviewResponse(BaseModel):
     srs_stage_before: int = Field(..., ge=1, le=9)
     srs_stage_after: int = Field(..., ge=1, le=9)
     next_review_at: datetime | None = Field(..., description="Next review time, or None if burned")
+    point_results: list[SentencePointResult] = Field(
+        default_factory=list,
+        description="Per-grammar-point verdicts for this sentence's linked points",
+    )

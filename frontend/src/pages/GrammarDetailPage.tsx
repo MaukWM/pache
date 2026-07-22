@@ -6,6 +6,7 @@ import { api } from '../lib/api';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { StageBadge } from './SentencesPage';
+import { AccuracyBadge } from './GrammarPage';
 
 // One grammar point + every sentence that exercises it (evidence = the substring that
 // instantiates the point — matters for abstract keys like 受身形 that never appear literally).
@@ -118,8 +119,11 @@ export function GrammarDetailPage() {
                 {p.key}
               </div>
               <div className="text-lg text-muted-foreground">{p.meaning_en}</div>
-              <div className="pt-1 font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
-                {new Date(p.created_at).toLocaleDateString()} に追加
+              <div className="flex items-center gap-3 pt-1">
+                <AccuracyBadge correct={p.correct_count} total={p.review_count} />
+                <span className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
+                  {new Date(p.created_at).toLocaleDateString()} に追加
+                </span>
               </div>
             </div>
           )}

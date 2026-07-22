@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 
 from openai import OpenAIError
-from sqlalchemy import delete, func, select
+from sqlalchemy import case, delete, func, select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -25,6 +25,7 @@ from src.progress.models import UserItemProgress
 from src.reviews.srs import calculate_next_review, truncate_to_hour
 from src.sentences.models import (
     GrammarPoint,
+    GrammarPointReviewLog,
     ProductionSentence,
     ProductionSentenceReviewLog,
     SentenceGrammarPoint,
@@ -43,6 +44,7 @@ from src.sentences.schemas import (
     SentenceLessonItem,
     SentenceListItem,
     SentenceOverrideResponse,
+    SentencePointResult,
     SentenceReviewCreateRequest,
     SentenceReviewLogItem,
     SentenceReviewResponse,
@@ -463,6 +465,15 @@ class SentenceService:
             raise ValueError("Sentence not found")
 
         await self.db.execute(
+            delete(GrammarPointReviewLog).where(
+                GrammarPointReviewLog.review_log_id.in_(
+                    select(ProductionSentenceReviewLog.id).where(
+                        ProductionSentenceReviewLog.sentence_id == sentence_id
+                    )
+                )
+            )
+        )
+        await self.db.execute(
             delete(ProductionSentenceReviewLog).where(
                 ProductionSentenceReviewLog.sentence_id == sentence_id
             )
@@ -482,8 +493,23 @@ class SentenceService:
         await self.db.delete(sentence)
         await self.db.commit()
 
+    async def _grammar_accuracy(self, user_id: int) -> dict[int, tuple[int, int]]:
+        """Per-point (review_count, correct_count) from the per-point review log."""
+        rows = (
+            await self.db.execute(
+                select(
+                    GrammarPointReviewLog.grammar_point_id,
+                    func.count(),
+                    func.sum(case((GrammarPointReviewLog.ok.is_(True), 1), else_=0)),
+                )
+                .where(GrammarPointReviewLog.user_id == user_id)
+                .group_by(GrammarPointReviewLog.grammar_point_id)
+            )
+        ).all()
+        return {gpid: (int(total), int(correct or 0)) for gpid, total, correct in rows}
+
     async def list_grammar(self, user_id: int) -> list[GrammarPointListItem]:
-        """The user's grammar bank with per-point sentence counts (most-used first)."""
+        """The user's grammar bank with sentence counts + review accuracy (most-used first)."""
         query = (
             select(GrammarPoint, func.count(SentenceGrammarPoint.sentence_id))
             .outerjoin(
@@ -495,12 +521,15 @@ class SentenceService:
             .order_by(func.count(SentenceGrammarPoint.sentence_id).desc(), GrammarPoint.key)
         )
         rows = (await self.db.execute(query)).all()
+        accuracy = await self._grammar_accuracy(user_id)
         return [
             GrammarPointListItem(
                 grammar_point_id=point.id,
                 key=point.key,
                 meaning_en=point.meaning_en,
                 sentence_count=count,
+                review_count=accuracy.get(point.id, (0, 0))[0],
+                correct_count=accuracy.get(point.id, (0, 0))[1],
                 created_at=point.created_at,
             )
             for point, count in rows
@@ -534,10 +563,15 @@ class SentenceService:
         )
         rows = (await self.db.execute(query)).all()
 
+        accuracy = await self._grammar_accuracy(user_id)
+        review_count, correct_count = accuracy.get(point.id, (0, 0))
+
         return GrammarPointDetailResponse(
             grammar_point_id=point.id,
             key=point.key,
             meaning_en=point.meaning_en,
+            review_count=review_count,
+            correct_count=correct_count,
             created_at=point.created_at,
             sentences=[
                 GrammarSentenceItem(
@@ -587,22 +621,29 @@ class SentenceService:
             )
         ).scalar_one()
 
+        accuracy = await self._grammar_accuracy(user_id)
+        review_count, correct_count = accuracy.get(point.id, (0, 0))
+
         return GrammarPointListItem(
             grammar_point_id=point.id,
             key=point.key,
             meaning_en=point.meaning_en,
             sentence_count=count,
+            review_count=review_count,
+            correct_count=correct_count,
             created_at=point.created_at,
         )
 
     async def judge_pair(
         self, user_id: int, sentence_id: int, submitted: str
     ) -> SentenceJudgeResponse:
-        """Grade an attempt WITHOUT SRS side effects — for the lesson quiz gate.
+        """Grade an attempt WITHOUT SRS side effects — lesson quiz gate + in-session retries.
 
-        Exact-match fast path (free, instant); otherwise the LLM judge. No progress row is
-        required (a pending lesson has none) and none is written. Raises ValueError (→ 404) if
-        the sentence isn't the user's. LLM errors propagate (→ 503).
+        Exact-match fast path (free, instant); otherwise the LLM judge. Grammar-point verdicts
+        are returned for DISPLAY only — nothing is logged here (only first attempts score, via
+        submit_review). No progress row is required (a pending lesson has none) and none is
+        written. Raises ValueError (→ 404) if the sentence isn't the user's. LLM errors
+        propagate (→ 503).
         """
         sentence = await self.db.get(ProductionSentence, sentence_id)
         if sentence is None or sentence.user_id != user_id:
@@ -612,14 +653,37 @@ class SentenceService:
             return SentenceJudgeResponse(
                 correct=True, exact_match=True, feedback=None, reference=sentence.japanese
             )
+        linked = (
+            await self.db.execute(
+                select(GrammarPoint)
+                .join(
+                    SentenceGrammarPoint,
+                    SentenceGrammarPoint.grammar_point_id == GrammarPoint.id,
+                )
+                .where(SentenceGrammarPoint.sentence_id == sentence.id)
+            )
+        ).scalars().all()
         result = await judge(
-            sentence.english, sentence.japanese, submitted, sentence.politeness.value
+            sentence.english,
+            sentence.japanese,
+            submitted,
+            sentence.politeness.value,
+            grammar_points={p.key: p.meaning_en for p in linked},
         )
+        flagged = {v.key.split(" — ")[0].strip(): v for v in result.point_verdicts}
         return SentenceJudgeResponse(
             correct=result.correct,
             exact_match=False,
             feedback=result.feedback,
             reference=sentence.japanese,
+            point_results=[
+                SentencePointResult(
+                    key=p.key,
+                    ok=flagged[p.key].ok if p.key in flagged else True,
+                    feedback=flagged[p.key].feedback if p.key in flagged else None,
+                )
+                for p in linked
+            ],
         )
 
     async def submit_review(
@@ -664,10 +728,27 @@ class SentenceService:
             if sentence is None or sentence.user_id != user_id:
                 raise ValueError("Sentence not found")
 
-            # Fast path: exact reproduction of the reference → correct, no LLM. Otherwise judge with
-            # the LLM, honoring the learner's prior overrides for this sentence.
+            # The sentence's linked grammar points (key → (id, gloss)) — judged per-point below.
+            linked = (
+                await self.db.execute(
+                    select(GrammarPoint)
+                    .join(
+                        SentenceGrammarPoint,
+                        SentenceGrammarPoint.grammar_point_id == GrammarPoint.id,
+                    )
+                    .where(SentenceGrammarPoint.sentence_id == sentence.id)
+                )
+            ).scalars().all()
+
+            # Fast path: exact reproduction of the reference → correct, no LLM (and every linked
+            # grammar point passes). Otherwise judge with the LLM, honoring prior overrides; the
+            # judge also attributes mistakes to specific grammar points.
+            point_ok: dict[str, bool]
+            point_fb: dict[str, str | None]
             if _normalize(request.submitted) == _normalize(sentence.japanese):
                 verdict = Judgment(correct=True, exact_match=True)
+                point_ok = {p.key: True for p in linked}
+                point_fb = {p.key: None for p in linked}
             else:
                 overrides = await self._prior_override_reasons(sentence.id)
                 result = await judge(
@@ -676,27 +757,55 @@ class SentenceService:
                     request.submitted,
                     sentence.politeness.value,
                     override_reasons=overrides,
+                    grammar_points={p.key: p.meaning_en for p in linked},
                 )
                 verdict = Judgment(
                     correct=result.correct, exact_match=False, feedback=result.feedback
                 )
+                # Map verdicts by key; a point the judge didn't flag defaults to ok (attributing
+                # a mistake requires positive identification). Unknown keys are ignored. The model
+                # sometimes echoes the whole "key — gloss" prompt line as the key — strip the
+                # gloss part before matching.
+                flagged = {
+                    v.key.split(" — ")[0].strip(): v for v in result.point_verdicts
+                }
+                point_ok = {
+                    p.key: flagged[p.key].ok if p.key in flagged else True for p in linked
+                }
+                point_fb = {
+                    p.key: (flagged[p.key].feedback if p.key in flagged else None)
+                    for p in linked
+                }
 
             current_stage = progress.srs_stage
             new_stage, next_review_at = calculate_next_review(current_stage, verdict.correct)
 
-            self.db.add(
-                ProductionSentenceReviewLog(
-                    user_id=user_id,
-                    sentence_id=sentence.id,
-                    submitted=request.submitted,
-                    exact_match=verdict.exact_match,
-                    correct=verdict.correct,
-                    feedback=verdict.feedback,
-                    srs_stage_before=current_stage,
-                    srs_stage_after=new_stage,
-                    reviewed_at=now,
-                )
+            log = ProductionSentenceReviewLog(
+                user_id=user_id,
+                sentence_id=sentence.id,
+                submitted=request.submitted,
+                exact_match=verdict.exact_match,
+                correct=verdict.correct,
+                feedback=verdict.feedback,
+                srs_stage_before=current_stage,
+                srs_stage_after=new_stage,
+                reviewed_at=now,
             )
+            self.db.add(log)
+            await self.db.flush()  # need log.id for the per-point rows
+
+            for p in linked:
+                self.db.add(
+                    GrammarPointReviewLog(
+                        user_id=user_id,
+                        grammar_point_id=p.id,
+                        review_log_id=log.id,
+                        ok=point_ok[p.key],
+                        feedback=point_fb[p.key] if not point_ok[p.key] else None,
+                        reviewed_at=now,
+                    )
+                )
+
             progress.srs_stage = new_stage
             progress.next_review_at = next_review_at
             if new_stage == 9:
@@ -713,6 +822,14 @@ class SentenceService:
                 srs_stage_before=current_stage,
                 srs_stage_after=new_stage,
                 next_review_at=next_review_at,
+                point_results=[
+                    SentencePointResult(
+                        key=p.key,
+                        ok=point_ok[p.key],
+                        feedback=point_fb[p.key] if not point_ok[p.key] else None,
+                    )
+                    for p in linked
+                ],
             )
         except (OpenAIError, RuntimeError) as e:
             # LLM judge failed — leave SRS untouched so the user can retry (router → 503).
@@ -791,6 +908,17 @@ class SentenceService:
             progress.next_review_at = next_review_at
             if new_stage == 9:
                 progress.burned_at = now
+
+            # The judge's verdict was wrong per the learner — its per-point mistake
+            # attributions are equally void, so flip them to ok.
+            for row in (
+                await self.db.execute(
+                    select(GrammarPointReviewLog).where(
+                        GrammarPointReviewLog.review_log_id == log.id
+                    )
+                )
+            ).scalars():
+                row.ok = True
 
             await self.db.commit()
 

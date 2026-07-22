@@ -165,7 +165,7 @@ async def test_judge_pair_exact_match_no_llm(db_session: AsyncSession) -> None:
 async def test_judge_pair_uses_llm_and_no_srs(db_session: AsyncSession, monkeypatch) -> None:
     user, sentence = await _seed(db_session, stage=1)
 
-    async def fake_judge(en, ja, sub, pol, override_reasons=None) -> JudgeResult:
+    async def fake_judge(en, ja, sub, pol, override_reasons=None, **kwargs) -> JudgeResult:
         return JudgeResult(reason="", correct=True, feedback="natural")
 
     monkeypatch.setattr("src.sentences.service.judge", fake_judge)
@@ -227,7 +227,7 @@ async def test_submit_normalizes_whitespace_and_trailing_period(db_session: Asyn
 
 
 async def test_submit_non_exact_judged_incorrect(db_session, monkeypatch) -> None:
-    async def fake_judge(en, ref, sub, pol, override_reasons=None):
+    async def fake_judge(en, ref, sub, pol, override_reasons=None, **kwargs):
         return JudgeResult(reason="wrong word", correct=False, feedback="use を, not は")
 
     monkeypatch.setattr("src.sentences.service.judge", fake_judge)
@@ -242,7 +242,7 @@ async def test_submit_non_exact_judged_incorrect(db_session, monkeypatch) -> Non
 
 
 async def test_submit_non_exact_judged_correct_advances(db_session, monkeypatch) -> None:
-    async def fake_judge(en, ref, sub, pol, override_reasons=None):
+    async def fake_judge(en, ref, sub, pol, override_reasons=None, **kwargs):
         return JudgeResult(reason="natural alternate", correct=True, feedback=None)
 
     monkeypatch.setattr("src.sentences.service.judge", fake_judge)
@@ -256,7 +256,7 @@ async def test_submit_non_exact_judged_correct_advances(db_session, monkeypatch)
 async def test_submit_feeds_prior_override_reasons_to_judge(db_session, monkeypatch) -> None:
     captured: dict = {}
 
-    async def fake_judge(en, ref, sub, pol, override_reasons=None):
+    async def fake_judge(en, ref, sub, pol, override_reasons=None, **kwargs):
         captured["overrides"] = override_reasons
         return JudgeResult(reason="ok", correct=True, feedback=None)
 
@@ -285,7 +285,7 @@ async def test_submit_feeds_prior_override_reasons_to_judge(db_session, monkeypa
 
 
 async def test_submit_llm_error_leaves_srs_unchanged(db_session, monkeypatch) -> None:
-    async def boom(en, ref, sub, pol, override_reasons=None):
+    async def boom(en, ref, sub, pol, override_reasons=None, **kwargs):
         raise OpenAIError("service down")
 
     monkeypatch.setattr("src.sentences.service.judge", boom)

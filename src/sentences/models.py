@@ -102,6 +102,43 @@ class SentenceGrammarPoint(Base):
     evidence: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
 
+class GrammarPointReviewLog(Base):
+    """Per-grammar-point outcome of one first-attempt production review.
+
+    Written alongside `production_sentence_review_log` (FK `review_log_id`): exact-match reviews
+    mark every linked point ok; LLM-judged reviews use the judge's per-point verdicts (a vocab
+    mistake fails the sentence but no point). Overriding a review flips its rows to ok. This is
+    the raw signal for per-point accuracy — and later the seed data for a real grammar SRS.
+    """
+
+    __tablename__ = "grammar_point_review_log"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    grammar_point_id: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey("grammar_points.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    review_log_id: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey("production_sentence_review_log.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    ok: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    # Judge's one-line note for a failed point (broken fragment + rule violated). Null when ok.
+    feedback: Mapped[str | None] = mapped_column(Text, nullable=True)
+    reviewed_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(UTC),
+        nullable=False,
+    )
+
+
 class ProductionSentenceReviewLog(Base):
     """Audit record for one production-review submission (incl. LLM judge output)."""
 

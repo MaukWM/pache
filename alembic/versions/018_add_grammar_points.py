@@ -50,6 +50,7 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    # Table drops take their indexes + FKs with them (MySQL refuses to drop an index that
+    # backs a foreign key, so no separate drop_index).
     op.drop_table("sentence_grammar_points")
-    op.drop_index("ix_grammar_points_user_id", table_name="grammar_points")
     op.drop_table("grammar_points")

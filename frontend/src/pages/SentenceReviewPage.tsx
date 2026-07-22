@@ -97,10 +97,12 @@ export function SentenceReviewPage() {
 
   // Advance after a judged card. First attempt: tally + (on miss) requeue a retry. Retry:
   // no tally (already counted on the first miss) — pass moves on, another miss requeues again.
-  const advance = () => {
+  // `accept` = the retry-miss escape hatch: advance without requeuing (no SRS/tally involved —
+  // the first-attempt miss is already committed and stays counted as wrong).
+  const advance = (accept = false) => {
     if (!result) return;
     if (card.retry) {
-      if (!result.correct) requeueRetry();
+      if (!result.correct && !accept) requeueRetry();
     } else if (result.correct || overridden) {
       setCorrectCount((c) => c + 1);
     } else {
@@ -236,11 +238,40 @@ export function SentenceReviewPage() {
               </span>
             </div>
 
-            {/* Reference shown on the first attempt (learn it); hidden on a retry redo (recall it). */}
-            {!card.retry && (
-              <ReferenceBlock reference={result.reference} tone={finalCorrect ? 'correct' : 'wrong'} />
-            )}
+            {/* Reference always shown once judged — the recall test already happened while
+                typing; hiding it on retry misses just trapped the user with no way to learn. */}
+            <ReferenceBlock reference={result.reference} tone={finalCorrect ? 'correct' : 'wrong'} />
             <FeedbackBlock feedback={result.feedback} />
+
+            {/* Grammar points the judge attributed the mistake to — one terse line each
+                (fragment + rule); the main feedback above carries the teaching. */}
+            {(result.point_results ?? []).some((p) => !p.ok) && (
+              <div className="space-y-1">
+                <span className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
+                  文法ミス
+                </span>
+                {(result.point_results ?? [])
+                  .filter((p) => !p.ok)
+                  .map((p) => (
+                    <div
+                      key={p.key}
+                      className="flex items-baseline gap-2 border-l-2 border-destructive/50 bg-destructive/5 px-3 py-1.5"
+                    >
+                      <span
+                        lang="ja"
+                        className="shrink-0 font-[family-name:var(--font-mincho)] text-sm text-destructive"
+                      >
+                        {p.key}
+                      </span>
+                      {p.feedback && (
+                        <span className="min-w-0 text-xs text-muted-foreground">
+                          {p.feedback}
+                        </span>
+                      )}
+                    </div>
+                  ))}
+              </div>
+            )}
 
             {/* Override — first-attempt miss only (retries don't touch SRS, nothing to override). */}
             {!card.retry && !result.correct && !overridden && (
@@ -273,11 +304,18 @@ export function SentenceReviewPage() {
             )}
 
             {!showReason && (
-              <div className="flex justify-center pt-1">
-                <Button size="lg" onClick={advance}>
-                  {result.correct || overridden ? '続ける' : '続ける（もう一度）'}
+              <div className="flex items-center justify-center gap-2 pt-1">
+                <Button size="lg" onClick={() => advance()}>
+                  {finalCorrect ? '続ける' : '続ける（もう一度）'}
                   <kbd className="ml-2 bg-primary-foreground/20 px-1.5 py-0.5 font-mono text-[10px]">Enter</kbd>
                 </Button>
+                {/* Retry-miss escape: accept locally and move on. The first-attempt miss is
+                    already committed — this only stops the requeue loop. */}
+                {card.retry && !result.correct && (
+                  <Button size="lg" variant="outline" onClick={() => advance(true)}>
+                    正解として進む
+                  </Button>
+                )}
               </div>
             )}
           </div>
