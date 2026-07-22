@@ -1,12 +1,136 @@
 import { useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, X } from 'lucide-react';
 import { api } from '../lib/api';
+import { romajiToHiraganaLive } from '../lib/romaji';
 import { cn } from '@/lib/utils';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { PolitenessBadge, StageBadge } from './SentencesPage';
+
+// Linked grammar points + post-add corrections (unlink / hand-attach from the bank).
+function GrammarSection({ sentenceId }: { sentenceId: number }) {
+  const queryClient = useQueryClient();
+  const query = useQuery({
+    queryKey: ['sentence', sentenceId],
+    queryFn: () => api.getSentence(sentenceId),
+  });
+  const bank = useQuery({ queryKey: ['grammarPoints'], queryFn: api.getGrammarPoints });
+  const grammar = query.data?.grammar ?? [];
+
+  const invalidate = () => {
+    queryClient.invalidateQueries({ queryKey: ['sentence', sentenceId] });
+    queryClient.invalidateQueries({ queryKey: ['grammarPoints'] });
+  };
+  const detachMut = useMutation({
+    mutationFn: (pointId: number) => api.detachSentenceGrammar(sentenceId, pointId),
+    onSuccess: invalidate,
+  });
+  const [filter, setFilter] = useState('');
+  const attachMut = useMutation({
+    mutationFn: (pointId: number) => api.attachSentenceGrammar(sentenceId, pointId),
+    onSuccess: () => {
+      setFilter('');
+      invalidate();
+    },
+  });
+
+  const linkedIds = new Set(grammar.map((g) => g.grammar_point_id));
+  const attachable = (bank.data ?? []).filter((p) => !linkedIds.has(p.grammar_point_id));
+
+  // Type-to-filter: raw text matches key/gloss; romaji is also converted live to hiragana so
+  // "niyoru" finds 〜による without an IME.
+  const q = filter.trim().toLowerCase();
+  const kanaQ = romajiToHiraganaLive(q);
+  const matches = q
+    ? attachable
+        .filter(
+          (p) =>
+            p.key.toLowerCase().includes(q) ||
+            p.meaning_en.toLowerCase().includes(q) ||
+            (kanaQ && p.key.includes(kanaQ)),
+        )
+        .slice(0, 8)
+    : [];
+
+  return (
+    <div>
+      <h2 className="mb-2 font-mono text-xs uppercase tracking-wider text-muted-foreground">
+        文法（{grammar.length}）
+      </h2>
+      {grammar.length === 0 ? (
+        <p className="text-sm text-muted-foreground">文法ポイントはまだ抽出されていません。</p>
+      ) : (
+        <div className="flex flex-wrap gap-2">
+          {grammar.map((g) => (
+            <span
+              key={g.grammar_point_id}
+              className="inline-flex items-center gap-2 border border-wk-sentence/40 bg-wk-sentence/10 py-1 pl-2.5 pr-1"
+            >
+              <Link
+                to={`/grammar/${g.grammar_point_id}`}
+                className="flex items-baseline gap-2 hover:underline"
+                title={g.evidence ? `「${g.evidence}」` : undefined}
+              >
+                <span lang="ja" className="font-[family-name:var(--font-mincho)]">
+                  {g.key}
+                </span>
+                <span className="text-xs text-muted-foreground">{g.meaning_en}</span>
+              </Link>
+              <button
+                onClick={() => detachMut.mutate(g.grammar_point_id)}
+                disabled={detachMut.isPending}
+                className="text-muted-foreground transition-colors hover:text-destructive"
+                title="この文から外す"
+              >
+                <X className="size-3.5" />
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+      {attachable.length > 0 && (
+        <div className="relative mt-3 max-w-sm">
+          <input
+            value={filter}
+            onChange={(e) => setFilter(e.target.value)}
+            placeholder="文法ポイントを追加… (かな/romaji/english)"
+            lang="ja"
+            className="w-full border border-input bg-card px-3 py-1.5 text-sm focus:border-ring focus:ring-[3px] focus:ring-ring/40 focus:outline-none"
+          />
+          {matches.length > 0 && (
+            <div className="absolute z-10 mt-1 w-full divide-y divide-border border border-border bg-card shadow-sm">
+              {matches.map((p) => (
+                <button
+                  key={p.grammar_point_id}
+                  onClick={() => attachMut.mutate(p.grammar_point_id)}
+                  disabled={attachMut.isPending}
+                  className="flex w-full items-baseline gap-2 px-3 py-1.5 text-left transition-colors hover:bg-accent/50"
+                >
+                  <span lang="ja" className="font-[family-name:var(--font-mincho)]">
+                    {p.key}
+                  </span>
+                  <span className="min-w-0 truncate text-xs text-muted-foreground">
+                    {p.meaning_en}
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
+          {q && matches.length === 0 && (
+            <p className="mt-1 text-xs text-muted-foreground">一致する文法ポイントがありません。</p>
+          )}
+        </div>
+      )}
+      {(detachMut.isError || attachMut.isError) && (
+        <p className="mt-2 text-sm text-destructive">
+          {((detachMut.error || attachMut.error) as Error).message}
+        </p>
+      )}
+    </div>
+  );
+}
 
 export function SentenceDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -177,6 +301,8 @@ export function SentenceDetailPage() {
             </div>
           </div>
           )}
+
+          <GrammarSection sentenceId={sentenceId} />
 
           <div>
             <h2 className="mb-2 font-mono text-xs uppercase tracking-wider text-muted-foreground">

@@ -262,6 +262,31 @@ export const api = {
   deleteSentence: (id: number) =>
     requestNoBody(`/me/sentences/${id}`, { method: 'DELETE' }),
 
+  // Grammar bank (extracted from production sentences)
+  getGrammarPoints: async (): Promise<GrammarPointListItem[]> => {
+    const res = await request<{ items: GrammarPointListItem[]; count: number }>('/me/grammar');
+    return res.items;
+  },
+
+  getGrammarPoint: (id: number) => request<GrammarPointDetail>(`/me/grammar/${id}`),
+
+  updateGrammarPoint: (id: number, data: { key?: string; meaning_en?: string }) =>
+    request<GrammarPointListItem>(`/me/grammar/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    }),
+
+  attachSentenceGrammar: (sentenceId: number, grammarPointId: number) =>
+    request<SentenceGrammarItem>(`/me/sentences/${sentenceId}/grammar`, {
+      method: 'POST',
+      body: JSON.stringify({ grammar_point_id: grammarPointId }),
+    }),
+
+  detachSentenceGrammar: (sentenceId: number, grammarPointId: number) =>
+    requestNoBody(`/me/sentences/${sentenceId}/grammar/${grammarPointId}`, {
+      method: 'DELETE',
+    }),
+
   // Lessons
   completeLessons: (data: { item_ids: { item_type: string; item_id: number }[] }) =>
     request<unknown>('/me/lessons', {
@@ -497,8 +522,40 @@ export interface SentenceReviewLogItem {
   reviewed_at: string;
 }
 
+export interface SentenceGrammarItem {
+  grammar_point_id: number;
+  key: string;
+  meaning_en: string;
+  evidence: string | null;
+}
+
+export interface GrammarPointListItem {
+  grammar_point_id: number;
+  key: string;
+  meaning_en: string;
+  sentence_count: number;
+  created_at: string;
+}
+
+export interface GrammarSentenceItem {
+  sentence_id: number;
+  english: string;
+  japanese: string;
+  evidence: string | null;
+  srs_stage: number | null;
+}
+
+export interface GrammarPointDetail {
+  grammar_point_id: number;
+  key: string;
+  meaning_en: string;
+  created_at: string;
+  sentences: GrammarSentenceItem[];
+}
+
 export interface SentenceDetail extends SentenceListItem {
   reviews: SentenceReviewLogItem[];
+  grammar: SentenceGrammarItem[];
 }
 
 export interface SentenceCreated {

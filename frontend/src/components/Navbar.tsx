@@ -19,14 +19,17 @@ const NAV_LINKS = [
   { to: '/kanji', label: '漢字', ink: 'text-wk-kanji', rule: 'bg-wk-kanji' },
   { to: '/vocab', label: '語彙', ink: 'text-wk-vocab', rule: 'bg-wk-vocab' },
   { to: '/sentences', label: '作文', ink: 'text-wk-sentence', rule: 'bg-wk-sentence' },
+  { to: '/grammar', label: '文法', ink: 'text-wk-sentence', rule: 'bg-wk-sentence' },
 ];
 
 export function Navbar() {
   const { user, logout } = useAuth();
   const location = useLocation();
   const canSentences = useSentencesAccess();
-  // 作文 tab only for accounts with access (admin or flag).
-  const navLinks = NAV_LINKS.filter((l) => l.to !== '/sentences' || canSentences);
+  // 作文/文法 tabs only for accounts with access (admin or flag).
+  const navLinks = NAV_LINKS.filter(
+    (l) => (l.to !== '/sentences' && l.to !== '/grammar') || canSentences,
+  );
 
   return (
     <nav className="sticky top-0 z-30 border-b border-border bg-background/85 backdrop-blur">
