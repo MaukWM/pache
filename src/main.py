@@ -20,6 +20,7 @@ from src.logging import logger
 from src.progress.router import progress_router as progress_actions_router
 from src.progress.router import router as progress_router
 from src.reviews.router import router as reviews_router
+from src.sentences.router import grammar_router
 from src.sentences.router import router as sentences_router
 from src.settings import settings
 from src.vocab.router import router as vocab_router
@@ -86,6 +87,7 @@ app.include_router(progress_actions_router, prefix=settings.api_prefix)
 app.include_router(lessons_router, prefix=settings.api_prefix)
 app.include_router(reviews_router, prefix=settings.api_prefix)
 app.include_router(sentences_router, prefix=settings.api_prefix)
+app.include_router(grammar_router, prefix=settings.api_prefix)
 app.include_router(wanikani_router, prefix=settings.api_prefix)
 app.include_router(wanikani_status_router, prefix=settings.api_prefix)
 

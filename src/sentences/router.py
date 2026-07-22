@@ -12,9 +12,15 @@ from src.database import get_db
 from src.logging import logger
 from src.sentences.schemas import (
     DueSentencesResponse,
+    GrammarPointDetailResponse,
+    GrammarPointListItem,
+    GrammarPointListResponse,
+    GrammarPointUpdateRequest,
     SentenceCreateRequest,
     SentenceCreateResponse,
     SentenceDetailResponse,
+    SentenceGrammarAttachRequest,
+    SentenceGrammarItem,
     SentenceJudgeRequest,
     SentenceJudgeResponse,
     SentenceLessonCompleteRequest,
@@ -391,4 +397,170 @@ async def override_sentence_review(
         raise HTTPException(
             status_code=500,
             detail="An error occurred while overriding the review. Please try again later.",
+        ) from e
+
+
+@router.post(
+    "/{sentence_id}/grammar", response_model=SentenceGrammarItem, status_code=200
+)
+@limiter.limit(settings.rate_limit_write)
+async def attach_sentence_grammar(
+    request: Request,
+    sentence_id: int,
+    payload: SentenceGrammarAttachRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> SentenceGrammarItem:
+    """Hand-attach an existing bank point to a sentence (post-add correction). Idempotent."""
+    try:
+        service = SentenceService(db)
+        return await service.attach_grammar(
+            user_id=current_user.id,
+            sentence_id=sentence_id,
+            grammar_point_id=payload.grammar_point_id,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
+    except SQLAlchemyError as e:
+        logger.error(
+            "database_error_in_attach_sentence_grammar_endpoint",
+            user_id=current_user.id,
+            sentence_id=sentence_id,
+            error_type=type(e).__name__,
+            error=str(e),
+        )
+        raise HTTPException(
+            status_code=500,
+            detail="An error occurred while attaching the grammar point. Please try again later.",
+        ) from e
+
+
+@router.delete("/{sentence_id}/grammar/{grammar_point_id}", status_code=204)
+@limiter.limit(settings.rate_limit_write)
+async def detach_sentence_grammar(
+    request: Request,
+    sentence_id: int,
+    grammar_point_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> None:
+    """Remove a grammar link from a sentence (post-add correction). Bank point survives."""
+    try:
+        service = SentenceService(db)
+        await service.detach_grammar(
+            user_id=current_user.id,
+            sentence_id=sentence_id,
+            grammar_point_id=grammar_point_id,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
+    except SQLAlchemyError as e:
+        logger.error(
+            "database_error_in_detach_sentence_grammar_endpoint",
+            user_id=current_user.id,
+            sentence_id=sentence_id,
+            error_type=type(e).__name__,
+            error=str(e),
+        )
+        raise HTTPException(
+            status_code=500,
+            detail="An error occurred while removing the grammar point. Please try again later.",
+        ) from e
+
+
+# --- Grammar bank (/me/grammar) ----------------------------------------------------------------
+# Same access gate as sentences — the bank only exists as a byproduct of sentence creation.
+grammar_router = APIRouter(
+    prefix="/me/grammar",
+    tags=["grammar"],
+    dependencies=[Depends(require_sentences_access)],
+)
+
+
+@grammar_router.get("", response_model=GrammarPointListResponse)
+@limiter.limit(settings.rate_limit_read)
+async def list_grammar_points(
+    request: Request,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> GrammarPointListResponse:
+    """The user's grammar bank (most-used first), with per-point sentence counts."""
+    try:
+        service = SentenceService(db)
+        items = await service.list_grammar(user_id=current_user.id)
+        return GrammarPointListResponse(items=items, count=len(items))
+    except SQLAlchemyError as e:
+        logger.error(
+            "database_error_in_list_grammar_points_endpoint",
+            user_id=current_user.id,
+            error_type=type(e).__name__,
+            error=str(e),
+        )
+        raise HTTPException(
+            status_code=500,
+            detail="An error occurred while retrieving grammar points. Please try again later.",
+        ) from e
+
+
+@grammar_router.get("/{grammar_point_id}", response_model=GrammarPointDetailResponse)
+@limiter.limit(settings.rate_limit_read)
+async def get_grammar_point(
+    request: Request,
+    grammar_point_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> GrammarPointDetailResponse:
+    """One grammar point with every sentence that exercises it (evidence + SRS stage)."""
+    try:
+        service = SentenceService(db)
+        return await service.get_grammar_point(
+            user_id=current_user.id, grammar_point_id=grammar_point_id
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
+    except SQLAlchemyError as e:
+        logger.error(
+            "database_error_in_get_grammar_point_endpoint",
+            user_id=current_user.id,
+            grammar_point_id=grammar_point_id,
+            error_type=type(e).__name__,
+            error=str(e),
+        )
+        raise HTTPException(
+            status_code=500,
+            detail="An error occurred while retrieving the grammar point. Please try again later.",
+        ) from e
+
+
+@grammar_router.patch("/{grammar_point_id}", response_model=GrammarPointListItem)
+@limiter.limit(settings.rate_limit_write)
+async def update_grammar_point(
+    request: Request,
+    grammar_point_id: int,
+    payload: GrammarPointUpdateRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> GrammarPointListItem:
+    """Rename a grammar point or flip its status (active ⇄ ignored, i.e. deny-list it)."""
+    try:
+        service = SentenceService(db)
+        return await service.update_grammar_point(
+            user_id=current_user.id, grammar_point_id=grammar_point_id, request=payload
+        )
+    except LookupError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
+    except ValueError as e:
+        # Key rename collided with an existing key.
+        raise HTTPException(status_code=422, detail=str(e)) from e
+    except SQLAlchemyError as e:
+        logger.error(
+            "database_error_in_update_grammar_point_endpoint",
+            user_id=current_user.id,
+            grammar_point_id=grammar_point_id,
+            error_type=type(e).__name__,
+            error=str(e),
+        )
+        raise HTTPException(
+            status_code=500,
+            detail="An error occurred while updating the grammar point. Please try again later.",
         ) from e

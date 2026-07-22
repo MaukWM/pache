@@ -323,7 +323,7 @@ async def _user(db: AsyncSession) -> User:
 
 
 async def test_create_valid_inserts_as_pending_lesson(db_session, monkeypatch) -> None:
-    async def fake_validate(en: str, ja: str) -> PairValidation:
+    async def fake_validate(en: str, ja: str, **kwargs) -> PairValidation:
         return PairValidation(valid=True, reason="", politeness="casual")
 
     monkeypatch.setattr("src.sentences.service.validate_pair", fake_validate)
@@ -349,7 +349,7 @@ async def test_create_valid_inserts_as_pending_lesson(db_session, monkeypatch) -
 
 
 async def test_update_revalidates_and_keeps_srs(db_session, monkeypatch) -> None:
-    async def fake_validate(en: str, ja: str) -> PairValidation:
+    async def fake_validate(en: str, ja: str, **kwargs) -> PairValidation:
         return PairValidation(valid=True, reason="", politeness="polite")
 
     monkeypatch.setattr("src.sentences.service.validate_pair", fake_validate)
@@ -396,7 +396,7 @@ async def test_update_revalidates_and_keeps_srs(db_session, monkeypatch) -> None
 
 
 async def test_update_rejected_pair_raises_valueerror(db_session, monkeypatch) -> None:
-    async def fake_validate(en: str, ja: str) -> PairValidation:
+    async def fake_validate(en: str, ja: str, **kwargs) -> PairValidation:
         return PairValidation(valid=False, reason="unnatural", politeness="casual")
 
     monkeypatch.setattr("src.sentences.service.validate_pair", fake_validate)
@@ -420,7 +420,7 @@ async def test_update_other_user_raises_lookuperror(db_session: AsyncSession) ->
 
 
 async def test_complete_lessons_enters_srs(db_session, monkeypatch) -> None:
-    async def fake_validate(en: str, ja: str) -> PairValidation:
+    async def fake_validate(en: str, ja: str, **kwargs) -> PairValidation:
         return PairValidation(valid=True, reason="", politeness="casual")
 
     monkeypatch.setattr("src.sentences.service.validate_pair", fake_validate)
@@ -446,7 +446,7 @@ async def test_complete_lessons_enters_srs(db_session, monkeypatch) -> None:
 
 
 async def test_create_invalid_pair_raises_and_stores_nothing(db_session, monkeypatch) -> None:
-    async def fake_validate(en: str, ja: str) -> PairValidation:
+    async def fake_validate(en: str, ja: str, **kwargs) -> PairValidation:
         return PairValidation(
             valid=False, reason="Japanese does not match the English.", politeness="casual"
         )
@@ -463,7 +463,7 @@ async def test_create_invalid_pair_raises_and_stores_nothing(db_session, monkeyp
 
 
 async def test_create_uses_validator_politeness(db_session, monkeypatch) -> None:
-    async def fake_validate(en: str, ja: str) -> PairValidation:
+    async def fake_validate(en: str, ja: str, **kwargs) -> PairValidation:
         return PairValidation(valid=True, reason="", politeness="polite")
 
     monkeypatch.setattr("src.sentences.service.validate_pair", fake_validate)

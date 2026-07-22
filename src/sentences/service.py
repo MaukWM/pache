@@ -8,22 +8,37 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 
 from openai import OpenAIError
-from sqlalchemy import delete, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.core.constants import SRS_INTERVALS, ItemType, Politeness, ProgressSource
+from src.core.constants import (
+    SRS_INTERVALS,
+    ItemType,
+    Politeness,
+    ProgressSource,
+)
 from src.llm.judge import judge
 from src.llm.validate import validate_pair
 from src.logging import logger
 from src.progress.models import UserItemProgress
 from src.reviews.srs import calculate_next_review, truncate_to_hour
-from src.sentences.models import ProductionSentence, ProductionSentenceReviewLog
+from src.sentences.models import (
+    GrammarPoint,
+    ProductionSentence,
+    ProductionSentenceReviewLog,
+    SentenceGrammarPoint,
+)
 from src.sentences.schemas import (
     DueSentenceResponse,
+    GrammarPointDetailResponse,
+    GrammarPointListItem,
+    GrammarPointUpdateRequest,
+    GrammarSentenceItem,
     SentenceCreateRequest,
     SentenceCreateResponse,
     SentenceDetailResponse,
+    SentenceGrammarItem,
     SentenceJudgeResponse,
     SentenceLessonItem,
     SentenceListItem,
@@ -60,16 +75,66 @@ class SentenceService:
     def __init__(self, db: AsyncSession):
         self.db = db
 
+    async def _load_grammar_bank(
+        self, user_id: int
+    ) -> tuple[dict[str, str], dict[str, GrammarPoint]]:
+        """The user's grammar bank as (key→gloss for the extraction prompt, key→row)."""
+        rows = (
+            (
+                await self.db.execute(
+                    select(GrammarPoint).where(GrammarPoint.user_id == user_id)
+                )
+            )
+            .scalars()
+            .all()
+        )
+        return {r.key: r.meaning_en for r in rows}, {r.key: r for r in rows}
+
+    async def _link_extracted_points(
+        self,
+        user_id: int,
+        sentence_id: int,
+        extracted: list,
+        by_key: dict[str, GrammarPoint],
+    ) -> None:
+        """Auto-link every extracted grammar point to the sentence (no commit).
+
+        Accept-everything at ingestion: new keys minted, existing reused, all linked — so
+        per-point statistics stay consistent over time. The corrective step lives on the
+        sentence page afterwards (unlink / attach / rename); noise is a display concern.
+        """
+        seen: set[str] = set()
+        for p in extracted:
+            if p.key in seen:  # LLM may emit the same point twice in one sentence
+                continue
+            seen.add(p.key)
+            row = by_key.get(p.key)
+            if row is None:
+                row = GrammarPoint(user_id=user_id, key=p.key, meaning_en=p.meaning_en)
+                self.db.add(row)
+                await self.db.flush()  # need row.id for the link
+                by_key[p.key] = row
+            self.db.add(
+                SentenceGrammarPoint(
+                    sentence_id=sentence_id,
+                    grammar_point_id=row.id,
+                    evidence=p.evidence[:255] if p.evidence else None,
+                )
+            )
+
     async def create(
         self, user_id: int, request: SentenceCreateRequest
     ) -> SentenceCreateResponse:
         """Validate the EN/JP pair (server-side), then insert it as a PENDING LESSON.
 
+        One LLM call validates AND extracts grammar points; every extracted point is auto-linked
+        (mint-or-reuse). The user corrects afterwards on the sentence page.
         Raises ValueError if the pair is rejected (→ 422). LLM/DB errors propagate to the router.
         No SRS progress row yet — the sentence waits as a lesson (get_lessons) until the user
         learns it (complete_lessons), which is when it enters SRS at Apprentice 1.
         """
-        result = await validate_pair(request.english, request.japanese)
+        bank, by_key = await self._load_grammar_bank(user_id)
+        result = await validate_pair(request.english, request.japanese, bank=bank)
         if not result.valid:
             raise ValueError(result.reason or "The English/Japanese pair was rejected.")
 
@@ -82,6 +147,10 @@ class SentenceService:
             politeness=politeness,
         )
         self.db.add(sentence)
+        await self.db.flush()
+
+        await self._link_extracted_points(user_id, sentence.id, result.points, by_key)
+
         await self.db.commit()
 
         return SentenceCreateResponse(
@@ -105,13 +174,24 @@ class SentenceService:
         if sentence is None or sentence.user_id != user_id:
             raise LookupError("Sentence not found")
 
-        result = await validate_pair(request.english, request.japanese)
+        bank, by_key = await self._load_grammar_bank(user_id)
+        result = await validate_pair(request.english, request.japanese, bank=bank)
         if not result.valid:
             raise ValueError(result.reason or "The English/Japanese pair was rejected.")
 
         sentence.english = request.english
         sentence.japanese = request.japanese
         sentence.politeness = Politeness(result.politeness)  # trust the validator, as on create
+
+        # The text changed, so old grammar links are stale — replace with the fresh extraction.
+        # (Hand-corrections on the old text don't survive; correcting the new text is the same
+        # sentence-page flow.) Bank entries themselves are never deleted here.
+        await self.db.execute(
+            delete(SentenceGrammarPoint).where(
+                SentenceGrammarPoint.sentence_id == sentence_id
+            )
+        )
+        await self._link_extracted_points(user_id, sentence_id, result.points, by_key)
         await self.db.commit()
 
         return SentenceCreateResponse(
@@ -293,6 +373,15 @@ class SentenceService:
             )
         ).scalars().all()
 
+        grammar_rows = (
+            await self.db.execute(
+                select(SentenceGrammarPoint, GrammarPoint)
+                .join(GrammarPoint, GrammarPoint.id == SentenceGrammarPoint.grammar_point_id)
+                .where(SentenceGrammarPoint.sentence_id == sentence_id)
+                .order_by(GrammarPoint.key)
+            )
+        ).all()
+
         return SentenceDetailResponse(
             sentence_id=sentence.id,
             english=sentence.english,
@@ -302,7 +391,64 @@ class SentenceService:
             next_review_at=progress.next_review_at if progress else None,
             created_at=sentence.created_at,
             reviews=[SentenceReviewLogItem.model_validate(log) for log in logs],
+            grammar=[
+                SentenceGrammarItem(
+                    grammar_point_id=point.id,
+                    key=point.key,
+                    meaning_en=point.meaning_en,
+                    evidence=link.evidence,
+                )
+                for link, point in grammar_rows
+            ],
         )
+
+    async def attach_grammar(
+        self, user_id: int, sentence_id: int, grammar_point_id: int
+    ) -> SentenceGrammarItem:
+        """Hand-attach an existing bank point to a sentence (post-add correction).
+
+        Idempotent — attaching an already-linked point returns it unchanged. Raises ValueError
+        (→ 404) if the sentence or point isn't the user's.
+        """
+        sentence = await self.db.get(ProductionSentence, sentence_id)
+        if sentence is None or sentence.user_id != user_id:
+            raise ValueError("Sentence not found")
+        point = await self.db.get(GrammarPoint, grammar_point_id)
+        if point is None or point.user_id != user_id:
+            raise ValueError("Grammar point not found")
+
+        existing = await self.db.get(SentenceGrammarPoint, (sentence_id, grammar_point_id))
+        if existing is None:
+            self.db.add(
+                SentenceGrammarPoint(
+                    sentence_id=sentence_id, grammar_point_id=grammar_point_id
+                )
+            )
+            await self.db.commit()
+
+        return SentenceGrammarItem(
+            grammar_point_id=point.id,
+            key=point.key,
+            meaning_en=point.meaning_en,
+            evidence=existing.evidence if existing else None,
+        )
+
+    async def detach_grammar(
+        self, user_id: int, sentence_id: int, grammar_point_id: int
+    ) -> None:
+        """Remove a grammar link from a sentence (post-add correction).
+
+        The bank point itself survives (even at zero links). Raises ValueError (→ 404) if the
+        sentence isn't the user's or the link doesn't exist.
+        """
+        sentence = await self.db.get(ProductionSentence, sentence_id)
+        if sentence is None or sentence.user_id != user_id:
+            raise ValueError("Sentence not found")
+        link = await self.db.get(SentenceGrammarPoint, (sentence_id, grammar_point_id))
+        if link is None:
+            raise ValueError("Grammar link not found")
+        await self.db.delete(link)
+        await self.db.commit()
 
     async def delete_sentence(self, user_id: int, sentence_id: int) -> None:
         """Delete one of the user's production sentences + its progress & review rows.
@@ -322,6 +468,11 @@ class SentenceService:
             )
         )
         await self.db.execute(
+            delete(SentenceGrammarPoint).where(
+                SentenceGrammarPoint.sentence_id == sentence_id
+            )
+        )
+        await self.db.execute(
             delete(UserItemProgress).where(
                 UserItemProgress.user_id == user_id,
                 UserItemProgress.item_type == ItemType.SENTENCE,
@@ -330,6 +481,119 @@ class SentenceService:
         )
         await self.db.delete(sentence)
         await self.db.commit()
+
+    async def list_grammar(self, user_id: int) -> list[GrammarPointListItem]:
+        """The user's grammar bank with per-point sentence counts (most-used first)."""
+        query = (
+            select(GrammarPoint, func.count(SentenceGrammarPoint.sentence_id))
+            .outerjoin(
+                SentenceGrammarPoint,
+                SentenceGrammarPoint.grammar_point_id == GrammarPoint.id,
+            )
+            .where(GrammarPoint.user_id == user_id)
+            .group_by(GrammarPoint.id)
+            .order_by(func.count(SentenceGrammarPoint.sentence_id).desc(), GrammarPoint.key)
+        )
+        rows = (await self.db.execute(query)).all()
+        return [
+            GrammarPointListItem(
+                grammar_point_id=point.id,
+                key=point.key,
+                meaning_en=point.meaning_en,
+                sentence_count=count,
+                created_at=point.created_at,
+            )
+            for point, count in rows
+        ]
+
+    async def get_grammar_point(
+        self, user_id: int, grammar_point_id: int
+    ) -> GrammarPointDetailResponse:
+        """One grammar point with every linked sentence (+ evidence + SRS stage).
+
+        Raises ValueError (→ 404) if not the user's.
+        """
+        point = await self.db.get(GrammarPoint, grammar_point_id)
+        if point is None or point.user_id != user_id:
+            raise ValueError("Grammar point not found")
+
+        query = (
+            select(SentenceGrammarPoint, ProductionSentence, UserItemProgress)
+            .join(
+                ProductionSentence,
+                ProductionSentence.id == SentenceGrammarPoint.sentence_id,
+            )
+            .outerjoin(
+                UserItemProgress,
+                (UserItemProgress.item_id == ProductionSentence.id)
+                & (UserItemProgress.item_type == ItemType.SENTENCE)
+                & (UserItemProgress.user_id == user_id),
+            )
+            .where(SentenceGrammarPoint.grammar_point_id == grammar_point_id)
+            .order_by(ProductionSentence.created_at.desc())
+        )
+        rows = (await self.db.execute(query)).all()
+
+        return GrammarPointDetailResponse(
+            grammar_point_id=point.id,
+            key=point.key,
+            meaning_en=point.meaning_en,
+            created_at=point.created_at,
+            sentences=[
+                GrammarSentenceItem(
+                    sentence_id=sentence.id,
+                    english=sentence.english,
+                    japanese=sentence.japanese,
+                    evidence=link.evidence,
+                    srs_stage=progress.srs_stage if progress else None,
+                )
+                for link, sentence, progress in rows
+            ],
+        )
+
+    async def update_grammar_point(
+        self, user_id: int, grammar_point_id: int, request: GrammarPointUpdateRequest
+    ) -> GrammarPointListItem:
+        """Rename a grammar point (fix a mis-minted key or gloss).
+
+        Raises LookupError (→ 404) if not the user's; ValueError (→ 422) if a rename collides
+        with another of the user's keys.
+        """
+        point = await self.db.get(GrammarPoint, grammar_point_id)
+        if point is None or point.user_id != user_id:
+            raise LookupError("Grammar point not found")
+
+        if request.key is not None and request.key != point.key:
+            clash = (
+                await self.db.execute(
+                    select(GrammarPoint.id).where(
+                        GrammarPoint.user_id == user_id,
+                        GrammarPoint.key == request.key,
+                    )
+                )
+            ).scalar_one_or_none()
+            if clash is not None:
+                raise ValueError(f"A grammar point with key '{request.key}' already exists")
+            point.key = request.key
+        if request.meaning_en is not None:
+            point.meaning_en = request.meaning_en
+        await self.db.commit()
+
+        count = (
+            await self.db.execute(
+                select(func.count(SentenceGrammarPoint.sentence_id)).where(
+                    SentenceGrammarPoint.grammar_point_id == grammar_point_id
+                )
+            )
+        ).scalar_one()
+
+        return GrammarPointListItem(
+            grammar_point_id=point.id,
+            key=point.key,
+            meaning_en=point.meaning_en,
+            sentence_count=count,
+            created_at=point.created_at,
+        )
 
     async def judge_pair(
         self, user_id: int, sentence_id: int, submitted: str

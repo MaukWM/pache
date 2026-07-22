@@ -13,7 +13,16 @@ progress.user_id == production_sentences.user_id.
 
 from datetime import UTC, datetime
 
-from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, Integer, Text
+from sqlalchemy import (
+    Boolean,
+    DateTime,
+    Enum,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+)
 from sqlalchemy.orm import Mapped, mapped_column
 
 from src.core.constants import Politeness
@@ -43,6 +52,54 @@ class ProductionSentence(Base):
         default=lambda: datetime.now(UTC),
         nullable=False,
     )
+
+
+class GrammarPoint(Base):
+    """A personal grammar point, minted by LLM extraction from the user's own sentences.
+
+    The bank is organic (grows only via sentence creation — no direct add) and per-user. `key` is
+    the canonical citation form (e.g. 〜による, 可能形) and is unique per user: the current bank is
+    fed back into the extraction prompt so the model reuses keys instead of minting near-duplicates.
+    Every extracted point is kept and linked — noise is a display concern (sort/filter), never a
+    data one, so per-sentence statistics stay consistent over time.
+    """
+
+    __tablename__ = "grammar_points"
+    __table_args__ = (UniqueConstraint("user_id", "key", name="uq_grammar_points_user_key"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    key: Mapped[str] = mapped_column(String(100), nullable=False)
+    meaning_en: Mapped[str] = mapped_column(String(255), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(UTC),
+        nullable=False,
+    )
+
+
+class SentenceGrammarPoint(Base):
+    """M2M link: which grammar points a production sentence exercises.
+
+    `evidence` is the substring of the sentence that instantiates the point (e.g. 「言われた」 for
+    受身形) — needed because abstract paradigm keys don't literally appear in the text.
+    """
+
+    __tablename__ = "sentence_grammar_points"
+
+    sentence_id: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey("production_sentences.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    grammar_point_id: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey("grammar_points.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    evidence: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
 
 class ProductionSentenceReviewLog(Base):

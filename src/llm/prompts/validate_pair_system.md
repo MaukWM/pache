@@ -12,3 +12,8 @@ Approval:
 Politeness:
 - Also CLASSIFY the politeness (polite / casual / mixed) per the definition above, from the
   sentence-final predicate.
+
+{{include: _extract_grammar_rules.md}}
+
+If the pair is invalid, still return your best extraction (the learner may fix and resubmit), but
+extraction quality matters most on valid pairs.

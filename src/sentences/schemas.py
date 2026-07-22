@@ -8,10 +8,26 @@ from src.core.constants import Politeness
 
 
 class SentenceCreateRequest(BaseModel):
-    """Add a production sentence. The EN/JP pair is validated server-side before insert."""
+    """Add a production sentence. The EN/JP pair is validated server-side before insert;
+    extracted grammar points are auto-linked (correct afterwards on the sentence page)."""
 
     english: str = Field(..., min_length=1, description="English prompt")
     japanese: str = Field(..., min_length=1, description="Japanese reference answer")
+
+
+class SentenceGrammarItem(BaseModel):
+    """A grammar point linked to a sentence (sentence detail page)."""
+
+    grammar_point_id: int = Field(..., gt=0)
+    key: str
+    meaning_en: str
+    evidence: str | None = Field(None, description="Substring of the sentence showing the point")
+
+
+class SentenceGrammarAttachRequest(BaseModel):
+    """Hand-attach an existing bank point to a sentence (post-add correction)."""
+
+    grammar_point_id: int = Field(..., gt=0)
 
 
 class SentenceCreateResponse(BaseModel):
@@ -158,6 +174,9 @@ class SentenceDetailResponse(BaseModel):
     next_review_at: datetime | None
     created_at: datetime
     reviews: list[SentenceReviewLogItem]
+    grammar: list[SentenceGrammarItem] = Field(
+        default_factory=list, description="Grammar points this sentence exercises"
+    )
 
 
 class SentenceOverrideRequest(BaseModel):
@@ -176,6 +195,52 @@ class SentenceOverrideResponse(BaseModel):
     srs_stage_before: int = Field(..., ge=1, le=9)
     srs_stage_after: int = Field(..., ge=1, le=9)
     next_review_at: datetime | None
+
+
+class GrammarPointListItem(BaseModel):
+    """One personal grammar point in the bank list, with usage count."""
+
+    grammar_point_id: int = Field(..., gt=0)
+    key: str
+    meaning_en: str
+    sentence_count: int = Field(..., ge=0)
+    created_at: datetime
+
+
+class GrammarPointListResponse(BaseModel):
+    """Envelope for the grammar bank."""
+
+    items: list[GrammarPointListItem]
+    count: int
+
+
+class GrammarSentenceItem(BaseModel):
+    """A sentence linked to a grammar point (detail view)."""
+
+    sentence_id: int = Field(..., gt=0)
+    english: str
+    japanese: str
+    evidence: str | None
+    srs_stage: int | None = Field(None, ge=1, le=9)  # None = pending lesson
+
+    model_config = {"from_attributes": True}
+
+
+class GrammarPointDetailResponse(BaseModel):
+    """One grammar point with every sentence that exercises it."""
+
+    grammar_point_id: int = Field(..., gt=0)
+    key: str
+    meaning_en: str
+    created_at: datetime
+    sentences: list[GrammarSentenceItem]
+
+
+class GrammarPointUpdateRequest(BaseModel):
+    """Rename a grammar point's key or gloss (fix a mis-minted extraction)."""
+
+    key: str | None = Field(None, min_length=1, max_length=100)
+    meaning_en: str | None = Field(None, min_length=1, max_length=255)
 
 
 class SentenceReviewResponse(BaseModel):

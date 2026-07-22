@@ -67,7 +67,7 @@ async def test_reviews_unauthenticated(async_client: AsyncClient) -> None:
 async def test_create_sentence_endpoint(async_client, db_session, monkeypatch) -> None:
     from src.llm.validate import PairValidation
 
-    async def fake_validate(en: str, ja: str) -> PairValidation:
+    async def fake_validate(en: str, ja: str, **kwargs) -> PairValidation:
         return PairValidation(valid=True, reason="", politeness="casual")
 
     monkeypatch.setattr("src.sentences.service.validate_pair", fake_validate)
@@ -91,7 +91,7 @@ async def test_create_sentence_endpoint(async_client, db_session, monkeypatch) -
 async def test_create_sentence_rejected_422(async_client, db_session, monkeypatch) -> None:
     from src.llm.validate import PairValidation
 
-    async def fake_validate(en: str, ja: str) -> PairValidation:
+    async def fake_validate(en: str, ja: str, **kwargs) -> PairValidation:
         return PairValidation(valid=False, reason="unnatural", politeness="casual")
 
     monkeypatch.setattr("src.sentences.service.validate_pair", fake_validate)
