@@ -594,3 +594,23 @@ async def test_override_already_overridden_raises(db_session) -> None:
     await db_session.flush()
     with pytest.raises(ValueError, match="already overridden"):
         await SentenceService(db_session).override_review(user.id, sentence.id, None)
+
+
+async def test_get_lessons_newest_first(db_session: AsyncSession) -> None:
+    """Pending lessons list the most recently added sentence on top."""
+    user = await _user(db_session)
+    base = datetime(2026, 10, 1, 12, tzinfo=UTC)
+    for i, ja in enumerate(["一", "二", "三"]):
+        db_session.add(
+            ProductionSentence(
+                user_id=user.id,
+                english=f"s{i}",
+                japanese=ja,
+                politeness=Politeness.CASUAL,
+                created_at=base + timedelta(hours=i),
+            )
+        )
+    await db_session.commit()
+
+    lessons = await SentenceService(db_session).get_lessons(user.id)
+    assert [x.japanese for x in lessons] == ["三", "二", "一"]

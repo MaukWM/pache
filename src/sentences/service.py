@@ -215,7 +215,7 @@ class SentenceService:
         )
 
     async def get_lessons(self, user_id: int) -> list[SentenceLessonItem]:
-        """Pending sentence lessons: the user's sentences that have no SRS progress row yet."""
+        """Pending sentence lessons: sentences with no SRS progress row yet, newest first."""
         query = (
             select(ProductionSentence)
             .outerjoin(
@@ -228,7 +228,7 @@ class SentenceService:
                 ProductionSentence.user_id == user_id,
                 UserItemProgress.id.is_(None),  # no progress → not yet learned
             )
-            .order_by(ProductionSentence.created_at.asc())
+            .order_by(ProductionSentence.created_at.desc(), ProductionSentence.id.desc())
         )
         rows = (await self.db.execute(query)).scalars().all()
         return [
