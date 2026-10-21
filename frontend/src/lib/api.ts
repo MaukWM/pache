@@ -1,6 +1,6 @@
 const API_BASE = '/api/v1';
 
-class ApiError extends Error {
+export class ApiError extends Error {
   status: number;
   constructor(status: number, message: string) {
     super(message);
@@ -69,6 +69,16 @@ export interface SettingsResponse {
   wk_api_key_configured: boolean;
   password_set: boolean;
   review_mode: ReviewMode;
+  // ISO timestamp while vacation mode is active, else null.
+  vacation_started_at: string | null;
+}
+
+export interface VacationResponse {
+  active: boolean;
+  started_at: string | null;
+  // Populated when a vacation was just ended.
+  shifted_items: number;
+  shifted_seconds: number;
 }
 
 export interface ImportResponse {
@@ -162,6 +172,13 @@ export const api = {
     request<SettingsResponse>('/auth/settings', {
       method: 'POST',
       body: JSON.stringify({ review_mode }),
+    }),
+
+  // Vacation mode toggle. Ending shifts all pending reviews forward by its duration.
+  setVacation: (active: boolean) =>
+    request<VacationResponse>('/auth/vacation', {
+      method: 'POST',
+      body: JSON.stringify({ active }),
     }),
 
   // WaniKani import

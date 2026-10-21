@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.auth.dependencies import get_current_user
+from src.auth.dependencies import get_current_user, require_not_on_vacation
 from src.auth.models import User
 from src.database import get_db
 from src.logging import logger
@@ -27,7 +27,10 @@ async def get_due_reviews(
     Requires authentication. Returns 401 if not authenticated.
     Returns 400 if validation error occurs (e.g., invalid user_id).
     Returns 500 if a database error occurs.
+    Returns an empty list while vacation mode is active (nothing is due on vacation).
     """
+    if current_user.vacation_started_at is not None:
+        return DueReviewsResponse(items=[], count=0)
     try:
         service = ReviewService(db)
         items = await service.get_due_reviews(user_id=current_user.id)
@@ -56,7 +59,7 @@ async def get_due_reviews(
 @router.post("", response_model=ReviewResponse, status_code=200)
 async def submit_review(
     request: ReviewCreateRequest,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_not_on_vacation),
     db: AsyncSession = Depends(get_db),
 ) -> ReviewResponse:
     """Submit a review for an item.

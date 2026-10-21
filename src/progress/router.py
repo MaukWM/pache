@@ -3,7 +3,7 @@
 from fastapi import APIRouter, Depends, Path, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.auth.dependencies import get_current_user
+from src.auth.dependencies import get_current_user, require_not_on_vacation
 from src.auth.models import User
 from src.core.constants import ItemType
 from src.database import get_db
@@ -144,7 +144,7 @@ async def burn_item(
 async def resurrect_item(
     item_type: ItemType = Path(..., description="Type of item to resurrect (kanji or vocab)"),
     item_id: int = Path(..., gt=0, description="Positive item ID"),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_not_on_vacation),
     db: AsyncSession = Depends(get_db),
 ) -> ResurrectResponse:
     """Resurrect a burned item, resetting it to SRS stage 1."""

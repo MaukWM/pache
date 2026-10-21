@@ -58,3 +58,13 @@ async def require_sentences_access(current_user: User = Depends(get_current_user
             detail="Production sentence access is not enabled for this account.",
         )
     return current_user
+
+
+async def require_not_on_vacation(current_user: User = Depends(get_current_user)) -> User:
+    """Block SRS-mutating actions (lessons, reviews) while vacation mode is active."""
+    if current_user.vacation_started_at is not None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Vacation mode is active. End it in account settings to resume.",
+        )
+    return current_user

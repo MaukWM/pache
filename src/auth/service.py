@@ -1,6 +1,7 @@
 """Authentication service layer."""
 
 import secrets
+from datetime import UTC, datetime
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -11,6 +12,8 @@ from src.auth.schemas import (
     SettingsResponse,
     SettingsUpdateRequest,
     UserResponse,
+    VacationResponse,
+    VacationUpdateRequest,
 )
 from src.auth.security import hash_password, verify_password
 from src.core.constants import (
@@ -18,7 +21,9 @@ from src.core.constants import (
     DEFAULT_ADMIN_USERNAME,
     DEFAULT_USER_PASSWORD,
 )
+from src.core.time import ensure_utc
 from src.logging import logger
+from src.progress.service import ProgressService
 
 
 class InvalidCredentialsError(Exception):
@@ -54,8 +59,10 @@ class AuthService:
         username or password raises InvalidCredentialsError.
         """
         user = await self._get_by_username(username)
-        if user is None or user.password_hash is None or not verify_password(
-            password, user.password_hash
+        if (
+            user is None
+            or user.password_hash is None
+            or not verify_password(password, user.password_hash)
         ):
             logger.info("login_failed", username=username)
             raise InvalidCredentialsError("Invalid username or password")
@@ -171,26 +178,16 @@ class AuthService:
 
     async def get_settings(self, user: User) -> SettingsResponse:
         """Get user settings."""
-        return SettingsResponse(
-            wk_api_key_configured=user.wk_api_key is not None,
-            password_set=user.password_hash is not None,
-            review_mode=user.review_mode,
-        )
+        return _settings_response(user)
 
     async def set_password(self, user: User, new_password: str) -> SettingsResponse:
         """Set/change the user's password (no old password required when logged in)."""
         user.password_hash = hash_password(new_password)
         await self.db.commit()
         logger.info("password_set", user_id=user.id)
-        return SettingsResponse(
-            wk_api_key_configured=user.wk_api_key is not None,
-            password_set=True,
-            review_mode=user.review_mode,
-        )
+        return _settings_response(user)
 
-    async def update_settings(
-        self, user: User, request: SettingsUpdateRequest
-    ) -> SettingsResponse:
+    async def update_settings(self, user: User, request: SettingsUpdateRequest) -> SettingsResponse:
         """Update user settings — only the fields explicitly present in the request.
 
         ``wk_api_key`` is nullable and clearing it (sending ``null``) is meaningful,
@@ -208,8 +205,71 @@ class AuthService:
             wk_key_set=user.wk_api_key is not None,
             review_mode=user.review_mode,
         )
-        return SettingsResponse(
-            wk_api_key_configured=user.wk_api_key is not None,
-            password_set=user.password_hash is not None,
-            review_mode=user.review_mode,
+        return _settings_response(user)
+
+    async def set_vacation(self, user: User, request: VacationUpdateRequest) -> VacationResponse:
+        """Start or end vacation mode (WaniKani semantics).
+
+        Starting records the current time. Ending shifts every scheduled review for the
+        user forward by the vacation's duration, so items that were due in N hours when
+        the vacation began are due in N hours again now. Both are idempotent: starting while
+        active keeps the original start; ending while inactive is a no-op.
+
+        The user row is locked for the transaction so two concurrent "end" requests
+        (double-click, two tabs) cannot both shift the schedule.
+        """
+        locked = (
+            await self.db.execute(
+                select(User)
+                .where(User.id == user.id)
+                .with_for_update()
+                .execution_options(populate_existing=True)
+            )
+        ).scalar_one()
+        now = datetime.now(UTC)
+        current = (
+            ensure_utc(locked.vacation_started_at)
+            if locked.vacation_started_at is not None
+            else None
         )
+
+        if request.active:
+            if current is not None:
+                await self.db.commit()
+                return VacationResponse(active=True, started_at=current)
+            locked.vacation_started_at = now
+            await self.db.commit()
+            logger.info("vacation_started", user_id=user.id, started_at=now.isoformat())
+            return VacationResponse(active=True, started_at=now)
+
+        if current is None:
+            await self.db.commit()
+            return VacationResponse(active=False, started_at=None)
+
+        shift = now - current
+        shifted_seconds = int(shift.total_seconds())
+        shifted = await ProgressService(self.db).shift_reviews(user.id, shift)
+        locked.vacation_started_at = None
+        await self.db.commit()
+        logger.info(
+            "vacation_ended",
+            user_id=user.id,
+            shifted_items=shifted,
+            shifted_seconds=shifted_seconds,
+        )
+        return VacationResponse(
+            active=False, started_at=None, shifted_items=shifted, shifted_seconds=shifted_seconds
+        )
+
+
+def _settings_response(user: User) -> SettingsResponse:
+    return SettingsResponse(
+        wk_api_key_configured=user.wk_api_key is not None,
+        password_set=user.password_hash is not None,
+        review_mode=user.review_mode,
+        # The DB hands back naive datetimes; mark them UTC so the JSON carries a "Z" and
+        # browsers don't parse the value as local time.
+        vacation_started_at=(
+            ensure_utc(user.vacation_started_at) if user.vacation_started_at else None
+        ),
+    )

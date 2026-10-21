@@ -1,5 +1,6 @@
 """Authentication request/response schemas."""
 
+from datetime import datetime
 from typing import Literal
 
 from pydantic import BaseModel, Field
@@ -87,3 +88,21 @@ class SettingsResponse(BaseModel):
     wk_api_key_configured: bool
     password_set: bool = False
     review_mode: str = "paired"
+    # Non-null while vacation mode is active.
+    vacation_started_at: datetime | None = None
+
+
+class VacationUpdateRequest(BaseModel):
+    """Request schema for toggling vacation mode (WaniKani semantics: on or off, nothing else)."""
+
+    active: bool
+
+
+class VacationResponse(BaseModel):
+    """Response schema for vacation mode state changes."""
+
+    active: bool
+    started_at: datetime | None
+    # Only populated when a vacation was just ended: how many reviews were pushed back, by how much.
+    shifted_items: int = 0
+    shifted_seconds: int = 0

@@ -5,7 +5,11 @@ from openai import OpenAIError
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.auth.dependencies import get_current_user, require_sentences_access
+from src.auth.dependencies import (
+    get_current_user,
+    require_not_on_vacation,
+    require_sentences_access,
+)
 from src.auth.models import User
 from src.core.rate_limit import limiter
 from src.database import get_db
@@ -149,7 +153,7 @@ async def get_sentence_lessons(
 async def complete_sentence_lessons(
     request: Request,
     payload: SentenceLessonCompleteRequest,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_not_on_vacation),
     db: AsyncSession = Depends(get_db),
 ) -> SentenceLessonCompleteResponse:
     """Learn a batch of pending sentences — they enter SRS at Apprentice 1 (first review ~4h)."""
@@ -179,7 +183,12 @@ async def get_due_sentences(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> DueSentencesResponse:
-    """Get production sentences due for review (hour-batched). Reference JP omitted."""
+    """Get production sentences due for review (hour-batched). Reference JP omitted.
+
+    Returns an empty list while vacation mode is active.
+    """
+    if current_user.vacation_started_at is not None:
+        return DueSentencesResponse(items=[], count=0)
     try:
         service = SentenceService(db)
         items = await service.get_due(user_id=current_user.id)
@@ -202,7 +211,7 @@ async def get_due_sentences(
 async def submit_sentence_review(
     request: Request,
     payload: SentenceReviewCreateRequest,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_not_on_vacation),
     db: AsyncSession = Depends(get_db),
 ) -> SentenceReviewResponse:
     """Submit a written attempt; judge it, update SRS, and reveal the reference."""
@@ -382,7 +391,7 @@ async def override_sentence_review(
     request: Request,
     sentence_id: int,
     payload: SentenceOverrideRequest,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_not_on_vacation),
     db: AsyncSession = Depends(get_db),
 ) -> SentenceOverrideResponse:
     """Override the latest rejected review — accept the answer, advance SRS, store the reason."""
@@ -407,9 +416,7 @@ async def override_sentence_review(
         ) from e
 
 
-@router.post(
-    "/{sentence_id}/grammar", response_model=SentenceGrammarItem, status_code=200
-)
+@router.post("/{sentence_id}/grammar", response_model=SentenceGrammarItem, status_code=200)
 @limiter.limit(settings.rate_limit_write)
 async def attach_sentence_grammar(
     request: Request,

@@ -17,6 +17,8 @@ from src.auth.schemas import (
     SettingsUpdateRequest,
     UserCreateRequest,
     UserResponse,
+    VacationResponse,
+    VacationUpdateRequest,
 )
 from src.auth.service import (
     AuthService,
@@ -157,3 +159,14 @@ async def update_settings(
     """Update user settings (WaniKani API key, review mode)."""
     service = AuthService(db)
     return await service.update_settings(current_user, request)
+
+
+@router.post("/vacation", response_model=VacationResponse)
+async def set_vacation(
+    request: VacationUpdateRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> VacationResponse:
+    """Start or end vacation mode. Ending shifts all pending reviews forward by its duration."""
+    service = AuthService(db)
+    return await service.set_vacation(current_user, request)

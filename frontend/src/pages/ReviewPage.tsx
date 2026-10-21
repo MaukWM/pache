@@ -1,7 +1,8 @@
 import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { api, type ReviewItem, type ReviewMode } from '../lib/api';
+import { toast } from 'sonner';
+import { api, ApiError, type ReviewItem, type ReviewMode } from '../lib/api';
 import { QuizCard, type CardType } from '../components/QuizCard';
 import { QuizShell } from '../components/QuizShell';
 import { evaluateAnswer } from '../lib/quiz';
@@ -83,6 +84,16 @@ export function ReviewPage() {
     mutationFn: api.submitReview,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['progressMap'] });
+    },
+    onError: (err: Error) => {
+      toast.error(err.message);
+      // 409 = vacation mode started elsewhere: nothing further will be recorded, so
+      // leave the session instead of letting the user answer cards that go nowhere.
+      if (err instanceof ApiError && err.status === 409) {
+        queryClient.invalidateQueries({ queryKey: ['settings'] });
+        queryClient.invalidateQueries({ queryKey: ['reviews'] });
+        navigate('/');
+      }
     },
   });
 

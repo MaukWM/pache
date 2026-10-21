@@ -1,6 +1,6 @@
 """Progress tracking service layer."""
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 from fastapi import HTTPException, status
 from sqlalchemy import select
@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from src.core.constants import SRS_INTERVALS, ItemType, ProgressSource
+from src.core.time import ensure_utc
 from src.kanji.models import Kanji
 from src.progress.models import LessonQueue, UserItemProgress
 from src.progress.schemas import (
@@ -28,6 +29,34 @@ class ProgressService:
     def __init__(self, db: AsyncSession):
         """Initialize service with database session."""
         self.db = db
+
+    async def shift_reviews(self, user_id: int, delta: timedelta) -> int:
+        """Push every scheduled review for a user forward by ``delta``.
+
+        Covers kanji, vocab and production sentences alike — they share this table. Only
+        MANUAL-source rows are touched (the same filter as the due query): WaniKani-sourced
+        items review on WaniKani, and burned rows have no ``next_review_at``. Rows are
+        locked so a concurrent review submit can't be overwritten with a stale value.
+        Does not commit; the caller owns the transaction. Returns the number of rows shifted.
+
+        Done in Python rather than a bulk UPDATE: datetime arithmetic is not portable
+        between MySQL and the SQLite test backend.
+        """
+        result = await self.db.execute(
+            select(UserItemProgress)
+            .where(
+                UserItemProgress.user_id == user_id,
+                UserItemProgress.source == ProgressSource.MANUAL,
+                UserItemProgress.next_review_at.isnot(None),
+            )
+            .with_for_update()
+        )
+        rows = list(result.scalars().all())
+        for progress in rows:
+            if progress.next_review_at is None:  # filtered by the query; keeps mypy honest
+                continue
+            progress.next_review_at = ensure_utc(progress.next_review_at) + delta
+        return len(rows)
 
     async def add_to_queue(
         self,
@@ -77,9 +106,7 @@ class ProgressService:
                 "tags": [],
                 "creator_comment": None,
                 "creator_username": None,
-                "kanji": [
-                    {"character": k.character, "meanings": k.meanings} for k in item.kanji
-                ],
+                "kanji": [{"character": k.character, "meanings": k.meanings} for k in item.kanji],
             }
         else:
             raise HTTPException(
@@ -216,8 +243,7 @@ class ProgressService:
                         "creator_comment": None,
                         "creator_username": None,
                         "kanji": [
-                            {"character": k.character, "meanings": k.meanings}
-                            for k in vocab.kanji
+                            {"character": k.character, "meanings": k.meanings} for k in vocab.kanji
                         ],
                     }
                 else:

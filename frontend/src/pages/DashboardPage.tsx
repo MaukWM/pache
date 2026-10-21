@@ -138,6 +138,8 @@ export function DashboardPage() {
     enabled: canSentences,
   });
   const progress = useQuery({ queryKey: ['progress'], queryFn: () => api.getProgress() });
+  const settings = useQuery({ queryKey: ['settings'], queryFn: api.getSettings });
+  const onVacation = !!settings.data?.vacation_started_at;
   const wanikani = useQuery({
     queryKey: ['wanikani-status'],
     queryFn: api.getWanikaniStatus,
@@ -168,9 +170,16 @@ export function DashboardPage() {
   // Local review times — must mirror /me/reviews exactly: only MANUAL-source,
   // non-burned items count as our reviews. WaniKani-source items review on WK
   // (any next_review_at they carry is stale) and belong to the 鰐蟹 forecast.
+  // On vacation nothing is due and the schedule will shift on end, so the local
+  // forecast would only show a misleading, growing "due now" pile.
   const localDue = useMemo(
-    () => (progress.data ?? []).filter((p) => p.source === 'manual' && p.srs_stage < 9 && !!p.next_review_at),
-    [progress.data],
+    () =>
+      onVacation
+        ? []
+        : (progress.data ?? []).filter(
+            (p) => p.source === 'manual' && p.srs_stage < 9 && !!p.next_review_at,
+          ),
+    [progress.data, onVacation],
   );
   // Split local reviews: kanji/vocab (black) vs production sentences (green).
   const oursIso = useMemo(
@@ -208,6 +217,18 @@ export function DashboardPage() {
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-bold">おかえりなさい、{user?.username}！</h1>
+
+      {onVacation && (
+        <div className="flex flex-wrap items-baseline gap-x-2 border border-border bg-muted/40 px-4 py-3 text-sm">
+          <span className="font-bold">休暇モード中</span>
+          <span className="text-muted-foreground">
+            レッスンと復習は止まっています。復習予定は終了時に後ろへずれます。
+          </span>
+          <Link to="/account" className="underline underline-offset-4">
+            アカウント設定で終了する
+          </Link>
+        </div>
+      )}
 
       {/* Two grouped pairs: 漢字・語彙 (pink→purple) over 作文 (green). */}
       <div className="space-y-5">

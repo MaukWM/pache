@@ -35,6 +35,11 @@ class User(Base):
     # User-added topic seeds for grammar-practice generation (JSON list of strings).
     # Sampled together with the built-in defaults; null = defaults only.
     practice_topics: Mapped[list[str] | None] = mapped_column(JSON, nullable=True)
+    # Vacation mode (WaniKani semantics): non-null = paused. Lessons/reviews are blocked while
+    # set; on ending, every pending next_review_at is shifted forward by the elapsed duration.
+    vacation_started_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=lambda: datetime.now(UTC),

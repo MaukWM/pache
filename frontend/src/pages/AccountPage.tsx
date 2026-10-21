@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
 import { api } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { cn } from '@/lib/utils';
@@ -35,6 +36,8 @@ export function AccountPage() {
       <PasswordSettings queryClient={queryClient} />
 
       <ReviewSettings queryClient={queryClient} />
+
+      <VacationSettings queryClient={queryClient} />
 
       {user?.is_admin && <AdminUsers queryClient={queryClient} />}
 
@@ -307,6 +310,81 @@ function ReviewSettings({ queryClient }: { queryClient: ReturnType<typeof useQue
         <p className="text-sm text-muted-foreground">
           {OPTIONS.find((o) => o.value === mode)?.desc}
         </p>
+      </CardContent>
+    </Card>
+  );
+}
+
+function formatDuration(seconds: number): string {
+  const days = Math.floor(seconds / 86400);
+  const hours = Math.floor((seconds % 86400) / 3600);
+  if (days > 0) return hours > 0 ? `${days}日${hours}時間` : `${days}日`;
+  if (hours > 0) return `${hours}時間`;
+  return `${Math.floor(seconds / 60)}分`;
+}
+
+function VacationSettings({ queryClient }: { queryClient: ReturnType<typeof useQueryClient> }) {
+  const settings = useQuery({ queryKey: ['settings'], queryFn: api.getSettings });
+  const startedAt = settings.data?.vacation_started_at ?? null;
+  const active = startedAt !== null;
+
+  const invalidate = () => {
+    queryClient.invalidateQueries({ queryKey: ['settings'] });
+    // Due lists empty/refill on start/end; the dashboard forecast is derived from ['progress'].
+    queryClient.invalidateQueries({ queryKey: ['reviews'] });
+    queryClient.invalidateQueries({ queryKey: ['sentenceReviews'] });
+    queryClient.invalidateQueries({ queryKey: ['progress'] });
+    queryClient.invalidateQueries({ queryKey: ['progressMap'] });
+  };
+
+  const startMutation = useMutation({
+    mutationFn: () => api.setVacation(true),
+    onSuccess: () => {
+      invalidate();
+      toast.success('休暇モードを開始しました');
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
+
+  const endMutation = useMutation({
+    mutationFn: () => api.setVacation(false),
+    onSuccess: (data) => {
+      invalidate();
+      toast.success(
+        `休暇モードを終了しました。${data.shifted_items}件の復習を${formatDuration(data.shifted_seconds)}延期しました`,
+      );
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
+
+  const busy = settings.isLoading || startMutation.isPending || endMutation.isPending;
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-lg">休暇モード</CardTitle>
+        <CardDescription>
+          有効な間はレッスンと復習が止まります。終了すると、すべての復習予定が休暇の長さだけ後ろにずれます。
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {active ? (
+          <>
+            <p className="flex items-center gap-2 text-sm">
+              <Badge variant="secondary">休暇中</Badge>
+              <span className="text-muted-foreground">
+                {new Date(startedAt).toLocaleString('ja-JP')} から
+              </span>
+            </p>
+            <Button disabled={busy} onClick={() => endMutation.mutate()}>
+              休暇モードを終了する
+            </Button>
+          </>
+        ) : (
+          <Button disabled={busy} onClick={() => startMutation.mutate()}>
+            休暇モードを開始する
+          </Button>
+        )}
       </CardContent>
     </Card>
   );
